@@ -1,9 +1,10 @@
-import { Type, Palette, Layout, Settings, Download, Trash, ChevronDown, ChevronRight, Play, Clapperboard, Video, Sliders } from 'lucide-react';
+import { Type, Palette, Layout, Download, ChevronDown, ChevronRight, Play, Clapperboard, Video, Sliders } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { type Preset } from '../App';
 import { twMerge } from 'tailwind-merge';
 
 // UI Helpers
-const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false }: { title: string, icon: any, children: ReactNode, defaultOpen?: boolean }) => {
+const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false }: { title: string, icon: React.ElementType, children: ReactNode, defaultOpen?: boolean }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
         <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50/50">
@@ -97,9 +98,9 @@ interface SidebarProps {
     compositionShadow: number;
     setCompositionShadow: (v: number) => void;
 
-    presets: any[]; // Using any to avoid circular type dependency or duplication, ideally define shared type
+    presets: Preset[];
     onSavePreset: (name: string) => void;
-    onLoadPreset: (preset: any) => void;
+    onLoadPreset: (preset: Preset) => void;
     onDeletePreset: (id: string) => void;
 
     // Animation
@@ -300,7 +301,7 @@ export function Sidebar({
                                         {['none', 'pop', 'slide', 'typewriter'].map((preset) => (
                                             <button
                                                 key={preset}
-                                                onClick={() => setAnimationPreset(preset as any)}
+                                                onClick={() => setAnimationPreset(preset as SidebarProps['animationPreset'])}
                                                 className={twMerge(
                                                     "px-3 py-2 text-sm rounded-lg border transition-all capitalize",
                                                     animationPreset === preset

@@ -1,8 +1,40 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { PreviewArea } from './components/PreviewArea';
 import { toPng, toSvg, toCanvas } from 'html-to-image';
 import { usePersistentState } from './hooks/usePersistentState';
+
+export interface Preset {
+  id: string;
+  name: string;
+  timestamp: number;
+  text: string;
+  subtitle: string;
+  subtitlePos: 'top' | 'bottom';
+  subtitleSize: number;
+  subtitlePadding: { x: number, y: number };
+  subtitleRadius: number;
+  bannerGap: number;
+  tileColor: string;
+  textColor: string;
+  subTileColor: string;
+  subTextColor: string;
+  fontFamily: string;
+  chaosLevel: number;
+  tileSize: number;
+  tileGap: number;
+  shadowOffset: number;
+  shadowChaos: number;
+  borderRadius: number;
+  tilePadding: number;
+  canvasBg: string;
+  blackBgBlur: boolean;
+  scaleChaos: number;
+  posChaos: number;
+  compositionShadow: number;
+  animationPreset: 'none' | 'pop' | 'slide' | 'typewriter';
+  animationDuration: number;
+}
 
 function App() {
   const [text, setText] = usePersistentState('text', 'Scott\nRogowsky');
@@ -48,38 +80,7 @@ function App() {
   const [animationDuration, setAnimationDuration] = usePersistentState('animationDuration', 2); // seconds
   const [animationProgress, setAnimationProgress] = useState(1); // 1 = complete (default state)
 
-  // Presets
-  interface Preset {
-    id: string;
-    name: string;
-    timestamp: number;
-    text: string;
-    subtitle: string;
-    subtitlePos: 'top' | 'bottom';
-    subtitleSize: number;
-    subtitlePadding: { x: number, y: number };
-    subtitleRadius: number;
-    bannerGap: number;
-    tileColor: string;
-    textColor: string;
-    subTileColor: string;
-    subTextColor: string;
-    fontFamily: string;
-    chaosLevel: number;
-    tileSize: number;
-    tileGap: number;
-    shadowOffset: number;
-    shadowChaos: number;
-    borderRadius: number;
-    tilePadding: number;
-    canvasBg: string;
-    blackBgBlur: boolean;
-    scaleChaos: number;
-    posChaos: number;
-    compositionShadow: number;
-    animationPreset: 'none' | 'pop' | 'slide' | 'typewriter';
-    animationDuration: number;
-  }
+
 
   const [presets, setPresets] = usePersistentState<Preset[]>('presets', []);
 
@@ -188,7 +189,7 @@ function App() {
         // Capture frame
         // Note: We use toCanvas to get a canvas element (transparent)
         const canvas = await toCanvas(node, {
-          backgroundColor: null as any, // Transparent
+          backgroundColor: null as unknown as string, // Transparent
           style: {
             transform: 'scale(1)', // Ensure no unintended scaling
           }
