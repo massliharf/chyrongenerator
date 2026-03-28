@@ -9,9 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
- "deploy": "gh-pages -d build",
-"start": "react-scripts start",
- "build": "react-scripts build"
+    "deploy": "gh-pages -d build",
+    "start": "react-scripts start",
+    "build": "react-scripts build"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
