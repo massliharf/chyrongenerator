@@ -125,7 +125,8 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                         {subtitlePos === 'top' && subtitle && (
                             <div
                                 className={twMerge(
-                                    "transform rotate-[-1deg] transition-all duration-300 origin-center",
+                                    "transform rotate-[-1deg] origin-center",
+                                    animationProgress === 1 && "transition-all duration-300"
                                 )}
                                 style={mergedSubtitleContainerStyle(true)}
                             >
@@ -152,8 +153,8 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                             {lines.map((line, lineIndex) => (
                                 <div
                                     key={lineIndex}
-                                    className="flex flex-wrap items-center justify-center"
-                                    style={{ gap: `${tileGap}px`, maxWidth: '100%' }}
+                                    className="flex flex-nowrap w-max items-center justify-center"
+                                    style={{ gap: `${tileGap}px` }}
                                 >
                                     {line.split('').map((char, charIndex) => {
                                         // Calculate global index for alternating rotation continuity
@@ -192,7 +193,8 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                         {subtitlePos === 'bottom' && subtitle && (
                             <div
                                 className={twMerge(
-                                    "transform rotate-[-1deg] transition-all duration-300 origin-center",
+                                    "transform rotate-[-1deg] origin-center",
+                                    animationProgress === 1 && "transition-all duration-300"
                                 )}
                                 style={mergedSubtitleContainerStyle(false)}
                             >
