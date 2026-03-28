@@ -1,8 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&family=Nunito+Sans:wght@400;700&display=swap');
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Wicked Mouse';
+  src: url('/assets/fonts/wicked_mouse/Wicked Mouse Demo.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 body {
   background-color: white;
   color: black;
-  font-family: 'Fredoka One', cursive;
+  font-family: 'Wicked Mouse', cursive;
 }
