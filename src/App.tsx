@@ -53,7 +53,7 @@ function App() {
   const [subTileColor, setSubTileColor] = usePersistentState('subTileColor', '#F97316'); // Orange (orange-500)
   const [subTextColor, setSubTextColor] = usePersistentState('subTextColor', '#FFFFFF');
 
-  const [fontFamily, setFontFamily] = usePersistentState('fontFamily', 'Fredoka One');
+  const [fontFamily, setFontFamily] = usePersistentState('fontFamily', 'Wicked Mouse');
 
   const [chaosLevel, setChaosLevel] = usePersistentState('chaosLevel', 5);
   const [tileSize, setTileSize] = usePersistentState('tileSize', 1); // Scale factor (0.5 to 2)
