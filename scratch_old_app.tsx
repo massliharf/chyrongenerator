@@ -3,13 +3,6 @@ import { Sidebar } from './components/Sidebar';
 import { PreviewArea } from './components/PreviewArea';
 import { toPng, toSvg, toCanvas } from 'html-to-image';
 import { usePersistentState } from './hooks/usePersistentState';
-import { TypographyGenerator } from './components/styles/TypographyGenerator';
-
-type ChyronMode = 'tiles' | 'typography';
-const MODES: { id: ChyronMode; label: string }[] = [
-  { id: 'tiles', label: 'Tiles Mode' },
-  { id: 'typography', label: 'Typography Mode' },
-];
 
 export interface Preset {
   id: string;
@@ -30,7 +23,6 @@ export interface Preset {
   chaosLevel: number;
   tileSize: number;
   tileGap: number;
-  lineGap: number;
   shadowOffset: number;
   shadowChaos: number;
   borderRadius: number;
@@ -45,35 +37,33 @@ export interface Preset {
 }
 
 function App() {
-  const [chyronMode, setChyronMode] = useState<ChyronMode>('tiles');
   const [text, setText] = usePersistentState('text', 'Scott\nRogowsky');
   const [subtitle, setSubtitle] = usePersistentState('subtitle', 'PUZZLE PAPI');
 
   // Subtitle Customization
   const [subtitlePos, setSubtitlePos] = usePersistentState<'top' | 'bottom'>('subtitlePos', 'bottom');
-  const [subtitleSize, setSubtitleSize] = usePersistentState('subtitleSize', 2); // rem
+  const [subtitleSize, setSubtitleSize] = usePersistentState('subtitleSize', 2.4); // rem
   const [subtitlePadding, setSubtitlePadding] = usePersistentState('subtitlePadding', { x: 26, y: 6 }); // px
   const [subtitleRadius, setSubtitleRadius] = usePersistentState('subtitleRadius', 12); // px
   const [bannerGap, setBannerGap] = usePersistentState('bannerGap', 32); // px
 
   // Colors matching the reference image style
-  const [tileColor, setTileColor] = usePersistentState('tileColor', '#CCE1FF');
-  const [textColor, setTextColor] = usePersistentState('textColor', '#001533');
-  const [subTileColor, setSubTileColor] = usePersistentState('subTileColor', '#006AFF');
+  const [tileColor, setTileColor] = usePersistentState('tileColor', '#E0F2FE'); // Light blue/white (sky-100)
+  const [textColor, setTextColor] = usePersistentState('textColor', '#1F2937'); // Dark gray/black
+  const [subTileColor, setSubTileColor] = usePersistentState('subTileColor', '#F97316'); // Orange (orange-500)
   const [subTextColor, setSubTextColor] = usePersistentState('subTextColor', '#FFFFFF');
 
   const [fontFamily, setFontFamily] = usePersistentState('fontFamily', 'Wicked Mouse');
 
   const [chaosLevel, setChaosLevel] = usePersistentState('chaosLevel', 5);
-  const [tileSize, setTileSize] = usePersistentState('tileSize', 1.4); // Scale factor (0.5 to 2)
-  const [tileGap, setTileGap] = usePersistentState('tileGap', 8); // px
-  const [lineGap, setLineGap] = usePersistentState('lineGap', 8); // px
+  const [tileSize, setTileSize] = usePersistentState('tileSize', 1); // Scale factor (0.5 to 2)
+  const [tileGap, setTileGap] = usePersistentState('tileGap', 12); // px
   // Shadow controls
-  const [shadowOffset, setShadowOffset] = usePersistentState('shadowOffset', 4); // px
+  const [shadowOffset, setShadowOffset] = usePersistentState('shadowOffset', 6); // px
   const [shadowChaos, setShadowChaos] = usePersistentState('shadowChaos', 0); // 0-10 intensity
 
   // Advanced styling
-  const [borderRadius, setBorderRadius] = usePersistentState('borderRadius', 16); // px
+  const [borderRadius, setBorderRadius] = usePersistentState('borderRadius', 12); // px
   const [tilePadding, setTilePadding] = usePersistentState('tilePadding', 16); // px
   const [canvasBg, setCanvasBg] = usePersistentState('canvasBg', '#171717'); // hex
   const [blackBgBlur, setBlackBgBlur] = usePersistentState('blackBgBlur', false); // boolean
@@ -101,7 +91,7 @@ function App() {
       timestamp: Date.now(),
       text, subtitle, subtitlePos, subtitleSize, subtitlePadding, subtitleRadius, bannerGap,
       tileColor, textColor, subTileColor, subTextColor, fontFamily,
-      chaosLevel, tileSize, tileGap, lineGap, shadowOffset, shadowChaos,
+      chaosLevel, tileSize, tileGap, shadowOffset, shadowChaos,
       borderRadius, tilePadding, canvasBg, blackBgBlur, scaleChaos, posChaos,
       compositionShadow, animationPreset, animationDuration
     };
@@ -124,7 +114,6 @@ function App() {
     setChaosLevel(preset.chaosLevel);
     setTileSize(preset.tileSize);
     setTileGap(preset.tileGap);
-    setLineGap(preset.lineGap ?? preset.tileGap ?? 16); // Fallback for old presets
     setShadowOffset(preset.shadowOffset);
     setShadowChaos(preset.shadowChaos);
     setBorderRadius(preset.borderRadius);
@@ -140,34 +129,6 @@ function App() {
 
   const handleDeletePreset = (id: string) => {
     setPresets(presets.filter(p => p.id !== id));
-  };
-
-  const handleResetDefaults = () => {
-    setTileColor('#CCE1FF');
-    setTextColor('#001533');
-    setSubTileColor('#006AFF');
-    setSubTextColor('#FFFFFF');
-    setFontFamily('Wicked Mouse');
-    setSubtitlePos('bottom');
-    setSubtitleSize(2);
-    setSubtitlePadding({ x: 26, y: 6 });
-    setSubtitleRadius(12);
-    setBannerGap(32);
-    setChaosLevel(5);
-    setTileSize(1.4);
-    setTileGap(8);
-    setLineGap(8);
-    setShadowOffset(4);
-    setShadowChaos(0);
-    setBorderRadius(16);
-    setTilePadding(16);
-    setCanvasBg('#171717');
-    setBlackBgBlur(false);
-    setScaleChaos(0);
-    setPosChaos(0);
-    setCompositionShadow(0);
-    setAnimationPreset('none');
-    setAnimationDuration(2);
   };
 
   const handlePlayAnimation = () => {
@@ -305,135 +266,112 @@ function App() {
   }, [previewRef]);
 
   return (
-    <div className="flex flex-col h-screen w-full bg-white overflow-hidden font-sans">
-      {/* ── Mode Selector Bar ── */}
-      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 bg-neutral-950 border-b border-neutral-800 overflow-x-auto z-30">
-        {MODES.map(mode => (
-          <button
-            key={mode.id}
-            onClick={() => setChyronMode(mode.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all whitespace-nowrap uppercase tracking-wider ${
-              chyronMode === mode.id
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
-            }`}
-          >
-            <span>{mode.label}</span>
-          </button>
-        ))}
+    <div className="flex flex-col md:flex-row h-screen w-full bg-white overflow-hidden font-sans">
+      {/* Sidebar */}
+      <div className="flex-shrink-0 w-full md:w-auto h-1/3 md:h-full relative z-20 overflow-y-auto md:overflow-visible">
+        <Sidebar
+          text={text}
+          setText={setText}
+          subtitle={subtitle}
+          setSubtitle={setSubtitle}
+          subtitlePos={subtitlePos}
+          setSubtitlePos={setSubtitlePos}
+          subtitleSize={subtitleSize}
+          setSubtitleSize={setSubtitleSize}
+          subtitlePadding={subtitlePadding}
+          setSubtitlePadding={setSubtitlePadding}
+          subtitleRadius={subtitleRadius}
+          setSubtitleRadius={setSubtitleRadius}
+          tileColor={tileColor}
+          setTileColor={setTileColor}
+          textColor={textColor}
+          setTextColor={setTextColor}
+          subTileColor={subTileColor}
+          setSubTileColor={setSubTileColor}
+          subTextColor={subTextColor}
+          setSubTextColor={setSubTextColor}
+          fontFamily={fontFamily}
+          setFontFamily={setFontFamily}
+          chaosLevel={chaosLevel}
+          setChaosLevel={setChaosLevel}
+          tileSize={tileSize}
+          setTileSize={setTileSize}
+          tileGap={tileGap}
+          setTileGap={setTileGap}
+          shadowOffset={shadowOffset}
+          setShadowOffset={setShadowOffset}
+          shadowChaos={shadowChaos}
+          setShadowChaos={setShadowChaos}
+          borderRadius={borderRadius}
+          setBorderRadius={setBorderRadius}
+          tilePadding={tilePadding}
+          setTilePadding={setTilePadding}
+          canvasBg={canvasBg}
+          setCanvasBg={setCanvasBg}
+          scaleChaos={scaleChaos}
+          setScaleChaos={setScaleChaos}
+          posChaos={posChaos}
+          setPosChaos={setPosChaos}
+          bannerGap={Number(bannerGap)}
+          setBannerGap={setBannerGap}
+          blackBgBlur={blackBgBlur}
+          setBlackBgBlur={setBlackBgBlur}
+          compositionShadow={compositionShadow}
+          setCompositionShadow={setCompositionShadow}
+          presets={presets}
+          onSavePreset={handleSavePreset}
+          onLoadPreset={handleLoadPreset}
+          onDeletePreset={handleDeletePreset}
+          onDownload={handleDownload}
+          onDownloadSvg={handleDownloadSvg}
+          onDownloadVideo={handleDownloadVideo}
+          isDownloading={isDownloading}
+          isExportingVideo={isExportingVideo}
+          videoProgress={videoProgress}
+          animationPreset={animationPreset}
+          setAnimationPreset={setAnimationPreset}
+          onPlayAnimation={handlePlayAnimation}
+        />
       </div>
 
-      {/* ── Content Area ── */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {chyronMode === 'tiles' ? (
-          <>
-            {/* Existing Tile Generator — ZERO CHANGES */}
-            <div className="flex-shrink-0 w-full md:w-auto h-1/3 md:h-full relative z-20 overflow-y-auto md:overflow-visible">
-              <Sidebar
-                text={text}
-                setText={setText}
-                subtitle={subtitle}
-                setSubtitle={setSubtitle}
-                subtitlePos={subtitlePos}
-                setSubtitlePos={setSubtitlePos}
-                subtitleSize={subtitleSize}
-                setSubtitleSize={setSubtitleSize}
-                subtitlePadding={subtitlePadding}
-                setSubtitlePadding={setSubtitlePadding}
-                subtitleRadius={subtitleRadius}
-                setSubtitleRadius={setSubtitleRadius}
-                tileColor={tileColor}
-                setTileColor={setTileColor}
-                textColor={textColor}
-                setTextColor={setTextColor}
-                subTileColor={subTileColor}
-                setSubTileColor={setSubTileColor}
-                subTextColor={subTextColor}
-                setSubTextColor={setSubTextColor}
-                fontFamily={fontFamily}
-                setFontFamily={setFontFamily}
-                chaosLevel={chaosLevel}
-                setChaosLevel={setChaosLevel}
-                tileSize={tileSize}
-                setTileSize={setTileSize}
-                tileGap={tileGap}
-                setTileGap={setTileGap}
-                lineGap={lineGap}
-                setLineGap={setLineGap}
-                shadowOffset={shadowOffset}
-                setShadowOffset={setShadowOffset}
-                shadowChaos={shadowChaos}
-                setShadowChaos={setShadowChaos}
-                borderRadius={borderRadius}
-                setBorderRadius={setBorderRadius}
-                tilePadding={tilePadding}
-                setTilePadding={setTilePadding}
-                canvasBg={canvasBg}
-                setCanvasBg={setCanvasBg}
-                scaleChaos={scaleChaos}
-                setScaleChaos={setScaleChaos}
-                posChaos={posChaos}
-                setPosChaos={setPosChaos}
-                bannerGap={Number(bannerGap)}
-                setBannerGap={setBannerGap}
-                blackBgBlur={blackBgBlur}
-                setBlackBgBlur={setBlackBgBlur}
-                compositionShadow={compositionShadow}
-                setCompositionShadow={setCompositionShadow}
-                presets={presets}
-                onSavePreset={handleSavePreset}
-                onLoadPreset={handleLoadPreset}
-                onDeletePreset={handleDeletePreset}
-                onResetDefaults={handleResetDefaults}
-                onDownload={handleDownload}
-                onDownloadSvg={handleDownloadSvg}
-                onDownloadVideo={handleDownloadVideo}
-                isDownloading={isDownloading}
-                isExportingVideo={isExportingVideo}
-                videoProgress={videoProgress}
-                animationPreset={animationPreset}
-                setAnimationPreset={setAnimationPreset}
-                onPlayAnimation={handlePlayAnimation}
-              />
-            </div>
-            <div className="flex-grow relative z-10 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] bg-neutral-900 border-l border-neutral-800">
-              <div className="absolute inset-0 flex items-center justify-center overflow-auto">
-                <PreviewArea
-                  ref={previewRef}
-                  text={text}
-                  subtitle={subtitle}
-                  subtitlePos={subtitlePos}
-                  subtitleSize={subtitleSize}
-                  subtitlePadding={subtitlePadding}
-                  subtitleRadius={subtitleRadius}
-                  tileColor={tileColor}
-                  textColor={textColor}
-                  subTileColor={subTileColor}
-                  subTextColor={subTextColor}
-                  fontFamily={fontFamily}
-                  chaosLevel={chaosLevel}
-                  tileSize={tileSize}
-                  tileGap={tileGap}
-                  lineGap={lineGap}
-                  shadowOffset={shadowOffset}
-                  shadowChaos={shadowChaos}
-                  borderRadius={borderRadius}
-                  tilePadding={tilePadding}
-                  canvasBg={canvasBg}
-                  scaleChaos={scaleChaos}
-                  posChaos={posChaos}
-                  bannerGap={Number(bannerGap)}
-                  blackBgBlur={blackBgBlur}
-                  compositionShadow={compositionShadow}
-                  animationProgress={animationProgress}
-                  animationPreset={animationPreset}
-                />
-              </div>
-            </div>
-          </>
-        ) : chyronMode === 'typography' ? (
-          <TypographyGenerator />
-        ) : null}
+      {/* Main Preview Area */}
+      <div className="flex-grow relative z-10 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] bg-neutral-900 border-l border-neutral-800">
+        <div className="absolute inset-0 flex items-center justify-center overflow-auto">
+          <PreviewArea
+            ref={previewRef}
+            text={text}
+            subtitle={subtitle}
+            subtitlePos={subtitlePos}
+            subtitleSize={subtitleSize}
+            subtitlePadding={subtitlePadding}
+            subtitleRadius={subtitleRadius}
+            tileColor={tileColor}
+            textColor={textColor}
+            subTileColor={subTileColor}
+            subTextColor={subTextColor}
+            fontFamily={fontFamily}
+            chaosLevel={chaosLevel}
+            tileSize={tileSize}
+            tileGap={tileGap}
+            shadowOffset={shadowOffset}
+            shadowChaos={shadowChaos}
+            borderRadius={borderRadius}
+            tilePadding={tilePadding}
+            canvasBg={canvasBg}
+            scaleChaos={scaleChaos}
+            posChaos={posChaos}
+            bannerGap={Number(bannerGap)}
+            blackBgBlur={blackBgBlur}
+            compositionShadow={compositionShadow}
+            animationProgress={animationProgress}
+            animationPreset={animationPreset}
+          />
+        </div>
+
+        {/* Background Hint or Overlay if needed */}
+        <div className="absolute bottom-4 right-4 text-neutral-600 text-xs pointer-events-none select-none">
+          Preview checks
+        </div>
       </div>
     </div>
   );
