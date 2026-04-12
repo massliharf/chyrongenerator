@@ -4,7 +4,7 @@ import { type Preset } from '../App';
 import { twMerge } from 'tailwind-merge';
 
 // UI Helpers - Clean Minimal Style (No weird colors, just white/gray/blue)
-const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false }: { title: string, icon: React.ElementType, children: ReactNode, defaultOpen?: boolean }) => {
+export const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false }: { title: string, icon: React.ElementType, children: ReactNode, defaultOpen?: boolean }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
         <div className="border-b border-gray-200 last:border-b-0">
@@ -27,7 +27,7 @@ const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false }: { ti
     );
 };
 
-const SliderControl = ({ label, value, onChange, min, max, step, unit = '' }: { label: string, value: number, onChange: (v: number) => void, min: number, max: number, step: number, unit?: string }) => (
+export const SliderControl = ({ label, value, onChange, min, max, step, unit = '' }: { label: string, value: number, onChange: (v: number) => void, min: number, max: number, step: number, unit?: string }) => (
     <div className="space-y-2.5">
         <div className="flex justify-between items-center text-xs">
             <label className="text-gray-600 font-medium tracking-wide">{label}</label>
@@ -73,7 +73,7 @@ interface SidebarProps {
     bannerGap: number; setBannerGap: (v: number) => void;
     blackBgBlur: boolean; setBlackBgBlur: (v: boolean) => void;
     compositionShadow: number; setCompositionShadow: (v: number) => void;
-    presets: Preset[]; onSavePreset: (name: string) => void; onLoadPreset: (preset: Preset) => void; onDeletePreset: (id: string) => void;
+    presets: Preset[]; onSavePreset: (name: string) => void; onLoadPreset: (preset: Preset) => void; onDeletePreset: (id: string) => void; onResetDefaults: () => void;
     animationPreset: 'none' | 'pop' | 'slide' | 'typewriter'; setAnimationPreset: (v: 'none' | 'pop' | 'slide' | 'typewriter') => void;
     onPlayAnimation: () => void; onDownloadVideo: () => void; isExportingVideo: boolean; videoProgress: number;
 }
@@ -87,7 +87,7 @@ export function Sidebar({
     tilePadding, setTilePadding, canvasBg, setCanvasBg, scaleChaos, setScaleChaos, posChaos, setPosChaos,
     onDownload, isDownloading, onDownloadSvg, fontFamily, setFontFamily, bannerGap, setBannerGap,
     blackBgBlur, setBlackBgBlur, compositionShadow, setCompositionShadow,
-    presets, onSavePreset, onLoadPreset, onDeletePreset,
+    presets, onSavePreset, onLoadPreset, onDeletePreset, onResetDefaults,
     animationPreset, setAnimationPreset, onPlayAnimation, onDownloadVideo, isExportingVideo, videoProgress
 }: SidebarProps) {
     const FONTS = [
@@ -103,9 +103,15 @@ export function Sidebar({
     const labelClasses = "block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider";
 
     return (
-        <div className="w-full md:w-[380px] bg-white border-r border-gray-200 p-5 flex flex-col gap-2 h-full overflow-y-auto clean-scrollbar select-none">
+        <div className="w-full md:w-[380px] bg-white border-r border-gray-200 flex flex-col h-full overflow-y-auto clean-scrollbar select-none relative z-20">
+            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-30 shadow-sm flex items-center justify-between">
+                <div>
+                    <h2 className="text-[14px] font-black text-gray-900 tracking-tight uppercase">Tile Engine</h2>
+                    <p className="text-[11px] text-gray-500">Dynamic 3D letter block generator</p>
+                </div>
+            </div>
             
-            <div className="space-y-0 flex-grow">
+            <div className="space-y-0 flex-grow p-4">
                 {/* PRESETS GROUP */}
                 <ControlGroup title="Presets" icon={Layout} defaultOpen={false}>
                     <div className="space-y-3">
@@ -162,6 +168,14 @@ export function Sidebar({
                                 No saved presets
                             </div>
                         )}
+                        <div className="pt-2">
+                            <button
+                                onClick={onResetDefaults}
+                                className="w-full py-2 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 text-[11px] font-bold rounded-md shadow-sm transition-colors uppercase tracking-widest border border-gray-200"
+                            >
+                                Reset App Defaults
+                            </button>
+                        </div>
                     </div>
                 </ControlGroup>
 
@@ -385,7 +399,7 @@ export function Sidebar({
 
                                 <div className="space-y-3">
                                     <h4 className={labelClasses}>Transforms</h4>
-                                    <SliderControl label="Rotation Tilt" value={chaosLevel} onChange={setChaosLevel} min={0} max={15} step={0.5} unit="°" />
+                                    <SliderControl label="Tile Chaos" value={chaosLevel} onChange={setChaosLevel} min={0} max={15} step={0.5} unit="°" />
                                     <SliderControl label="Position Jitter" value={posChaos} onChange={setPosChaos} min={0} max={20} step={0.5} unit="px" />
                                     <SliderControl label="Scale Variation" value={scaleChaos} onChange={setScaleChaos} min={0} max={1} step={0.05} />
                                 </div>
@@ -396,7 +410,7 @@ export function Sidebar({
             </div>
 
             {/* Actions */}
-            <div className="pt-4 mt-2 mt-auto border-t border-gray-200 grid grid-cols-2 gap-2">
+            <div className="pt-4 mt-2 mt-auto border-t border-gray-200 bg-white grid grid-cols-2 gap-2 px-4 pb-4">
                 <button
                     onClick={onDownload}
                     disabled={isDownloading}
