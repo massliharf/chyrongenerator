@@ -190,7 +190,7 @@ export function TypographyGenerator() {
     
     // Subtitle Spatial
     const [subtitlePos, setSubtitlePos] = usePersistentState<'top' | 'bottom'>('typo_subtitlePos', 'bottom');
-    const [subtitleSize, setSubtitleSize] = usePersistentState('typo_subtitleSize', 1.4);
+    const [subtitleSize, setSubtitleSize] = usePersistentState('typo_subtitleSize', 2);
     const [subtitlePadding, setSubtitlePadding] = usePersistentState('typo_subtitlePadding', { x: 26, y: 6 });
     const [subtitleRadius, setSubtitleRadius] = usePersistentState('typo_subtitleRadius', 6);
     const [bannerGap, setBannerGap] = usePersistentState('typo_bannerGap', 16);
