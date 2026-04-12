@@ -23,6 +23,7 @@ export interface Preset {
   chaosLevel: number;
   tileSize: number;
   tileGap: number;
+  lineGap: number;
   shadowOffset: number;
   shadowChaos: number;
   borderRadius: number;
@@ -58,6 +59,7 @@ function App() {
   const [chaosLevel, setChaosLevel] = usePersistentState('chaosLevel', 5);
   const [tileSize, setTileSize] = usePersistentState('tileSize', 1); // Scale factor (0.5 to 2)
   const [tileGap, setTileGap] = usePersistentState('tileGap', 12); // px
+  const [lineGap, setLineGap] = usePersistentState('lineGap', 16); // px
   // Shadow controls
   const [shadowOffset, setShadowOffset] = usePersistentState('shadowOffset', 6); // px
   const [shadowChaos, setShadowChaos] = usePersistentState('shadowChaos', 0); // 0-10 intensity
@@ -91,7 +93,7 @@ function App() {
       timestamp: Date.now(),
       text, subtitle, subtitlePos, subtitleSize, subtitlePadding, subtitleRadius, bannerGap,
       tileColor, textColor, subTileColor, subTextColor, fontFamily,
-      chaosLevel, tileSize, tileGap, shadowOffset, shadowChaos,
+      chaosLevel, tileSize, tileGap, lineGap, shadowOffset, shadowChaos,
       borderRadius, tilePadding, canvasBg, blackBgBlur, scaleChaos, posChaos,
       compositionShadow, animationPreset, animationDuration
     };
@@ -114,6 +116,7 @@ function App() {
     setChaosLevel(preset.chaosLevel);
     setTileSize(preset.tileSize);
     setTileGap(preset.tileGap);
+    setLineGap(preset.lineGap ?? preset.tileGap ?? 16); // Fallback for old presets
     setShadowOffset(preset.shadowOffset);
     setShadowChaos(preset.shadowChaos);
     setBorderRadius(preset.borderRadius);
@@ -298,6 +301,8 @@ function App() {
           setTileSize={setTileSize}
           tileGap={tileGap}
           setTileGap={setTileGap}
+          lineGap={lineGap}
+          setLineGap={setLineGap}
           shadowOffset={shadowOffset}
           setShadowOffset={setShadowOffset}
           shadowChaos={shadowChaos}
@@ -353,6 +358,7 @@ function App() {
             chaosLevel={chaosLevel}
             tileSize={tileSize}
             tileGap={tileGap}
+            lineGap={lineGap}
             shadowOffset={shadowOffset}
             shadowChaos={shadowChaos}
             borderRadius={borderRadius}

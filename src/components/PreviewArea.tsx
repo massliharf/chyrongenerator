@@ -16,6 +16,7 @@ interface PreviewAreaProps {
     chaosLevel: number;
     tileSize: number;
     tileGap: number;
+    lineGap: number;
     shadowOffset: number;
     shadowChaos: number;
     borderRadius: number;
@@ -36,7 +37,7 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
         text, subtitle,
         subtitlePos, subtitleSize, subtitlePadding, subtitleRadius,
         tileColor, textColor, subTileColor, subTextColor,
-        chaosLevel, tileSize, tileGap, shadowOffset, shadowChaos,
+        chaosLevel, tileSize, tileGap, lineGap, shadowOffset, shadowChaos,
         borderRadius, tilePadding, canvasBg, scaleChaos, posChaos,
         fontFamily, bannerGap, blackBgBlur, compositionShadow,
         animationProgress, animationPreset
@@ -149,7 +150,7 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                             </div>
                         )}
 
-                        <div className="flex flex-col items-center" style={{ gap: `${tileGap}px` }}>
+                        <div className="flex flex-col items-center" style={{ gap: `${lineGap}px` }}>
                             {lines.map((line, lineIndex) => (
                                 <div
                                     key={lineIndex}
