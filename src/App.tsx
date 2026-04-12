@@ -189,9 +189,9 @@ function App() {
         // Capture frame
         // Note: We use toCanvas to get a canvas element (transparent)
         const canvas = await toCanvas(node, {
-          backgroundColor: null as unknown as string, // Transparent
           style: {
             transform: 'scale(1)', // Ensure no unintended scaling
+            backgroundColor: 'transparent',
           }
         });
 
