@@ -1,6 +1,7 @@
 import { twMerge } from 'tailwind-merge';
 import { useMemo } from 'react';
 import type { AnimationPreset } from '../App';
+import { darkenColor } from '../utils/colorUtils';
 
 interface TileProps {
     char: string;
@@ -254,7 +255,7 @@ export function Tile({
         ? animStyle.opacity
         : 1;
 
-    const borderColor = `color-mix(in srgb, ${bgColor}, black 20%)`;
+    const borderColor = darkenColor(bgColor, 0.22);
 
     return (
         <div
@@ -272,7 +273,7 @@ export function Tile({
                 boxShadow: `${finalShadowOffset}px ${finalShadowOffset}px 0px ${borderColor}`,
                 transform: finalTransform,
                 opacity: finalOpacity,
-                borderBottom: `${Math.max(2, scale * 4)}px solid color-mix(in srgb, ${bgColor}, black 20%)`,
+                borderBottom: `${Math.max(2, scale * 4)}px solid ${borderColor}`,
                 padding: `${padding}px`,
                 fontFamily: fontFamily,
                 ...animStyle // Keep this to overwrite anything if needed, though we handled transform explicitly

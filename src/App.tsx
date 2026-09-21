@@ -5,6 +5,7 @@ import { toPng, toSvg, toCanvas } from 'html-to-image';
 import { usePersistentState } from './hooks/usePersistentState';
 import { TypographyGenerator } from './components/styles/TypographyGenerator';
 import { MaterialIcon } from './components/MaterialIcon';
+import { createZipBlob, type ZipEntry } from './utils/zipWriter';
 
 export type AnimationPreset =
   | 'none'
@@ -277,7 +278,35 @@ function App() {
         }
         const canvas = await toCanvas(node, canvasOpts);
 
-        videoWriter.addFrame(canvas);
+        // If transparent, create a clean, boosted alpha canvas so tiles don't have transparent holes
+        if (!includeBackground) {
+          const alphaCanvas = document.createElement('canvas');
+          alphaCanvas.width = canvas.width;
+          alphaCanvas.height = canvas.height;
+          const actx = alphaCanvas.getContext('2d');
+          const cctx = canvas.getContext('2d');
+          if (actx && cctx) {
+            const imgData = cctx.getImageData(0, 0, canvas.width, canvas.height);
+            const alphaData = actx.createImageData(canvas.width, canvas.height);
+            const src = imgData.data;
+            const dst = alphaData.data;
+            for (let p = 0; p < src.length; p += 4) {
+              const a = src[p + 3];
+              // Boost alpha to prevent Chrome WebP lossy clamping holes
+              const boosted = a > 140 ? 255 : (a < 15 ? 0 : Math.min(255, Math.round(a * 1.3)));
+              dst[p] = boosted;
+              dst[p + 1] = boosted;
+              dst[p + 2] = boosted;
+              dst[p + 3] = 255;
+            }
+            actx.putImageData(alphaData, 0, 0);
+            videoWriter.addFrame(canvas, alphaCanvas);
+          } else {
+            videoWriter.addFrame(canvas);
+          }
+        } else {
+          videoWriter.addFrame(canvas);
+        }
       }
 
       const blob = await videoWriter.complete();
@@ -299,6 +328,110 @@ function App() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExportingVideo, setIsExportingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
+  const [isExportingSequence, setIsExportingSequence] = useState(false);
+  const [sequenceProgress, setSequenceProgress] = useState(0);
+
+  const handleExportPngSequence = async () => {
+    if (!previewRef.current || animationPreset === 'none') return;
+
+    setIsExportingSequence(true);
+    setSequenceProgress(0);
+
+    try {
+      const fps = 30;
+      const durationMs = animationDuration * 1000;
+      const totalFrames = Math.ceil((durationMs / 1000) * fps);
+      const node = previewRef.current;
+      const zipEntries: ZipEntry[] = [];
+
+      for (let i = 0; i <= totalFrames; i++) {
+        const progress = i / totalFrames;
+        setAnimationProgress(progress);
+        setSequenceProgress(Math.round(progress * 100));
+
+        // Allow React state to update DOM
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        const canvasOpts: Record<string, unknown> = {
+          cacheBust: true,
+          filter: (domNode: HTMLElement) => !domNode.classList?.contains('export-ignore'),
+          style: {
+            transform: 'none',
+            backgroundColor: includeBackground ? canvasBg : 'transparent',
+          }
+        };
+        if (useCustomExportSize) {
+          canvasOpts.pixelRatio = 1;
+          canvasOpts.width = exportWidth;
+          canvasOpts.height = exportHeight;
+          canvasOpts.canvasWidth = exportWidth;
+          canvasOpts.canvasHeight = exportHeight;
+        } else {
+          canvasOpts.pixelRatio = 2;
+        }
+        const canvas = await toCanvas(node, canvasOpts);
+
+        // Convert canvas to pure lossless PNG Blob
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+          const arrayBuffer = await blob.arrayBuffer();
+          const frameNum = String(i + 1).padStart(4, '0');
+          zipEntries.push({
+            name: `chyron_frame_${frameNum}.png`,
+            data: new Uint8Array(arrayBuffer)
+          });
+        }
+      }
+
+      const instructions = `CHYRON ANIMATION - 100% LOSSLESS ALPHA PNG SEQUENCE
+============================================================
+Total Frames: ${totalFrames + 1}
+Resolution: ${useCustomExportSize ? `${exportWidth}x${exportHeight}` : 'Dynamic'}
+Framerate: ${fps} FPS
+Alpha Channel: 32-bit RGBA (100% True Transparency)
+
+HOW TO IMPORT INTO VIDEO EDITORS:
+--------------------------------
+1. ADOBE PREMIERE PRO:
+   - File -> Import (Cmd+I or Ctrl+I).
+   - Select ONLY the first file: 'chyron_frame_0001.png'.
+   - At the bottom of the import window, CHECK the 'Image Sequence' box.
+   - Click 'Open'. Premiere creates a single transparent video clip!
+
+2. DAVINCI RESOLVE:
+   - Open the Media Pool.
+   - Drag and drop this extracted folder into the Media Pool.
+   - DaVinci automatically loads it as a video clip with embedded transparency!
+
+3. ADOBE AFTER EFFECTS:
+   - File -> Import -> File...
+   - Select 'chyron_frame_0001.png' with 'PNG Sequence' checked.
+
+4. APPLE FINAL CUT PRO:
+   - Drag frames into timeline or import as image sequence compound clip.
+`;
+      const textEncoder = new TextEncoder();
+      zipEntries.push({
+        name: 'HOW_TO_USE_IN_PREMIERE_DAVINCI.txt',
+        data: textEncoder.encode(instructions)
+      });
+
+      const zipBlob = createZipBlob(zipEntries);
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.download = `chyron-alpha-sequence-${Date.now()}.zip`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error('PNG sequence export failed', err);
+      alert('PNG sequence export failed. See console.');
+    } finally {
+      setIsExportingSequence(false);
+      setAnimationProgress(1); // Reset to full visibility
+    }
+  };
 
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -488,6 +621,9 @@ function App() {
                 isDownloading={isDownloading}
                 isExportingVideo={isExportingVideo}
                 videoProgress={videoProgress}
+                onExportPngSequence={handleExportPngSequence}
+                isExportingSequence={isExportingSequence}
+                sequenceProgress={sequenceProgress}
                 animationPreset={animationPreset}
                 setAnimationPreset={setAnimationPreset}
                 animationDuration={animationDuration}
@@ -558,7 +694,7 @@ function App() {
                     setExportPosY(y);
                   }}
                   enableSnapping={enableSnapping}
-                  isExporting={isDownloading || isExportingVideo}
+                  isExporting={isDownloading || isExportingVideo || isExportingSequence}
                 />
               </div>
             </div>
