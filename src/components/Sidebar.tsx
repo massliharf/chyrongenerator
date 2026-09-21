@@ -102,6 +102,7 @@ interface SidebarProps {
     animationPreset: AnimationPreset; setAnimationPreset: (v: AnimationPreset) => void;
     animationDuration: number; setAnimationDuration: (v: number) => void;
     onPlayAnimation: () => void; onDownloadVideo: () => void; isExportingVideo: boolean; videoProgress: number;
+    onExportPngSequence: () => void; isExportingSequence: boolean; sequenceProgress: number;
     // Export settings
     exportWidth: number; setExportWidth: (v: number) => void;
     exportHeight: number; setExportHeight: (v: number) => void;
@@ -126,6 +127,7 @@ export function Sidebar({
     presets, onSavePreset, onLoadPreset, onDeletePreset, onResetDefaults,
     animationPreset, setAnimationPreset, animationDuration, setAnimationDuration,
     onPlayAnimation, onDownloadVideo, isExportingVideo, videoProgress,
+    onExportPngSequence, isExportingSequence, sequenceProgress,
     exportWidth, setExportWidth, exportHeight, setExportHeight,
     useCustomExportSize, setUseCustomExportSize, includeBackground, setIncludeBackground,
     exportAlignment, setExportAlignment,
@@ -359,27 +361,57 @@ export function Sidebar({
                                             <MaterialIcon name="play_arrow" className="w-4 h-4" /> Preview Motion
                                         </button>
                                         
-                                        <div className="pt-3 border-t border-[#e5e3df]">
-                                            <button
-                                                onClick={onDownloadVideo}
-                                                disabled={isExportingVideo}
-                                                className="notion-btn notion-btn-primary w-full py-2.5 text-[13px] gap-2"
-                                            >
-                                                {isExportingVideo ? (
-                                                    <>
-                                                        <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white/30 border-t-white"></div>
-                                                        Rendering {videoProgress}%
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <MaterialIcon name="videocam" className="w-4 h-4" />
-                                                        Export WebM (Alpha Video)
-                                                    </>
-                                                )}
-                                            </button>
-                                            <p className="text-[11px] text-[#787671] mt-1.5 text-center">
-                                                Transparent alpha channel video for OBS & editors.
-                                            </p>
+                                        <div className="pt-3 border-t border-[#e5e3df] space-y-2.5">
+                                            {/* PNG SEQUENCE EXPORT - 100% TRUE ALPHA */}
+                                            <div>
+                                                <button
+                                                    onClick={onExportPngSequence}
+                                                    disabled={isExportingSequence || isExportingVideo}
+                                                    className="notion-btn notion-btn-primary w-full py-2.5 text-[13px] font-semibold gap-2 shadow-sm"
+                                                >
+                                                    {isExportingSequence ? (
+                                                        <>
+                                                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white/30 border-t-white"></div>
+                                                            Exporting Sequence {sequenceProgress}%
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <MaterialIcon name="layers" className="w-4 h-4" />
+                                                            Export PNG Sequence (.zip)
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <div className="flex items-center justify-between mt-1 px-0.5 text-[10.5px]">
+                                                    <span className="text-[#1aae39] font-semibold flex items-center gap-1">
+                                                        <MaterialIcon name="check_circle" className="w-3 h-3 text-[#1aae39]" /> 100% True Alpha
+                                                    </span>
+                                                    <span className="text-[#787671]">Premiere, DaVinci, AE, FCP</span>
+                                                </div>
+                                            </div>
+
+                                            {/* WEBM VIDEO EXPORT */}
+                                            <div>
+                                                <button
+                                                    onClick={onDownloadVideo}
+                                                    disabled={isExportingVideo || isExportingSequence}
+                                                    className="notion-btn notion-btn-secondary w-full py-2 text-[12px] gap-2"
+                                                >
+                                                    {isExportingVideo ? (
+                                                        <>
+                                                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-[#5645d4]/30 border-t-[#5645d4]"></div>
+                                                            Rendering WebM {videoProgress}%
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <MaterialIcon name="videocam" className="w-4 h-4 text-[#5645d4]" />
+                                                            Export WebM Video (Alpha)
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <p className="text-[10.5px] text-[#787671] mt-1 text-center">
+                                                    OBS Studio & Browser playback
+                                                </p>
+                                            </div>
                                         </div>
                                     </>
                                 )}
@@ -628,16 +660,80 @@ export function Sidebar({
                                 </div>
 
                                 <div className="p-3 bg-[#fafaf9] border border-[#e5e3df] rounded-lg space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <label className="text-[12px] font-medium text-[#1a1a1a]">Canvas Background</label>
-                                            <p className="text-[11px] text-[#787671]">Preview backdrop color</p>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div>
+                                                <label className="text-[12px] font-medium text-[#1a1a1a]">Canvas Mode & Backdrop</label>
+                                                <p className="text-[11px] text-[#787671]">Backdrop and chroma key presets</p>
+                                            </div>
+                                            <input
+                                                type="color"
+                                                value={canvasBg}
+                                                onChange={(e) => {
+                                                    setCanvasBg(e.target.value);
+                                                    setIncludeBackground(true);
+                                                }}
+                                                className="w-6 h-6 rounded clean-color shadow-xs"
+                                                title="Custom solid color"
+                                            />
                                         </div>
-                                        <input type="color" value={canvasBg} onChange={(e) => setCanvasBg(e.target.value)} className="w-6 h-6 rounded clean-color shadow-xs" />
+
+                                        {/* 1-Click Backdrop Presets */}
+                                        <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIncludeBackground(false)}
+                                                className={twMerge(
+                                                    "px-2 py-1.5 rounded-md border text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all",
+                                                    !includeBackground
+                                                        ? "bg-[#e6e0f5] text-[#391c57] border-[#d6b6f6] font-semibold shadow-xs"
+                                                        : "bg-white text-[#5d5b54] border-[#e5e3df] hover:bg-[#f6f5f4]"
+                                                )}
+                                                title="100% Transparent Alpha Channel"
+                                            >
+                                                <span className="w-2.5 h-2.5 rounded-xs border border-gray-400 bg-checkerboard inline-block"></span>
+                                                Alpha Grid
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCanvasBg('#00ff00');
+                                                    setIncludeBackground(true);
+                                                }}
+                                                className={twMerge(
+                                                    "px-2 py-1.5 rounded-md border text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all",
+                                                    includeBackground && canvasBg.toLowerCase() === '#00ff00'
+                                                        ? "bg-[#d9f3e1] text-[#0f5b24] border-[#8ce5a2] font-semibold shadow-xs"
+                                                        : "bg-white text-[#5d5b54] border-[#e5e3df] hover:bg-[#f6f5f4]"
+                                                )}
+                                                title="Green Screen for 1-click Chroma Keying in CapCut / Premiere"
+                                            >
+                                                <span className="w-2.5 h-2.5 rounded-xs bg-[#00ff00] border border-black/20 inline-block"></span>
+                                                Green (#00FF)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCanvasBg('#0000ff');
+                                                    setIncludeBackground(true);
+                                                }}
+                                                className={twMerge(
+                                                    "px-2 py-1.5 rounded-md border text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-all",
+                                                    includeBackground && canvasBg.toLowerCase() === '#0000ff'
+                                                        ? "bg-[#dcecfa] text-[#005bab] border-[#93cbf5] font-semibold shadow-xs"
+                                                        : "bg-white text-[#5d5b54] border-[#e5e3df] hover:bg-[#f6f5f4]"
+                                                )}
+                                                title="Blue Screen for Chroma Keying"
+                                            >
+                                                <span className="w-2.5 h-2.5 rounded-xs bg-[#0000ff] border border-black/20 inline-block"></span>
+                                                Blue (#00F)
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center justify-between">
+
+                                    <div className="flex items-center justify-between pt-2 border-t border-[#e5e3df]">
                                         <div>
-                                            <label className="text-[12px] font-medium text-[#1a1a1a]">Dark Backdrop</label>
+                                            <label className="text-[12px] font-medium text-[#1a1a1a]">Dark Backdrop Blur</label>
                                             <p className="text-[11px] text-[#787671]">Blurred backdrop layer</p>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">

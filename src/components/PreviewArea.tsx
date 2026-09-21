@@ -2,6 +2,7 @@ import { forwardRef, useState, useEffect, useRef } from 'react';
 import { Tile } from './Tile';
 import { twMerge } from 'tailwind-merge';
 import type { AnimationPreset } from '../App';
+import { darkenColor } from '../utils/colorUtils';
 
 interface PreviewAreaProps {
     text: string;
@@ -269,7 +270,7 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                             style={{
                                 backgroundColor: subTileColor,
                                 color: subTextColor,
-                                borderColor: `color-mix(in srgb, ${subTileColor}, black 20%)`,
+                                borderColor: darkenColor(subTileColor, 0.22),
                                 fontSize: `${subtitleSize}rem`,
                                 padding: `${subtitlePadding.y}px ${subtitlePadding.x}px`,
                                 borderRadius: `${subtitleRadius}px`
@@ -336,7 +337,7 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                             style={{
                                 backgroundColor: subTileColor,
                                 color: subTextColor,
-                                borderColor: `color-mix(in srgb, ${subTileColor}, black 20%)`,
+                                borderColor: darkenColor(subTileColor, 0.22),
                                 fontSize: `${subtitleSize}rem`,
                                 padding: `${subtitlePadding.y}px ${subtitlePadding.x}px`,
                                 borderRadius: `${subtitleRadius}px`
@@ -533,35 +534,42 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                             width: `${exportWidth * previewScale}px`,
                             height: `${exportHeight * previewScale}px`,
                         }}
-                        className="relative flex items-center justify-center rounded-xl overflow-hidden border border-[#e5e3df] bg-white ring-1 ring-black/5 shadow-[0_20px_45px_-10px_rgba(15,15,15,0.14)]"
+                        className={twMerge(
+                            "relative flex items-center justify-center rounded-xl overflow-hidden border border-[#e5e3df] ring-1 ring-black/5 shadow-[0_20px_45px_-10px_rgba(15,15,15,0.14)]",
+                            !includeBackground ? "bg-checkerboard" : "bg-white"
+                        )}
                     >
                         {/* Action Safe (90%) Guide */}
-                        <div className="absolute inset-[5%] border border-dashed border-[#c8c4be]/60 pointer-events-none rounded-lg z-20 flex items-start justify-end p-2">
-                            <span className="text-[9px] font-mono text-[#787671] tracking-wider uppercase select-none font-medium">Action Safe (90%)</span>
-                        </div>
+                        {!isExporting && (
+                            <div className="absolute inset-[5%] border border-dashed border-[#c8c4be]/60 pointer-events-none rounded-lg z-20 flex items-start justify-end p-2">
+                                <span className="text-[9px] font-mono text-[#787671] tracking-wider uppercase select-none font-medium">Action Safe (90%)</span>
+                            </div>
+                        )}
 
                         {/* Center Guides (Faint Crosshairs) */}
-                        <div className="absolute inset-0 pointer-events-none z-10 opacity-20">
-                            <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-[#787671]" />
-                            <div className="absolute left-1/2 top-0 bottom-0 border-l border-dashed border-[#787671]" />
-                        </div>
+                        {!isExporting && (
+                            <div className="absolute inset-0 pointer-events-none z-10 opacity-20">
+                                <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-[#787671]" />
+                                <div className="absolute left-1/2 top-0 bottom-0 border-l border-dashed border-[#787671]" />
+                            </div>
+                        )}
 
                         {/* Active Magnetic Snap Guide Lines */}
-                        {snapGuides.centerX && (
+                        {!isExporting && snapGuides.centerX && (
                             <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0 border-l-2 border-dashed border-[#5645d4] pointer-events-none z-30 shadow-[0_0_12px_rgba(86,69,212,0.6)] flex items-center justify-start">
                                 <span className="bg-[#5645d4] text-white font-semibold font-mono text-[9px] px-2 py-0.5 rounded shadow ml-1 uppercase tracking-wider">
                                     Center X Snap
                                 </span>
                             </div>
                         )}
-                        {snapGuides.centerY && (
+                        {!isExporting && snapGuides.centerY && (
                             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0 border-t-2 border-dashed border-[#5645d4] pointer-events-none z-30 shadow-[0_0_12px_rgba(86,69,212,0.6)] flex items-start justify-center">
                                 <span className="bg-[#5645d4] text-white font-semibold font-mono text-[9px] px-2 py-0.5 rounded shadow -mt-2.5 uppercase tracking-wider">
                                     Center Y Snap
                                 </span>
                             </div>
                         )}
-                        {snapGuides.lowerThird && (
+                        {!isExporting && snapGuides.lowerThird && (
                             <div
                                 style={{ top: `${50 + 28}%` }}
                                 className="absolute left-0 right-0 -translate-y-1/2 h-0 border-t-2 border-dashed border-[#d9730d] pointer-events-none z-30 shadow-[0_0_12px_rgba(217,115,13,0.5)] flex items-start justify-center"
@@ -571,7 +579,7 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                                 </span>
                             </div>
                         )}
-                        {snapGuides.topBanner && (
+                        {!isExporting && snapGuides.topBanner && (
                             <div
                                 style={{ top: `${50 - 28}%` }}
                                 className="absolute left-0 right-0 -translate-y-1/2 h-0 border-t-2 border-dashed border-[#cb912f] pointer-events-none z-30 shadow-[0_0_12px_rgba(203,145,47,0.5)] flex items-start justify-center"
@@ -590,7 +598,7 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
                                 height: `${exportHeight}px`,
                                 transform: `scale(${previewScale})`,
                                 transformOrigin: 'top left',
-                                backgroundColor: canvasBg,
+                                backgroundColor: includeBackground ? canvasBg : 'transparent',
                             }}
                             className="absolute top-0 left-0 flex flex-col items-center justify-center"
                         >
@@ -689,14 +697,18 @@ export const PreviewArea = forwardRef<HTMLDivElement, PreviewAreaProps>(
         return (
             <div
                 ref={containerRef}
-                className="w-full h-full min-h-[400px] flex flex-col items-center justify-center p-8 md:p-12 gap-6 overflow-hidden transition-colors duration-500 relative"
-                style={{ backgroundColor: canvasBg }}
+                className={twMerge(
+                    "w-full h-full min-h-[400px] flex flex-col items-center justify-center p-8 md:p-12 gap-6 overflow-hidden transition-colors duration-500 relative",
+                    !includeBackground && "bg-checkerboard"
+                )}
+                style={{ backgroundColor: includeBackground ? canvasBg : undefined }}
             >
                 <div
                     ref={ref}
                     style={{
                         transform: `scale(${compositionScale})`,
                         transformOrigin: 'center center',
+                        backgroundColor: 'transparent',
                     }}
                     className="relative z-20 p-20"
                 >

@@ -327,3 +327,15 @@ input[type="color"].clean-color::-webkit-color-swatch {
     transform: translateY(0);
   }
 }
+
+/* ── Transparency Checkerboard Pattern ── */
+.bg-checkerboard {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #edeae5 25%, transparent 25%),
+    linear-gradient(-45deg, #edeae5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #edeae5 75%),
+    linear-gradient(-45deg, transparent 75%, #edeae5 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+}

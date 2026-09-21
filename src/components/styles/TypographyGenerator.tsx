@@ -1,8 +1,9 @@
-import { useRef, useCallback, forwardRef, useState, useEffect } from 'react';
+import { useRef, useCallback, forwardRef, useState, useEffect, useMemo } from 'react';
 import { toPng, toSvg } from 'html-to-image';
 import { ControlGroup, SliderControl } from '../Sidebar';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { MaterialIcon } from '../MaterialIcon';
+import { darkenColor } from '../../utils/colorUtils';
 
 export type TypographyEffect = 'extrude' | 'skew' | 'offset' | 'outline' | 'retro' | 'glow' | 'neon';
 
@@ -89,8 +90,8 @@ const TypographyPreview = forwardRef<HTMLDivElement, {
                     fontSize: `${subtitleSize}rem`,
                     padding: `${subtitlePadding.y}px ${subtitlePadding.x}px`,
                     borderRadius: `${subtitleRadius}px`,
-                    borderBottom: effect !== 'retro' ? `3px solid color-mix(in srgb, ${subtitleBg}, black 25%)` : 'none',
-                    boxShadow: effect === 'retro' ? `${Math.floor(value1 / 2)}px ${Math.floor(value1 / 2)}px 0 color-mix(in srgb, ${subtitleBg}, black 35%)` : 'none',
+                    borderBottom: effect !== 'retro' ? `3px solid ${darkenColor(subtitleBg, 0.25)}` : 'none',
+                    boxShadow: effect === 'retro' ? `${Math.floor(value1 / 2)}px ${Math.floor(value1 / 2)}px 0 ${darkenColor(subtitleBg, 0.35)}` : 'none',
                     fontStyle: effect === 'skew' ? 'italic' : 'normal'
                 }}
             >
