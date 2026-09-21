@@ -1,25 +1,48 @@
-import { Type, Palette, Layout, Download, ChevronDown, ChevronRight, Play, Clapperboard, Video, Sliders } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { type Preset } from '../App';
+import { type Preset, type AnimationPreset } from '../App';
 import { twMerge } from 'tailwind-merge';
+import { MaterialIcon } from './MaterialIcon';
 
-// UI Helpers - Clean Minimal Style (No weird colors, just white/gray/blue)
-export const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false }: { title: string, icon: React.ElementType, children: ReactNode, defaultOpen?: boolean }) => {
+// UI Helpers — Notion Design System (Inter, Sober Rectangles, Hairline Dividers, Material Design Icons)
+export const ControlGroup = ({
+    title,
+    icon: Icon,
+    iconName,
+    children,
+    defaultOpen = false,
+    badge
+}: {
+    title: string;
+    icon?: React.ElementType;
+    iconName?: string;
+    children: ReactNode;
+    defaultOpen?: boolean;
+    badge?: string;
+}) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
-        <div className="border-b border-gray-200 last:border-b-0">
+        <div className="border-b border-[#e5e3df] last:border-b-0 py-1">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between py-4 group hover:bg-gray-50/50 px-2 -mx-2 rounded-lg transition-colors"
+                className="w-full flex items-center justify-between py-2 px-2 rounded-md hover:bg-[#f0eeec] transition-colors cursor-pointer group select-none text-left"
             >
-                <div className="flex items-center gap-2.5 text-[13px] font-semibold text-gray-900 tracking-tight">
-                    <Icon className="w-4 h-4 text-blue-600" />
-                    {title}
+                <div className="flex items-center gap-2 text-[13px] font-medium text-[#37352f]">
+                    <span className="text-[#a4a097] group-hover:text-[#37352f] transition-colors">
+                        <MaterialIcon name={isOpen ? "expand_more" : "chevron_right"} className="w-4 h-4" />
+                    </span>
+                    {iconName ? (
+                        <MaterialIcon name={iconName} className="w-4 h-4 text-[#787671]" />
+                    ) : Icon ? (
+                        <Icon className="w-4 h-4 text-[#787671]" />
+                    ) : null}
+                    <span className="font-semibold text-[13px] text-[#1a1a1a]">{title}</span>
                 </div>
-                {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" /> : <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
+                {badge && (
+                    <span className="notion-tag notion-tag-purple text-[10px]">{badge}</span>
+                )}
             </button>
             {isOpen && (
-                <div className="pb-5 pt-1 space-y-4 panel-enter">
+                <div className="pt-1 pb-4 px-2 space-y-4 panel-enter">
                     {children}
                 </div>
             )}
@@ -28,10 +51,12 @@ export const ControlGroup = ({ title, icon: Icon, children, defaultOpen = false 
 };
 
 export const SliderControl = ({ label, value, onChange, min, max, step, unit = '' }: { label: string, value: number, onChange: (v: number) => void, min: number, max: number, step: number, unit?: string }) => (
-    <div className="space-y-2.5">
+    <div className="space-y-1.5">
         <div className="flex justify-between items-center text-xs">
-            <label className="text-gray-600 font-medium tracking-wide">{label}</label>
-            <span className="text-gray-700 font-mono bg-gray-100 px-2 py-0.5 rounded text-[11px] font-medium border border-gray-200">{value}{unit}</span>
+            <label className="text-[#5d5b54] font-medium text-[12px]">{label}</label>
+            <span className="text-[#37352f] font-mono text-[11px] font-semibold bg-[#f6f5f4] border border-[#e5e3df] px-1.5 py-0.5 rounded">
+                {value}{unit}
+            </span>
         </div>
         <input
             type="range"
@@ -74,8 +99,19 @@ interface SidebarProps {
     blackBgBlur: boolean; setBlackBgBlur: (v: boolean) => void;
     compositionShadow: number; setCompositionShadow: (v: number) => void;
     presets: Preset[]; onSavePreset: (name: string) => void; onLoadPreset: (preset: Preset) => void; onDeletePreset: (id: string) => void; onResetDefaults: () => void;
-    animationPreset: 'none' | 'pop' | 'slide' | 'typewriter'; setAnimationPreset: (v: 'none' | 'pop' | 'slide' | 'typewriter') => void;
+    animationPreset: AnimationPreset; setAnimationPreset: (v: AnimationPreset) => void;
+    animationDuration: number; setAnimationDuration: (v: number) => void;
     onPlayAnimation: () => void; onDownloadVideo: () => void; isExportingVideo: boolean; videoProgress: number;
+    // Export settings
+    exportWidth: number; setExportWidth: (v: number) => void;
+    exportHeight: number; setExportHeight: (v: number) => void;
+    useCustomExportSize: boolean; setUseCustomExportSize: (v: boolean) => void;
+    includeBackground: boolean; setIncludeBackground: (v: boolean) => void;
+    exportAlignment: 'center' | 'bottom' | 'top'; setExportAlignment: (v: 'center' | 'bottom' | 'top') => void;
+    compositionScale: number; setCompositionScale: (v: number) => void;
+    exportPosX: number; setExportPosX: (v: number) => void;
+    exportPosY: number; setExportPosY: (v: number) => void;
+    enableSnapping: boolean; setEnableSnapping: (v: boolean) => void;
 }
 
 export function Sidebar({
@@ -88,7 +124,13 @@ export function Sidebar({
     onDownload, isDownloading, onDownloadSvg, fontFamily, setFontFamily, bannerGap, setBannerGap,
     blackBgBlur, setBlackBgBlur, compositionShadow, setCompositionShadow,
     presets, onSavePreset, onLoadPreset, onDeletePreset, onResetDefaults,
-    animationPreset, setAnimationPreset, onPlayAnimation, onDownloadVideo, isExportingVideo, videoProgress
+    animationPreset, setAnimationPreset, animationDuration, setAnimationDuration,
+    onPlayAnimation, onDownloadVideo, isExportingVideo, videoProgress,
+    exportWidth, setExportWidth, exportHeight, setExportHeight,
+    useCustomExportSize, setUseCustomExportSize, includeBackground, setIncludeBackground,
+    exportAlignment, setExportAlignment,
+    compositionScale, setCompositionScale, exportPosX, setExportPosX, exportPosY, setExportPosY,
+    enableSnapping, setEnableSnapping
 }: SidebarProps) {
     const FONTS = [
         "Fredoka One", "Nunito", "Nunito Sans", "Inter", "Roboto", "Oswald",
@@ -99,21 +141,35 @@ export function Sidebar({
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [newPresetName, setNewPresetName] = useState('');
 
-    const inputClasses = "w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none shadow-sm placeholder-gray-400 text-gray-900 transition-all";
-    const labelClasses = "block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider";
+    const inputClasses = "notion-input";
+    const labelClasses = "block text-[11px] font-semibold text-[#787671] mb-1.5 uppercase tracking-wider";
 
     return (
-        <div className="w-full md:w-[380px] bg-white border-r border-gray-200 flex flex-col h-full overflow-y-auto clean-scrollbar select-none relative z-20">
-            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-30 shadow-sm flex items-center justify-between">
-                <div>
-                    <h2 className="text-[14px] font-black text-gray-900 tracking-tight uppercase">Tile Engine</h2>
-                    <p className="text-[11px] text-gray-500">Dynamic 3D letter block generator</p>
+        <div className="w-full md:w-[380px] bg-white border-r border-[#e5e3df] flex flex-col h-full overflow-y-auto clean-scrollbar select-none relative z-20">
+            {/* Notion Document Header with Material Design Icon */}
+            <div className="p-3.5 border-b border-[#e5e3df] bg-white sticky top-0 z-30 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-[#e6e0f5] flex items-center justify-center text-[#5645d4]">
+                        <MaterialIcon name="subtitles" className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                        <h2 className="text-[13px] font-semibold text-[#1a1a1a] tracking-tight">Chyron Properties</h2>
+                        <p className="text-[11px] text-[#787671]">Block formatting & styling</p>
+                    </div>
                 </div>
+                <button
+                    onClick={onResetDefaults}
+                    className="text-[11px] font-medium text-[#787671] hover:text-[#1a1a1a] hover:bg-[#f0eeec] px-2 py-1 rounded transition-colors inline-flex items-center gap-1 cursor-pointer"
+                    title="Reset all settings to defaults"
+                >
+                    <MaterialIcon name="restart_alt" className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                </button>
             </div>
             
-            <div className="space-y-0 flex-grow p-4">
+            <div className="space-y-0 flex-grow p-3.5">
                 {/* PRESETS GROUP */}
-                <ControlGroup title="Presets" icon={Layout} defaultOpen={false}>
+                <ControlGroup title="Saved Presets" iconName="layers" defaultOpen={false} badge={presets.length > 0 ? `${presets.length}` : undefined}>
                     <div className="space-y-3">
                         <div className="flex gap-2">
                             <input
@@ -122,28 +178,34 @@ export function Sidebar({
                                 onChange={(e) => setNewPresetName(e.target.value)}
                                 placeholder="New preset name..."
                                 className={inputClasses}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && newPresetName.trim()) {
+                                        onSavePreset(newPresetName.trim());
+                                        setNewPresetName('');
+                                    }
+                                }}
                             />
                             <button
                                 onClick={() => {
                                     if (newPresetName.trim()) {
-                                        onSavePreset(newPresetName);
+                                        onSavePreset(newPresetName.trim());
                                         setNewPresetName('');
                                     }
                                 }}
                                 disabled={!newPresetName.trim()}
-                                className="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-md text-[13px] font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors"
+                                className="notion-btn notion-btn-primary px-3 py-1.5 text-[13px] h-[38px] flex-shrink-0"
                             >
                                 Save
                             </button>
                         </div>
 
                         {presets.length > 0 && (
-                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 clean-scrollbar pt-2">
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 clean-scrollbar pt-1">
                                 {presets.map((preset) => (
-                                    <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50 border border-transparent hover:border-gray-200 group transition-all">
+                                    <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-[#f6f5f4] border border-[#e5e3df] group transition-all">
                                         <button
                                             onClick={() => onLoadPreset(preset)}
-                                            className="text-[13px] font-medium text-gray-700 text-left flex-1"
+                                            className="text-[13px] font-medium text-[#1a1a1a] text-left flex-1 cursor-pointer truncate"
                                         >
                                             {preset.name}
                                         </button>
@@ -152,42 +214,32 @@ export function Sidebar({
                                                 e.stopPropagation();
                                                 onDeletePreset(preset.id);
                                             }}
-                                            className="p-1 text-gray-400 hover:text-red-500 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                                            className="p-1 text-[#a4a097] hover:text-[#e03131] rounded transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                                             title="Delete preset"
                                         >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
+                                            <MaterialIcon name="delete_outline" className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
                                 ))}
                             </div>
                         )}
                         {presets.length === 0 && (
-                            <div className="text-[12px] text-gray-400 text-center py-4 bg-gray-50 border border-dashed border-gray-200 rounded-md">
+                            <div className="text-[12px] text-[#a4a097] text-center py-3 bg-[#fafaf9] border border-dashed border-[#e5e3df] rounded-md">
                                 No saved presets
                             </div>
                         )}
-                        <div className="pt-2">
-                            <button
-                                onClick={onResetDefaults}
-                                className="w-full py-2 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 text-[11px] font-bold rounded-md shadow-sm transition-colors uppercase tracking-widest border border-gray-200"
-                            >
-                                Reset App Defaults
-                            </button>
-                        </div>
                     </div>
                 </ControlGroup>
 
                 {/* 1. CONTENT GROUP */}
-                <ControlGroup title="Content" icon={Type} defaultOpen={true}>
-                    <div className="space-y-4">
+                <ControlGroup title="Content & Font" iconName="text_fields" defaultOpen={true}>
+                    <div className="space-y-3.5">
                         <div>
                             <label className={labelClasses}>Main Text</label>
                             <textarea
                                 value={text}
                                 onChange={(e) => setText(e.target.value)}
-                                className={`${inputClasses} min-h-[90px] resize-y font-bold`}
+                                className={`${inputClasses} min-h-[85px] resize-y font-semibold leading-snug`}
                                 placeholder="Enter text..."
                             />
                         </div>
@@ -216,34 +268,43 @@ export function Sidebar({
                     </div>
                 </ControlGroup>
 
-                <div className="py-2 border-b border-gray-200">
+                {/* ADVANCED EXPANSION TOGGLE */}
+                <div className="py-2 border-b border-[#e5e3df]">
                     <button
                         onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="w-full py-2.5 text-gray-500 hover:text-gray-800 font-semibold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors bg-gray-50 hover:bg-gray-100 rounded-lg"
+                        className="notion-btn notion-btn-ghost w-full py-1.5 text-[12px] font-medium flex items-center justify-center gap-1.5 text-[#787671] hover:text-[#1a1a1a]"
                     >
-                        {showAdvanced ? 'Hide Advanced Controls' : 'Show Advanced Controls'}
-                        {showAdvanced ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        <span>{showAdvanced ? 'Collapse Advanced Controls' : 'Show Advanced Controls'}</span>
+                        <MaterialIcon name={showAdvanced ? "expand_more" : "chevron_right"} className="w-3.5 h-3.5" />
                     </button>
                 </div>
 
                 {showAdvanced && (
-                    <div className="space-y-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="space-y-0 animate-in fade-in slide-in-from-top-3 duration-200">
                         
                         {/* SUBTITLE SETTINGS */}
-                        <ControlGroup title="Subtitle Adjustments" icon={Type} defaultOpen={true}>
-                            <div className="space-y-5">
+                        <ControlGroup title="Subtitle Adjustments" iconName="subtitles" defaultOpen={true}>
+                            <div className="space-y-4">
                                 <div>
                                     <label className={labelClasses}>Alignment</label>
-                                    <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-md">
+                                    <div className="grid grid-cols-2 gap-1 bg-[#f6f5f4] p-1 rounded-md border border-[#e5e3df]">
                                         <button
                                             onClick={() => setSubtitlePos('top')}
-                                            className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium transition-all ${subtitlePos === 'top' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+                                            className={`px-3 py-1 rounded text-[12px] font-medium transition-all cursor-pointer ${
+                                                subtitlePos === 'top'
+                                                    ? 'bg-white text-[#1a1a1a] shadow-xs font-semibold'
+                                                    : 'text-[#787671] hover:text-[#1a1a1a]'
+                                            }`}
                                         >
                                             Top
                                         </button>
                                         <button
                                             onClick={() => setSubtitlePos('bottom')}
-                                            className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium transition-all ${subtitlePos === 'bottom' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+                                            className={`px-3 py-1 rounded text-[12px] font-medium transition-all cursor-pointer ${
+                                                subtitlePos === 'bottom'
+                                                    ? 'bg-white text-[#1a1a1a] shadow-xs font-semibold'
+                                                    : 'text-[#787671] hover:text-[#1a1a1a]'
+                                            }`}
                                         >
                                             Bottom
                                         </button>
@@ -259,21 +320,27 @@ export function Sidebar({
                         </ControlGroup>
 
                         {/* ANIMATION */}
-                        <ControlGroup title="Animation & Export" icon={Clapperboard} defaultOpen={false}>
-                            <div className="space-y-5">
+                        <ControlGroup title="Animation & Transitions" iconName="movie" defaultOpen={false} badge={animationPreset !== 'none' ? animationPreset : undefined}>
+                            <div className="space-y-4">
                                 <div>
                                     <label className={labelClasses}>Transition Style</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {['none', 'pop', 'slide', 'typewriter'].map((preset) => (
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                        {([
+                                            'none', 'pop', 'slide', 'typewriter',
+                                            'bounce', 'flip', 'wave', 'elastic',
+                                            'glitch', 'zoom', 'spin', 'cascade',
+                                            'shutter', 'swing', 'drift', 'pulse'
+                                        ] as AnimationPreset[]).map((preset) => (
                                             <button
                                                 key={preset}
-                                                onClick={() => setAnimationPreset(preset as SidebarProps['animationPreset'])}
+                                                onClick={() => setAnimationPreset(preset)}
                                                 className={twMerge(
-                                                    "px-3 py-2 text-[12px] font-medium rounded-md border transition-all capitalize",
+                                                    "px-1.5 py-1.5 text-[10.5px] font-medium rounded-md border transition-all capitalize cursor-pointer text-center truncate",
                                                     animationPreset === preset
-                                                        ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm"
-                                                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
+                                                        ? "bg-[#e6e0f5] text-[#391c57] border-[#d6b6f6] font-semibold shadow-xs"
+                                                        : "bg-white text-[#5d5b54] border-[#e5e3df] hover:bg-[#f6f5f4] hover:text-[#1a1a1a]"
                                                 )}
+                                                title={`Animation preset: ${preset}`}
                                             >
                                                 {preset}
                                             </button>
@@ -283,18 +350,20 @@ export function Sidebar({
 
                                 {animationPreset !== 'none' && (
                                     <>
+                                        <SliderControl label="Duration" value={animationDuration} onChange={setAnimationDuration} min={0.5} max={5} step={0.1} unit="s" />
+
                                         <button
                                             onClick={onPlayAnimation}
-                                            className="w-full px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-md text-[13px] font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                                            className="notion-btn notion-btn-dark w-full py-2 text-[13px] gap-2"
                                         >
-                                            <Play className="w-3.5 h-3.5" /> Preview Motion
+                                            <MaterialIcon name="play_arrow" className="w-4 h-4" /> Preview Motion
                                         </button>
                                         
-                                        <div className="pt-4 border-t border-gray-100">
+                                        <div className="pt-3 border-t border-[#e5e3df]">
                                             <button
                                                 onClick={onDownloadVideo}
                                                 disabled={isExportingVideo}
-                                                className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-[13px] font-medium shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="notion-btn notion-btn-primary w-full py-2.5 text-[13px] gap-2"
                                             >
                                                 {isExportingVideo ? (
                                                     <>
@@ -303,13 +372,13 @@ export function Sidebar({
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <Video className="w-3.5 h-3.5" />
-                                                        Export WebM (Alpha)
+                                                        <MaterialIcon name="videocam" className="w-4 h-4" />
+                                                        Export WebM (Alpha Video)
                                                     </>
                                                 )}
                                             </button>
-                                            <p className="text-[11px] text-gray-500 mt-2 text-center">
-                                                Exports transparent WebM video.
+                                            <p className="text-[11px] text-[#787671] mt-1.5 text-center">
+                                                Transparent alpha channel video for OBS & editors.
                                             </p>
                                         </div>
                                     </>
@@ -317,58 +386,263 @@ export function Sidebar({
                             </div>
                         </ControlGroup>
 
+                        {/* EXPORT SETTINGS */}
+                        <ControlGroup title="Canvas & Resolution" iconName="aspect_ratio" defaultOpen={false}>
+                            <div className="space-y-4">
+                                {/* Include Background Toggle */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className="text-[12px] font-medium text-[#1a1a1a]">Include Background</label>
+                                        <p className="text-[11px] text-[#787671]">Export with canvas color or transparent alpha</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked={includeBackground} onChange={(e) => setIncludeBackground(e.target.checked)} className="sr-only peer" />
+                                        <div className={`toggle-track w-8 h-5 rounded-full peer-focus:outline-none ${includeBackground ? 'active' : ''}`}></div>
+                                    </label>
+                                </div>
+
+                                {/* Custom Size Toggle */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className="text-[12px] font-medium text-[#1a1a1a]">Custom Dimensions</label>
+                                        <p className="text-[11px] text-[#787671]">Set specific export resolution</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked={useCustomExportSize} onChange={(e) => setUseCustomExportSize(e.target.checked)} className="sr-only peer" />
+                                        <div className={`toggle-track w-8 h-5 rounded-full peer-focus:outline-none ${useCustomExportSize ? 'active' : ''}`}></div>
+                                    </label>
+                                </div>
+
+                                {useCustomExportSize && (
+                                    <div className="space-y-3.5 panel-enter">
+                                        {/* Preset Sizes */}
+                                        <div>
+                                            <label className={labelClasses}>Presets</label>
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                                {[
+                                                    { label: '1920×1080 (16:9)', w: 1920, h: 1080 },
+                                                    { label: '1080×1080 (1:1)', w: 1080, h: 1080 },
+                                                    { label: '1080×1920 (9:16)', w: 1080, h: 1920 },
+                                                    { label: '1280×720 (HD)', w: 1280, h: 720 },
+                                                    { label: '720×480 (SD)', w: 720, h: 480 },
+                                                ].map(({ label, w, h }) => (
+                                                    <button
+                                                        key={label}
+                                                        onClick={() => { setExportWidth(w); setExportHeight(h); }}
+                                                        className={twMerge(
+                                                            "px-2 py-1.5 text-[11px] font-medium rounded-md border transition-all text-center cursor-pointer",
+                                                            exportWidth === w && exportHeight === h
+                                                                ? "bg-[#e6e0f5] text-[#391c57] border-[#d6b6f6] font-semibold shadow-xs"
+                                                                : "bg-white text-[#5d5b54] border-[#e5e3df] hover:bg-[#f6f5f4]"
+                                                        )}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Custom Width/Height */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className={labelClasses}>Width (px)</label>
+                                                <input
+                                                    type="number"
+                                                    value={exportWidth}
+                                                    onChange={(e) => {
+                                                        const v = parseInt(e.target.value);
+                                                        if (!isNaN(v)) setExportWidth(v);
+                                                    }}
+                                                    onBlur={() => { if (exportWidth < 100) setExportWidth(100); }}
+                                                    className={`${inputClasses} font-mono`}
+                                                    min={100}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className={labelClasses}>Height (px)</label>
+                                                <input
+                                                    type="number"
+                                                    value={exportHeight}
+                                                    onChange={(e) => {
+                                                        const v = parseInt(e.target.value);
+                                                        if (!isNaN(v)) setExportHeight(v);
+                                                    }}
+                                                    onBlur={() => { if (exportHeight < 100) setExportHeight(100); }}
+                                                    className={`${inputClasses} font-mono`}
+                                                    min={100}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Artwork Scale Slider */}
+                                        <SliderControl
+                                            label="Artwork Scale"
+                                            value={Math.round(compositionScale * 100)}
+                                            onChange={(v) => setCompositionScale(Math.round(v) / 100)}
+                                            min={20}
+                                            max={250}
+                                            step={5}
+                                            unit="%"
+                                        />
+
+                                        {/* Artwork Position X & Y Sliders */}
+                                        <div className="space-y-3 pt-1 border-t border-[#e5e3df]">
+                                            <SliderControl
+                                                label="Horizontal Offset (X)"
+                                                value={exportPosX}
+                                                onChange={setExportPosX}
+                                                min={-Math.round(exportWidth / 2)}
+                                                max={Math.round(exportWidth / 2)}
+                                                step={2}
+                                                unit="px"
+                                            />
+                                            <SliderControl
+                                                label="Vertical Offset (Y)"
+                                                value={exportPosY}
+                                                onChange={setExportPosY}
+                                                min={-Math.round(exportHeight / 2)}
+                                                max={Math.round(exportHeight / 2)}
+                                                step={2}
+                                                unit="px"
+                                            />
+                                        </div>
+
+                                        {/* Artwork Placement Presets */}
+                                        <div>
+                                            <label className={labelClasses}>Quick Placement</label>
+                                            <div className="grid grid-cols-3 gap-1 bg-[#f6f5f4] p-1 rounded-md border border-[#e5e3df]">
+                                                <button
+                                                    onClick={() => { setExportPosX(0); setExportPosY(0); }}
+                                                    className={twMerge(
+                                                        "px-2 py-1 rounded text-[11px] font-medium transition-all text-center cursor-pointer",
+                                                        exportPosX === 0 && exportPosY === 0
+                                                            ? "bg-white text-[#1a1a1a] shadow-xs font-semibold"
+                                                            : "text-[#787671] hover:text-[#1a1a1a]"
+                                                    )}
+                                                >
+                                                    Center
+                                                </button>
+                                                <button
+                                                    onClick={() => { setExportPosX(0); setExportPosY(Math.round(exportHeight * 0.28)); }}
+                                                    className={twMerge(
+                                                        "px-2 py-1 rounded text-[11px] font-medium transition-all text-center cursor-pointer",
+                                                        exportPosX === 0 && exportPosY === Math.round(exportHeight * 0.28)
+                                                            ? "bg-white text-[#1a1a1a] shadow-xs font-semibold"
+                                                            : "text-[#787671] hover:text-[#1a1a1a]"
+                                                    )}
+                                                >
+                                                    Lower 3rd
+                                                </button>
+                                                <button
+                                                    onClick={() => { setExportPosX(0); setExportPosY(-Math.round(exportHeight * 0.28)); }}
+                                                    className={twMerge(
+                                                        "px-2 py-1 rounded text-[11px] font-medium transition-all text-center cursor-pointer",
+                                                        exportPosX === 0 && exportPosY === -Math.round(exportHeight * 0.28)
+                                                            ? "bg-white text-[#1a1a1a] shadow-xs font-semibold"
+                                                            : "text-[#787671] hover:text-[#1a1a1a]"
+                                                    )}
+                                                >
+                                                    Top
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-1 bg-[#f6f5f4] p-1 rounded-md border border-[#e5e3df] mt-1">
+                                                <button
+                                                    onClick={() => { setExportPosX(-Math.round(exportWidth * 0.22)); setExportPosY(Math.round(exportHeight * 0.28)); }}
+                                                    className="px-2 py-1 rounded text-[11px] font-medium text-[#787671] hover:text-[#1a1a1a] transition-all text-center cursor-pointer"
+                                                >
+                                                    Bottom Left
+                                                </button>
+                                                <button
+                                                    onClick={() => { setExportPosX(Math.round(exportWidth * 0.22)); setExportPosY(Math.round(exportHeight * 0.28)); }}
+                                                    className="px-2 py-1 rounded text-[11px] font-medium text-[#787671] hover:text-[#1a1a1a] transition-all text-center cursor-pointer"
+                                                >
+                                                    Bottom Right
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Magnetic Snapping Toggle */}
+                                        <div className="flex items-center justify-between pt-2 border-t border-[#e5e3df]">
+                                            <div>
+                                                <label className="text-[12px] font-medium text-[#1a1a1a]">Magnetic Snapping</label>
+                                                <p className="text-[11px] text-[#787671]">Snap to Center & Lower 3rd guides</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" checked={enableSnapping} onChange={(e) => setEnableSnapping(e.target.checked)} className="sr-only peer" />
+                                                <div className={`toggle-track w-8 h-5 rounded-full peer-focus:outline-none ${enableSnapping ? 'active' : ''}`}></div>
+                                            </label>
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                setExportPosX(0);
+                                                setExportPosY(0);
+                                                setCompositionScale(1.0);
+                                            }}
+                                            className="notion-btn notion-btn-secondary w-full py-1.5 text-[11px]"
+                                        >
+                                            Reset Position & Scale
+                                        </button>
+
+                                        <div className="text-[12px] text-[#5d5b54] leading-relaxed bg-[#f6f5f4] border border-[#e5e3df] p-2.5 rounded-lg flex items-start gap-2">
+                                            <MaterialIcon name="lightbulb" className="w-4 h-4 text-[#cb912f] shrink-0 mt-0.5" />
+                                            <span>Drag artwork to reposition (snaps to guides) • Drag corner handles to scale.</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </ControlGroup>
+
                         {/* STYLE GROUP */}
-                        <ControlGroup title="Themes & Colors" icon={Palette} defaultOpen={true}>
-                            <div className="space-y-5">
-                                <div className="grid grid-cols-2 gap-3">
+                        <ControlGroup title="Themes & Colors" iconName="palette" defaultOpen={true}>
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-2.5">
                                     <div className="space-y-1">
                                         <label className={labelClasses}>Main Tile</label>
-                                        <div className="flex items-center gap-2 bg-white p-1 rounded-md border border-gray-200 shadow-sm">
-                                            <input type="color" value={tileColor} onChange={(e) => setTileColor(e.target.value)} className="w-6 h-6 rounded clean-color" />
-                                            <span className="text-[11px] font-mono text-gray-600 uppercase">{tileColor}</span>
+                                        <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-[#e5e3df] hover:border-[#c8c4be] transition-colors">
+                                            <input type="color" value={tileColor} onChange={(e) => setTileColor(e.target.value)} className="w-6 h-6 rounded clean-color cursor-pointer" />
+                                            <span className="text-[11px] font-mono text-[#37352f] uppercase font-medium">{tileColor}</span>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
                                         <label className={labelClasses}>Main Text</label>
-                                        <div className="flex items-center gap-2 bg-white p-1 rounded-md border border-gray-200 shadow-sm">
-                                            <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} className="w-6 h-6 rounded clean-color" />
-                                            <span className="text-[11px] font-mono text-gray-600 uppercase">{textColor}</span>
+                                        <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-[#e5e3df] hover:border-[#c8c4be] transition-colors">
+                                            <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} className="w-6 h-6 rounded clean-color cursor-pointer" />
+                                            <span className="text-[11px] font-mono text-[#37352f] uppercase font-medium">{textColor}</span>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
                                         <label className={labelClasses}>Sub Banner</label>
-                                        <div className="flex items-center gap-2 bg-white p-1 rounded-md border border-gray-200 shadow-sm">
-                                            <input type="color" value={subTileColor} onChange={(e) => setSubTileColor(e.target.value)} className="w-6 h-6 rounded clean-color" />
-                                            <span className="text-[11px] font-mono text-gray-600 uppercase">{subTileColor}</span>
+                                        <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-[#e5e3df] hover:border-[#c8c4be] transition-colors">
+                                            <input type="color" value={subTileColor} onChange={(e) => setSubTileColor(e.target.value)} className="w-6 h-6 rounded clean-color cursor-pointer" />
+                                            <span className="text-[11px] font-mono text-[#37352f] uppercase font-medium">{subTileColor}</span>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
                                         <label className={labelClasses}>Sub Text</label>
-                                        <div className="flex items-center gap-2 bg-white p-1 rounded-md border border-gray-200 shadow-sm">
-                                            <input type="color" value={subTextColor} onChange={(e) => setSubTextColor(e.target.value)} className="w-6 h-6 rounded clean-color" />
-                                            <span className="text-[11px] font-mono text-gray-600 uppercase">{subTextColor}</span>
+                                        <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border border-[#e5e3df] hover:border-[#c8c4be] transition-colors">
+                                            <input type="color" value={subTextColor} onChange={(e) => setSubTextColor(e.target.value)} className="w-6 h-6 rounded clean-color cursor-pointer" />
+                                            <span className="text-[11px] font-mono text-[#37352f] uppercase font-medium">{subTextColor}</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md space-y-4">
+                                <div className="p-3 bg-[#fafaf9] border border-[#e5e3df] rounded-lg space-y-3">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <label className="text-[12px] font-semibold text-gray-900">Canvas Preview</label>
-                                            <p className="text-[10px] text-gray-500">Background color for testing</p>
+                                            <label className="text-[12px] font-medium text-[#1a1a1a]">Canvas Background</label>
+                                            <p className="text-[11px] text-[#787671]">Preview backdrop color</p>
                                         </div>
-                                        <input type="color" value={canvasBg} onChange={(e) => setCanvasBg(e.target.value)} className="w-6 h-6 rounded clean-color shadow-sm" />
+                                        <input type="color" value={canvasBg} onChange={(e) => setCanvasBg(e.target.value)} className="w-6 h-6 rounded clean-color shadow-xs" />
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <label className="text-[12px] font-semibold text-gray-900">Dark Backdrop</label>
-                                            <p className="text-[10px] text-gray-500">Adds blurred backdrop layer</p>
+                                            <label className="text-[12px] font-medium text-[#1a1a1a]">Dark Backdrop</label>
+                                            <p className="text-[11px] text-[#787671]">Blurred backdrop layer</p>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" checked={blackBgBlur} onChange={(e) => setBlackBgBlur(e.target.checked)} className="sr-only peer" />
-                                            <div className={`toggle-track w-8 h-5 rounded-full peer-focus:outline-none ${blackBgBlur ? 'active' : 'bg-gray-300'}`}>
-                                                <div className={`absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${blackBgBlur ? 'translate-x-[12px]' : ''}`}></div>
-                                            </div>
+                                            <div className={`toggle-track w-8 h-5 rounded-full peer-focus:outline-none ${blackBgBlur ? 'active' : ''}`}></div>
                                         </label>
                                     </div>
                                 </div>
@@ -378,8 +652,8 @@ export function Sidebar({
                         </ControlGroup>
 
                         {/* LAYOUT GROUP */}
-                        <ControlGroup title="Dimensions" icon={Layout}>
-                            <div className="space-y-4">
+                        <ControlGroup title="Dimensions & Geometry" iconName="straighten">
+                            <div className="space-y-3.5">
                                 <SliderControl label="Scale Factor" value={tileSize} onChange={setTileSize} min={0.5} max={2.5} step={0.1} unit="x" />
                                 <SliderControl label="Letter Spacing" value={tileGap} onChange={setTileGap} min={0} max={60} step={1} unit="px" />
                                 <SliderControl label="Line Spacing" value={lineGap} onChange={setLineGap} min={0} max={60} step={1} unit="px" />
@@ -389,15 +663,15 @@ export function Sidebar({
                         </ControlGroup>
 
                         {/* EFFECTS GROUP */}
-                        <ControlGroup title="Organic Chaos" icon={Sliders}>
-                            <div className="space-y-5">
+                        <ControlGroup title="Transforms & Chaos" iconName="tune">
+                            <div className="space-y-4">
                                 <div className="space-y-3">
                                     <h4 className={labelClasses}>Shadows</h4>
                                     <SliderControl label="Depth Offset" value={shadowOffset} onChange={setShadowOffset} min={0} max={40} step={1} unit="px" />
                                     <SliderControl label="Shadow Variation" value={shadowChaos} onChange={setShadowChaos} min={0} max={10} step={0.5} />
                                 </div>
 
-                                <div className="space-y-3">
+                                <div className="space-y-3 pt-2 border-t border-[#e5e3df]">
                                     <h4 className={labelClasses}>Transforms</h4>
                                     <SliderControl label="Tile Chaos" value={chaosLevel} onChange={setChaosLevel} min={0} max={15} step={0.5} unit="°" />
                                     <SliderControl label="Position Jitter" value={posChaos} onChange={setPosChaos} min={0} max={20} step={0.5} unit="px" />
@@ -409,21 +683,21 @@ export function Sidebar({
                 )}
             </div>
 
-            {/* Actions */}
-            <div className="pt-4 mt-2 mt-auto border-t border-gray-200 bg-white grid grid-cols-2 gap-2 px-4 pb-4">
+            {/* Actions: Notion Sticky Bottom Bar */}
+            <div className="p-3 border-t border-[#e5e3df] bg-white sticky bottom-0 z-30 flex items-center gap-2">
                 <button
                     onClick={onDownload}
                     disabled={isDownloading}
-                    className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm transform active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 text-[13px]"
+                    className="notion-btn notion-btn-primary flex-1 py-2.5 text-[13px] font-medium gap-1.5"
                 >
-                    <Download className="w-3.5 h-3.5" /> Export PNG
+                    <MaterialIcon name="download" className="w-4 h-4" /> Export PNG
                 </button>
                 <button
                     onClick={onDownloadSvg}
                     disabled={isDownloading}
-                    className="py-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-medium rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.02)] transform active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 text-[13px]"
+                    className="notion-btn notion-btn-secondary flex-1 py-2.5 text-[13px] font-medium gap-1.5"
                 >
-                    <Download className="w-3.5 h-3.5" /> Export SVG
+                    <MaterialIcon name="code" className="w-4 h-4" /> Export SVG
                 </button>
             </div>
 
