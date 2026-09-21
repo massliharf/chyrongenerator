@@ -2,7 +2,7 @@ import { useRef, useCallback, forwardRef, useState, useEffect } from 'react';
 import { toPng, toSvg } from 'html-to-image';
 import { ControlGroup, SliderControl } from '../Sidebar';
 import { usePersistentState } from '../../hooks/usePersistentState';
-import { Type, Palette, Layout, Download, Sliders, Save, Trash2 } from 'lucide-react';
+import { MaterialIcon } from '../MaterialIcon';
 
 export type TypographyEffect = 'extrude' | 'skew' | 'offset' | 'outline' | 'retro' | 'glow' | 'neon';
 
@@ -310,25 +310,30 @@ export function TypographyGenerator() {
         finally { setIsDownloading(false); }
     }, []);
 
-    const inputCls = "w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-[13px] outline-none focus:border-blue-500 shadow-sm transition-colors";
-    const labelCls = "text-[12px] font-semibold text-gray-700 tracking-wide";
+    const inputCls = "notion-input";
+    const labelCls = "text-[12px] font-medium text-[#787671]";
 
     return (
-        <div className="flex flex-col md:flex-row h-screen w-full bg-white overflow-hidden font-sans">
+        <div className="flex flex-col md:flex-row h-screen w-full bg-[#f6f5f4] overflow-hidden font-sans">
             {/* Unified Sidebar */}
-            <div className="flex-shrink-0 w-full md:w-[360px] h-1/3 md:h-full relative z-20 overflow-y-auto border-r border-gray-200 bg-white custom-scrollbar flex flex-col">
-                <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-30 shadow-sm flex items-center justify-between">
-                    <div>
-                        <h2 className="text-[14px] font-black text-gray-900 tracking-tight uppercase">Typography Engine</h2>
-                        <p className="text-[11px] text-gray-500">Full control typographic styler</p>
+            <div className="flex-shrink-0 w-full md:w-[360px] h-1/3 md:h-full relative z-20 overflow-y-auto border-r border-[#e5e3df] bg-white clean-scrollbar flex flex-col">
+                <div className="p-4 border-b border-[#e5e3df] bg-white sticky top-0 z-30 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-6 h-6 rounded-md bg-[#5645d4] flex items-center justify-center text-white shadow-xs">
+                            <MaterialIcon name="format_size" className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-[13px] font-semibold text-[#1a1a1a]">Typography Engine</h2>
+                            <p className="text-[11px] text-[#787671]">Typographic Styler</p>
+                        </div>
                     </div>
                 </div>
 
                 <div className="flex-1 p-4 space-y-2">
                     
                     {/* PRESETS */}
-                    <ControlGroup title="Saved Presets" icon={Save} defaultOpen={false}>
-                        <div className="space-y-4">
+                    <ControlGroup title="Saved Presets" iconName="layers" defaultOpen={false}>
+                        <div className="space-y-3">
                             <div className="flex gap-2">
                                 <input
                                     type="text"
@@ -341,27 +346,27 @@ export function TypographyGenerator() {
                                 <button
                                     onClick={handleSavePreset}
                                     disabled={!newPresetName.trim()}
-                                    className="px-3 bg-blue-600 text-white rounded-md text-[13px] font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                                    className="notion-btn notion-btn-primary px-3 py-1.5 text-[12px] h-[36px] flex-shrink-0"
                                 >
                                     Save
                                 </button>
                             </div>
                             {presets.length > 0 && (
-                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 clean-scrollbar">
                                     {presets.map(preset => (
-                                        <div key={preset.id} className="flex items-center gap-1">
+                                        <div key={preset.id} className="flex items-center justify-between p-2 rounded-md hover:bg-[#f6f5f4] border border-[#e5e3df] group transition-all">
                                             <button
                                                 onClick={() => handleLoadPreset(preset)}
-                                                className="flex-1 text-left px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-[12px] font-semibold text-gray-700 truncate transition-all"
+                                                className="flex-1 text-left text-[13px] font-medium text-[#37352f] truncate cursor-pointer"
                                             >
                                                 {preset.name}
                                             </button>
                                             <button
                                                 onClick={() => handleDeletePreset(preset.id)}
-                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                                className="p-1 text-[#787671] hover:text-[#e03e3e] rounded transition-colors cursor-pointer"
                                                 title="Delete preset"
                                             >
-                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <MaterialIcon name="delete_outline" className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
                                     ))}
@@ -371,16 +376,16 @@ export function TypographyGenerator() {
                     </ControlGroup>
 
                     {/* REFERENCE TYPES */}
-                    <ControlGroup title="Reference Templates" icon={Palette} defaultOpen={true}>
-                        <div className="grid grid-cols-3 gap-2">
+                    <ControlGroup title="Reference Templates" iconName="palette" defaultOpen={true}>
+                        <div className="grid grid-cols-3 gap-1.5">
                             {CONSTANT_PRESETS.map(preset => (
                                 <button
                                     key={preset.id}
                                     onClick={() => handleLoadPreset(preset)}
-                                    className={`py-1.5 px-2 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                                    className={`py-1.5 px-2 rounded-md text-[11px] font-medium transition-all cursor-pointer border ${
                                         activeTemplate === preset.id 
-                                            ? 'bg-neutral-900 border-neutral-900 text-white shadow-md' 
-                                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                                            ? 'bg-[#e6e0f5] border-[#5645d4] text-[#391c57] font-semibold shadow-xs' 
+                                            : 'bg-white border-[#e5e3df] hover:bg-[#f6f5f4] text-[#787671]'
                                     }`}
                                 >
                                     {preset.name}
@@ -390,7 +395,7 @@ export function TypographyGenerator() {
                     </ControlGroup>
 
                     {/* CONTENT */}
-                    <ControlGroup title="Content" icon={Type} defaultOpen={true}>
+                    <ControlGroup title="Content" iconName="text_fields" defaultOpen={true}>
                         <div className="space-y-4">
                             <div>
                                 <label className={labelCls}>Main Text</label>
@@ -405,13 +410,11 @@ export function TypographyGenerator() {
                             <div className="flex items-center gap-3">
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" checked={isItalic} onChange={(e) => setIsItalic(e.target.checked)} className="sr-only peer" />
-                                    <div className={`w-8 h-5 rounded-full peer-focus:outline-none ${isItalic ? 'bg-blue-500' : 'bg-gray-300'}`}>
-                                        <div className={`absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${isItalic ? 'translate-x-[12px]' : ''}`}></div>
-                                    </div>
+                                    <div className={`toggle-track w-8 h-5 rounded-full ${isItalic ? 'active' : ''}`}></div>
                                 </label>
                                 <span className={labelCls}>Italicize Text</span>
                             </div>
-                            <hr className="border-gray-100" />
+                            <hr className="border-[#e5e3df]" />
                             <div>
                                 <label className={labelCls}>Subtitle</label>
                                 <input value={subtitle} onChange={e => setSubtitle(e.target.value)} className={`${inputCls} mt-1.5`} />
@@ -420,17 +423,17 @@ export function TypographyGenerator() {
                     </ControlGroup>
 
                     {/* EFFECT ENGINE */}
-                    <ControlGroup title="Effect Engine" icon={Sliders} defaultOpen={true}>
+                    <ControlGroup title="Effect Engine" iconName="tune" defaultOpen={true}>
                         <div className="space-y-5">
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                                 {(['extrude', 'skew', 'offset', 'outline', 'retro', 'glow', 'neon'] as TypographyEffect[]).map(eff => (
                                     <button
                                         key={eff}
                                         onClick={() => setEffect(eff)}
-                                        className={`py-1.5 px-2 rounded-md text-[11px] font-bold capitalize border transition-all ${
+                                        className={`py-1.5 px-2 rounded-md text-[11px] font-medium capitalize border transition-all cursor-pointer ${
                                             effect === eff 
-                                                ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' 
-                                                : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
+                                                ? 'bg-[#e6e0f5] border-[#5645d4] text-[#391c57] font-semibold shadow-xs' 
+                                                : 'bg-white border-[#e5e3df] hover:bg-[#f6f5f4] text-[#787671]'
                                         }`}
                                     >
                                         {eff}
@@ -438,7 +441,7 @@ export function TypographyGenerator() {
                                 ))}
                             </div>
 
-                            <div className="space-y-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                            <div className="space-y-4 p-3 bg-[#f6f5f4] border border-[#e5e3df] rounded-lg">
                                 <SliderControl 
                                     label={labels.val1} 
                                     value={value1} 
@@ -458,13 +461,11 @@ export function TypographyGenerator() {
                                     />
                                 )}
                                 {(effect === 'outline' || effect === 'neon') && (
-                                    <div className="flex items-center justify-between pt-2">
+                                    <div className="flex items-center justify-between pt-2 border-t border-[#e5e3df]">
                                         <label className={labelCls}>Fill Main Text</label>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" checked={isFilled} onChange={(e) => setIsFilled(e.target.checked)} className="sr-only peer" />
-                                            <div className={`w-8 h-5 rounded-full peer-focus:outline-none ${isFilled ? 'bg-blue-500' : 'bg-gray-300'}`}>
-                                                <div className={`absolute top-[2px] left-[2px] w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${isFilled ? 'translate-x-[12px]' : ''}`}></div>
-                                            </div>
+                                            <div className={`toggle-track w-8 h-5 rounded-full ${isFilled ? 'active' : ''}`}></div>
                                         </label>
                                     </div>
                                 )}
@@ -473,39 +474,39 @@ export function TypographyGenerator() {
                     </ControlGroup>
 
                     {/* STYLING & COLORS */}
-                    <ControlGroup title="Styling & Colors" icon={Palette} defaultOpen={false}>
+                    <ControlGroup title="Styling & Colors" iconName="palette" defaultOpen={false}>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-3">
                                 {effect !== 'outline' && (
                                     <div className="space-y-1">
                                         <label className={labelCls}>Main Text</label>
-                                        <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)} className="w-full h-8 rounded border border-gray-200 cursor-pointer" />
+                                        <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)} className="w-full h-8 rounded-md clean-color cursor-pointer" />
                                     </div>
                                 )}
                                 <div className="space-y-1">
                                     <label className={labelCls}>{labels.color1}</label>
-                                    <input type="color" value={effectColor1} onChange={e => setEffectColor1(e.target.value)} className="w-full h-8 rounded border border-gray-200 cursor-pointer" />
+                                    <input type="color" value={effectColor1} onChange={e => setEffectColor1(e.target.value)} className="w-full h-8 rounded-md clean-color cursor-pointer" />
                                 </div>
                                 {labels.color2 && (
                                     <div className="space-y-1">
                                         <label className={labelCls}>{labels.color2}</label>
-                                        <input type="color" value={effectColor2} onChange={e => setEffectColor2(e.target.value)} disabled={effect === 'outline' && !isFilled} className="w-full h-8 rounded border border-gray-200 cursor-pointer" />
+                                        <input type="color" value={effectColor2} onChange={e => setEffectColor2(e.target.value)} disabled={effect === 'outline' && !isFilled} className="w-full h-8 rounded-md clean-color cursor-pointer" />
                                     </div>
                                 )}
                             </div>
 
-                            <hr className="border-gray-100" />
+                            <hr className="border-[#e5e3df]" />
                             
                             <div className="space-y-3">
-                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Subtitle</h4>
+                                <h4 className="text-[11px] font-semibold text-[#787671] uppercase tracking-wider">Subtitle</h4>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                         <label className={labelCls}>Background</label>
-                                        <input type="color" value={subtitleBg} onChange={e => setSubtitleBg(e.target.value)} className="w-full h-8 rounded border border-gray-200 cursor-pointer" />
+                                        <input type="color" value={subtitleBg} onChange={e => setSubtitleBg(e.target.value)} className="w-full h-8 rounded-md clean-color cursor-pointer" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className={labelCls}>Text</label>
-                                        <input type="color" value={subtitleColor} onChange={e => setSubtitleColor(e.target.value)} className="w-full h-8 rounded border border-gray-200 cursor-pointer" />
+                                        <input type="color" value={subtitleColor} onChange={e => setSubtitleColor(e.target.value)} className="w-full h-8 rounded-md clean-color cursor-pointer" />
                                     </div>
                                 </div>
                             </div>
@@ -513,13 +514,13 @@ export function TypographyGenerator() {
                     </ControlGroup>
 
                     {/* SUBTITLE SPATIAL */}
-                    <ControlGroup title="Subtitle Adjustments" icon={Layout} defaultOpen={false}>
+                    <ControlGroup title="Subtitle Adjustments" iconName="subtitles" defaultOpen={false}>
                         <div className="space-y-5">
                             <div>
                                 <label className={labelCls}>Alignment</label>
-                                <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-md mt-1.5">
-                                    <button onClick={() => setSubtitlePos('top')} className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium transition-all ${subtitlePos === 'top' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-500'}`}>Top</button>
-                                    <button onClick={() => setSubtitlePos('bottom')} className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium transition-all ${subtitlePos === 'bottom' ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-500'}`}>Bottom</button>
+                                <div className="grid grid-cols-2 gap-1 bg-[#f6f5f4] p-1 rounded-md mt-1.5 border border-[#e5e3df]">
+                                    <button onClick={() => setSubtitlePos('top')} className={`px-3 py-1.5 rounded text-[12px] font-medium transition-all cursor-pointer ${subtitlePos === 'top' ? 'bg-white text-[#1a1a1a] shadow-xs border border-[#e5e3df]' : 'text-[#787671] hover:text-[#1a1a1a]'}`}>Top</button>
+                                    <button onClick={() => setSubtitlePos('bottom')} className={`px-3 py-1.5 rounded text-[12px] font-medium transition-all cursor-pointer ${subtitlePos === 'bottom' ? 'bg-white text-[#1a1a1a] shadow-xs border border-[#e5e3df]' : 'text-[#787671] hover:text-[#1a1a1a]'}`}>Bottom</button>
                                 </div>
                             </div>
                             <SliderControl label="Scale" value={subtitleSize} onChange={setSubtitleSize} min={0.5} max={4} step={0.1} unit="rem" />
@@ -533,33 +534,31 @@ export function TypographyGenerator() {
                 </div>
 
                 {/* Footer Actions */}
-                <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
-                    <div className="flex items-center justify-between mb-3 border border-gray-200 rounded-md p-2 bg-gray-50">
+                <div className="flex-shrink-0 p-4 border-t border-[#e5e3df] bg-white">
+                    <div className="flex items-center justify-between mb-3 border border-[#e5e3df] rounded-lg p-2.5 bg-[#fafaf9]">
                         <label className={labelCls}>Canvas Background</label>
                         <div className="flex items-center gap-2">
-                            <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)} disabled={!showBg} className="w-5 h-5 rounded cursor-pointer border" />
+                            <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)} disabled={!showBg} className="w-6 h-6 rounded clean-color cursor-pointer" />
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={showBg} onChange={(e) => setShowBg(e.target.checked)} className="sr-only peer" />
-                                <div className={`w-7 h-4 rounded-full peer-focus:outline-none ${showBg ? 'bg-blue-500' : 'bg-gray-300'}`}>
-                                    <div className={`absolute top-[2px] left-[2px] w-3 h-3 bg-white rounded-full transition-transform ${showBg ? 'translate-x-[12px]' : ''}`}></div>
-                                </div>
+                                <div className={`toggle-track w-8 h-5 rounded-full ${showBg ? 'active' : ''}`}></div>
                             </label>
                         </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => handleExport('png')} disabled={isDownloading} className="py-2.5 bg-blue-600 text-white font-medium rounded-md shadow-sm active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50 text-[13px] transition-all">
-                            <Download className="w-3.5 h-3.5" /> PNG
+                        <button onClick={() => handleExport('png')} disabled={isDownloading} className="notion-btn notion-btn-primary py-2.5 text-[13px] gap-1.5">
+                            <MaterialIcon name="download" className="w-4 h-4" /> Export PNG
                         </button>
-                        <button onClick={() => handleExport('svg')} disabled={isDownloading} className="py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-md shadow-sm active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50 text-[13px] transition-all">
-                            <Download className="w-3.5 h-3.5" /> SVG
+                        <button onClick={() => handleExport('svg')} disabled={isDownloading} className="notion-btn notion-btn-secondary py-2.5 text-[13px] gap-1.5">
+                            <MaterialIcon name="code" className="w-4 h-4" /> Export SVG
                         </button>
                     </div>
                 </div>
             </div>
 
             {/* Preview Output */}
-            <div className={`flex-1 flex items-center justify-center p-8 overflow-auto ${showBg ? 'bg-neutral-900 border-l border-neutral-800' : 'checkerboard-bg border-l border-gray-200'}`}>
+            <div className={`flex-1 flex items-center justify-center p-8 overflow-auto ${showBg ? 'bg-[#0a1530] border-l border-[#e5e3df]' : 'checkerboard-bg border-l border-[#e5e3df]'}`}>
                 <TypographyPreview 
                     ref={ref} 
                     effect={effect}
