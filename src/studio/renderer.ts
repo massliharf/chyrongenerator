@@ -140,21 +140,21 @@ export function buildScene(p: Project, fonts: Fonts): Scene {
     y += height + p.lineGap
   }
   y = Math.max(0, y - p.lineGap)
-  const hasSubtitle = Boolean(p.subtitle.trim() && p.subtitlePill)
-  const sub = hasSubtitle ? outline(p.subtitle, p.subtitleSize, fonts, true) : { d: '', width: 0, height: 0, left: 0, top: 0 }
-  const padX = hasSubtitle ? p.subtitlePaddingX : 0
-  const padY = hasSubtitle ? p.subtitlePaddingY : 0
-  const subWidth = hasSubtitle ? sub.width + padX * 2 : 0
-  const subHeight = hasSubtitle ? sub.height + padY * 2 : 0
+  const subtitle = p.subtitlePill ? p.subtitle.trim() : ''
+  const sub = outline(subtitle, p.subtitleSize, fonts, true)
+  const padX = p.subtitlePaddingX
+  const padY = p.subtitlePaddingY
+  const subWidth = subtitle ? sub.width + padX * 2 : 0
+  const subHeight = subtitle ? sub.height + padY * 2 : 0
   maxWidth = Math.max(maxWidth, subWidth, 1)
-  const subGap = hasSubtitle ? p.subtitleGap : 0
-  const topOffset = hasSubtitle && p.subtitlePosition === 'top' ? subHeight + subGap : 0
+  const subGap = subtitle ? p.subtitleGap : 0
+  const topOffset = p.subtitlePosition === 'top' ? subHeight + subGap : 0
   const alignOffset = (width: number) =>
     p.align === 'left' ? 0 : p.align === 'right' ? maxWidth - width : (maxWidth - width) / 2
   for (const row of rows)
     for (const node of row.nodes)
       elements.push({ ...node, x: node.x + alignOffset(row.width), y: node.y + topOffset })
-  if (hasSubtitle)
+  if (subtitle)
     elements.push({
       x: alignOffset(subWidth),
       y: p.subtitlePosition === 'top' ? 0 : y + subGap,

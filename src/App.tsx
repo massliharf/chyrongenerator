@@ -40,15 +40,16 @@ import {
 import { loadPresets, storePresets, useProject, type SavedPreset } from './studio/useProject'
 import { usePlayback } from './studio/usePlayback'
 import { saveBlob } from './studio/export'
+import { generateId } from './utils/id'
 import './App.css'
-import { uuid } from './utils/uuid'
+import './StudioLayout.css'
 
 const templateSamples = TEMPLATES.map((template) =>
   applyTemplate(
     {
       ...DEFAULT_PROJECT,
-      width: 720,
-      height: 1280,
+      width: 1920,
+      height: 1080,
       text: 'Your\nMoment',
       subtitle: 'MAKE IT COUNT',
     },
@@ -76,7 +77,10 @@ function ChyronEditor({
     () => window.matchMedia('(max-width: 899px)').matches,
   )
   const [detailOverride, setDetailOverride] = useState<boolean | null>(null)
-  const artworkDetail = !focusCanvas && tab !== 'canvas' && (detailOverride ?? compactViewport)
+  const artworkDetail =
+    !focusCanvas &&
+    tab !== 'canvas' &&
+    (detailOverride ?? (compactViewport && project.previewBackground !== 'live'))
   const [templateQuery, setTemplateQuery] = useState('')
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [deletedPreset, setDeletedPreset] = useState<SavedPreset | null>(null)
@@ -189,7 +193,7 @@ function ChyronEditor({
     }
     const next = [
       ...presets,
-      { id: uuid(), name: presetName.trim(), project: { ...project } },
+      { id: generateId(), name: presetName.trim(), project: { ...project } },
     ]
     try {
       storePresets(next)
@@ -230,14 +234,7 @@ function ChyronEditor({
     }
   }
   return (
-    <div
-      className={`studio-shell ${focusCanvas ? 'canvas-focused' : ''}`}
-      style={
-        {
-          '--live-preview-url': `url(${import.meta.env.BASE_URL}live-preview.png)`,
-        } as React.CSSProperties
-      }
-    >
+    <div className={`studio-shell ${focusCanvas ? 'canvas-focused' : ''}`}>
       <a className="skip-link" href="#settings-panel" onClick={() => setFocusCanvas(false)}>
         Skip to settings
       </a>
@@ -251,7 +248,7 @@ function ChyronEditor({
           <strong>
             chyron<span>studio</span>
           </strong>
-          <span className="version-pill">2.3</span>
+          <span className="version-pill">2.4</span>
         </h1>
         <div className="project-header">
           <span className="header-divider" />
@@ -651,7 +648,7 @@ function ChyronEditor({
                     >
                       <span className={`menu-swatch ${bg}`} />{' '}
                       {bg === 'live'
-                        ? 'Live stream preview'
+                        ? 'Live preview'
                         : bg === 'checker'
                           ? 'Transparency checker'
                           : `${bg === 'dark' ? 'Dark' : 'Light'} preview`}
@@ -688,7 +685,7 @@ function ChyronEditor({
                   <span>SAFE AREA · 90%</span>
                 </div>
               )}
-              {!project.text.trim() && !project.subtitle.trim() && (
+              {!project.text.trim() && (!project.subtitlePill || !project.subtitle.trim()) && (
                 <div className="empty-canvas">
                   <span className="empty-type">Aa</span>
                   <strong>Your next big moment starts here.</strong>
@@ -713,11 +710,7 @@ function ChyronEditor({
                 <button
                   key={bg}
                   aria-label={`Set ${bg} preview`}
-                  title={
-                    bg === 'live'
-                      ? 'Live stream preview background'
-                      : `${bg[0].toUpperCase() + bg.slice(1)} background`
-                  }
+                  title={`${bg[0].toUpperCase() + bg.slice(1)} background`}
                   className={`background-chip ${bg} ${project.previewBackground === bg ? 'selected' : ''}`}
                   aria-pressed={project.previewBackground === bg}
                   onClick={() => patch({ previewBackground: bg })}

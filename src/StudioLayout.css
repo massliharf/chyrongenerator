@@ -1,0 +1,193 @@
+/* Shared studio hierarchy: header, tool rail, work area and inspector. */
+.studio-shell {
+  padding: 12px;
+  gap: 12px;
+  background: #081222;
+}
+.studio-shell > .app-header {
+  border: 1px solid #425c80;
+  border-radius: 16px;
+  background: #213554;
+  padding-inline: 20px;
+  box-shadow: 0 2px 8px #0003;
+}
+.studio-shell > .workspace-nav {
+  background: #14243c;
+  border: 1px solid #344e72;
+  border-radius: 16px;
+}
+.workspace-nav > span {
+  display: none;
+}
+.workspace-nav button[aria-pressed='true'] {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.workspace,
+.si-workspace {
+  gap: 12px;
+}
+.main-workspace,
+.si-main,
+.inspector-wrap,
+.si-inspector {
+  border: 1px solid #425c80;
+  border-radius: 16px;
+  background: #182b47;
+  min-width: 0;
+}
+.main-workspace,
+.si-main {
+  background: #112039;
+}
+.inspector-wrap,
+.si-inspector {
+  overflow: hidden;
+}
+.inspector {
+  background: #182b47;
+}
+.canvas-toolbar,
+.si-heading {
+  background: #182b47;
+  border-radius: 15px 15px 0 0;
+  border-bottom: 1px solid #344e72;
+}
+.si-preview-toolbar {
+  padding-top: 8px;
+  background: #162941;
+  border-bottom: 1px solid #344e72;
+}
+.stage-surround,
+.si-stage {
+  background-color: #0b192e;
+  background-image: none;
+}
+.stage-canvas,
+.si-artboard {
+  box-shadow: 0 8px 28px #0006;
+}
+.inspector-tabs,
+.si-panel-heading {
+  background: #243c5e;
+  border-bottom: 1px solid #425c80;
+}
+.control-section {
+  background: #13243d;
+  border-color: #344e72;
+}
+.inspector-footer,
+.si-save-state {
+  background: #142640;
+  border-top: 1px solid #425c80;
+}
+.timeline {
+  border-top: 1px solid #425c80;
+  border-radius: 0 0 15px 15px;
+  background: #1d3354;
+}
+.si-preview-actions {
+  border-top: 1px solid #344e72;
+}
+.si-formats {
+  padding-top: 4px;
+}
+@media (min-width: 900px) {
+  .studio-shell {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .studio-shell > .app-header {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .studio-shell > .workspace-nav {
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 6px;
+    gap: 10px;
+  }
+  .workspace-nav button {
+    flex-direction: column;
+    min-width: 0;
+    min-height: 80px;
+    padding: 10px 4px;
+    gap: 8px;
+    text-align: center;
+    font: var(--type-label-medium);
+  }
+  .workspace-nav button svg {
+    width: 22px;
+    height: 22px;
+  }
+  .workspace,
+  .si-workspace {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .studio-shell > .skip-link {
+    position: fixed;
+  }
+}
+@media (max-width: 1199px) and (min-width: 900px) {
+  .workspace,
+  .si-workspace {
+    grid-template-columns: minmax(0, 1fr) 336px;
+  }
+  .canvas-focused .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .canvas-toolbar {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+  .canvas-toolbar > div {
+    gap: 4px;
+  }
+}
+@media (max-width: 899px) {
+  .studio-shell {
+    padding: 8px;
+    gap: 8px;
+  }
+  .studio-shell > .app-header {
+    padding-inline: 12px;
+    border-radius: 12px;
+  }
+  .studio-shell > .workspace-nav {
+    padding: 4px 8px;
+    border-radius: 12px;
+  }
+  .workspace,
+  .si-workspace {
+    gap: 8px;
+  }
+  .si-workspace {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+  }
+  .si-main,
+  .si-inspector {
+    flex: none;
+  }
+  .main-workspace,
+  .si-main,
+  .inspector-wrap,
+  .si-inspector {
+    border-radius: 12px;
+  }
+  .canvas-toolbar,
+  .si-heading {
+    border-radius: 11px 11px 0 0;
+  }
+  .timeline {
+    border-radius: 0 0 11px 11px;
+  }
+  .stream-shell > .app-header {
+    top: 8px;
+  }
+}

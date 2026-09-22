@@ -1,5 +1,5 @@
 import type { Bounds, ImageAsset } from './model'
-import { uuid } from '../utils/uuid'
+import { generateId } from '../utils/id'
 
 export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -57,5 +57,5 @@ export async function importImage(file: File, trim: boolean): Promise<ImageAsset
       throw new Error('This image is completely transparent. Choose a visible host image.')
     bounds = { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
   }
-  return { id: uuid(), name: file.name, blob: file, width, height, bounds }
+  return { id: generateId(), name: file.name, blob: file, width, height, bounds }
 }

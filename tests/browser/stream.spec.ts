@@ -159,7 +159,10 @@ test('stream images responsive layout and accessibility', async ({ page }, testI
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
     .analyze()
   violations.push(
-    ...scan.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+    ...scan.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, html: n.html, failure: n.failureSummary })),
+    })),
   )
   await uploadHost(page)
   for (const [width, height] of [
@@ -182,12 +185,117 @@ test('stream images responsive layout and accessibility', async ({ page }, testI
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
     .analyze()
   violations.push(
-    ...populated.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+    ...populated.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, html: n.html, failure: n.failureSummary })),
+    })),
   )
+  await page.evaluate(() => {
+    ;(document.activeElement as HTMLElement)?.blur()
+    window.scrollTo(0, 0)
+  })
   await page.screenshot({ path: testInfo.outputPath('stream-mobile.png'), fullPage: true })
   await page.setViewportSize({ width: 1440, height: 960 })
   await page.getByRole('button', { name: /Edit Hero image/ }).click()
   await page.screenshot({ path: testInfo.outputPath('stream-desktop.png') })
   expect(violations).toEqual([])
   expect(errors).toEqual([])
+})
+
+test('canvas handles resize, rotate, undo and export the transformed host without controls', async ({
+  page,
+}) => {
+  await openStream(page)
+  await uploadHost(page)
+  await page.getByLabel('Background style', { exact: true }).selectOption('transparent')
+  const canvas = page.locator('.si-artboard canvas')
+  const box = (await page.locator('.si-transform-box').boundingBox())!
+  const corner = page.getByRole('button', { name: 'Resize host from bottom right' })
+  const handle = (await corner.boundingBox())!
+  const start = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 }
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  await page.mouse.move(start.x + box.width * 0.2, start.y + box.height * 0.2, { steps: 5 })
+  await page.mouse.up()
+  expect(
+    Number(await page.getByLabel('Host size value', { exact: true }).inputValue()),
+  ).toBeCloseTo(120, 0)
+  await page.getByRole('button', { name: 'Undo image edit' }).click()
+  await expect(page.getByLabel('Host size value', { exact: true })).toHaveValue('100')
+  await expect(page.getByLabel('Horizontal position value', { exact: true })).toHaveValue('50')
+  const rect = (await canvas.boundingBox())!
+  const rotate = page.getByRole('button', { name: 'Rotate host', exact: true })
+  const r = (await rotate.boundingBox())!
+  const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.54 }
+  const radius = center.y - r.y - r.height / 2
+  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(center.x + radius, center.y, { steps: 6 })
+  await page.mouse.up()
+  await expect(page.getByLabel('Host rotation value', { exact: true })).toHaveValue('90')
+  await rotate.press('Shift+ArrowRight')
+  await expect(page.getByLabel('Host rotation value', { exact: true })).toHaveValue('105')
+  await page.getByRole('button', { name: 'Fit host to canvas' }).click()
+  await expect(page.getByLabel('Host rotation value', { exact: true })).toHaveValue('0')
+  await corner.press('Shift+ArrowUp')
+  await expect(page.getByLabel('Host size value', { exact: true })).toHaveValue('110')
+  await rotate.press('Shift+ArrowRight')
+  await page.getByRole('button', { name: 'Show image safe area' }).click()
+  const preview = await canvas.evaluate(
+    (node) => (node as HTMLCanvasElement).toDataURL().split(',')[1],
+  )
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download PNG', exact: true }).click()
+  const png = readFileSync((await (await download).path())!)
+  expect(rgba(png).equals(rgba(Buffer.from(preview, 'base64')))).toBe(true)
+  expect(rgba(png)[3]).toBe(0)
+  await page.getByRole('button', { name: 'Show image controls' }).click()
+  await expect(page.getByRole('button', { name: 'Rotate host', exact: true })).toBeHidden()
+  await page.getByRole('button', { name: 'Show image controls' }).click()
+  await expect(page.getByRole('button', { name: 'Rotate host', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /Edit Host card/ }).click()
+  await expect(page.getByLabel('Host size value', { exact: true })).toHaveValue('100')
+  await expect(page.getByLabel('Host rotation value', { exact: true })).toHaveValue('0')
+})
+
+test('touch handles resize and rotate on a narrow canvas', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 })
+  await openStream(page)
+  await uploadHost(page)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  const canvas = page.locator('.si-artboard canvas')
+  const cdp = await page.context().newCDPSession(page)
+  const touchDrag = async (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ ...start, id: 1 }],
+    })
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ ...end, id: 1 }],
+    })
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  }
+  const box = (await page.locator('.si-transform-box').boundingBox())!
+  const handle = (await page
+    .getByRole('button', { name: 'Resize host from bottom right' })
+    .boundingBox())!
+  const start = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 }
+  await touchDrag(start, { x: start.x + box.width * 0.15, y: start.y + box.height * 0.15 })
+  expect(
+    Number(await page.getByLabel('Host size value', { exact: true }).inputValue()),
+  ).toBeCloseTo(115, 0)
+  await page.getByRole('button', { name: 'Fit host to canvas' }).click()
+  const rect = (await canvas.boundingBox())!
+  const rotate = (await page
+    .getByRole('button', { name: 'Rotate host', exact: true })
+    .boundingBox())!
+  const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.54 }
+  const radius = center.y - rotate.y - rotate.height / 2
+  await touchDrag(
+    { x: rotate.x + rotate.width / 2, y: rotate.y + rotate.height / 2 },
+    { x: center.x + radius, y: center.y },
+  )
+  await expect(page.getByLabel('Host rotation value', { exact: true })).toHaveValue('90')
+  await cdp.detach()
 })

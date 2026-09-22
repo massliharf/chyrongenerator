@@ -70,7 +70,7 @@ export const Composition = memo(function Composition({
         aria-label={
           thumbnail
             ? undefined
-            : `Composition preview: ${project.text.replace(/\n/g, ' ')}. ${project.subtitle}`
+            : `Composition preview: ${project.text.replace(/\n/g, ' ')}.${project.subtitlePill ? ` ${project.subtitle}` : ''}`
         }
         role={thumbnail ? undefined : 'img'}
         style={{ opacity: ready ? 1 : 0 }}

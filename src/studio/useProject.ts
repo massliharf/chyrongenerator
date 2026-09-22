@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState } from 'react'
 import { DEFAULT_PROJECT, migrateLegacy, normalizeProject, type Project } from './model'
-import { uuid } from '../utils/uuid'
+import { generateId } from '../utils/id'
 
 const STORAGE_KEY = 'chyron-studio:v2'
 const PRESETS_KEY = 'chyron-studio:presets:v2'
@@ -24,13 +24,7 @@ type Action =
 function initial(): Project {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const parsed = normalizeProject(JSON.parse(saved))
-      if (parsed.font === 'Wicked Mouse' && (parsed.previewBackground === 'checker' || parsed.tileSize === 104)) {
-        return { ...DEFAULT_PROJECT }
-      }
-      return parsed
-    }
+    if (saved) return normalizeProject(JSON.parse(saved))
     if (localStorage.getItem('text')) {
       const raw: Record<string, unknown> = {}
       for (let i = 0; i < localStorage.length; i++) {
@@ -150,7 +144,7 @@ export function loadPresets(): SavedPreset[] {
           ? entries
               .filter((e) => e && typeof e.name === 'string')
               .map((e) => ({
-                id: `legacy-${key}-${e.id || uuid()}`,
+                id: `legacy-${key}-${e.id || generateId()}`,
                 name: e.name,
                 project: migrateLegacy(e, key === 'typography_presets'),
               }))

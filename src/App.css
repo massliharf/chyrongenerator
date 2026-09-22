@@ -144,7 +144,7 @@
 }
 .button:hover:not(:disabled),
 .fit-button:hover {
-  background: #2a3448;
+  background: #304d76;
 }
 .button.primary {
   background: var(--accent);
@@ -152,7 +152,7 @@
   color: var(--accent-ink);
 }
 .button.primary:hover:not(:disabled) {
-  background: #b1d4fb;
+  background: #b5d3ff;
 }
 .full {
   width: 100%;
@@ -271,7 +271,7 @@
   padding: 20px 28px 44px;
   overflow: hidden;
   container-type: size;
-  background-image: radial-gradient(#7889a620 0.8px, transparent 0.8px);
+  background-image: radial-gradient(#8fb3ed20 0.8px, transparent 0.8px);
   background-size: 20px 20px;
 }
 .stage-canvas {
@@ -279,24 +279,18 @@
   max-height: 100%;
   position: relative;
   flex-shrink: 0;
-  border: 1px solid #445068;
+  border: 1px solid #4d688e;
   border-radius: 3px;
   box-shadow: 0 16px 48px #0003;
 }
 .checker {
-  background: repeating-conic-gradient(#252b36 0% 25%, #1f2530 0% 50%) 50%/24px 24px;
+  background: repeating-conic-gradient(#263b58 0% 25%, #20324c 0% 50%) 50%/24px 24px;
 }
 .dark {
-  background-color: #0e1118;
+  background-color: #0d1b30;
 }
 .light {
-  background-color: #edf1f7;
-}
-.live {
-  background-image: var(--live-preview-url, url('/chyrongenerator/live-preview.png'));
-  background-size: cover;
-  background-position: center top;
-  background-repeat: no-repeat;
+  background-color: #edf3ff;
 }
 .composition {
   width: 100%;
@@ -368,7 +362,7 @@
   box-shadow: 0 0 0 2px var(--bg);
 }
 .background-chip.light.selected {
-  border-color: #4972a0;
+  border-color: #699bdd;
 }
 .background-options {
   display: flex;
@@ -383,7 +377,7 @@
 .safe-guides {
   position: absolute;
   inset: 5%;
-  border: 1px dashed #c0dbffa6;
+  border: 1px dashed #d4e5ffa6;
   pointer-events: none;
 }
 .safe-guides > span {
@@ -391,8 +385,8 @@
   top: 4px;
   left: 4px;
   font: var(--type-label-medium);
-  color: #cde0ff;
-  background: #0e1422cc;
+  color: #dceaff;
+  background: #0d1c33cc;
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -550,7 +544,7 @@
   border-radius: 12px;
 }
 .section-trigger:hover {
-  background: #263040;
+  background: #2b4264;
 }
 .section-trigger > span {
   min-width: 0;
@@ -636,7 +630,7 @@
   max-height: 240px;
 }
 .field > :is(input, textarea, select):hover {
-  border-color: #7b8daa;
+  border-color: #839dc3;
 }
 .field-hint,
 .section-copy {
@@ -680,7 +674,7 @@
   color: var(--accent);
 }
 .segmented > button:hover {
-  background: #283448;
+  background: #2e4770;
 }
 .segmented.compact {
   flex-shrink: 0;
@@ -748,7 +742,7 @@
   background: linear-gradient(
     to right,
     var(--accent) var(--range-progress),
-    #6876a0 var(--range-progress)
+    #6780a5 var(--range-progress)
   );
 }
 .range-field > input::-moz-range-track,
@@ -758,7 +752,7 @@
   background: linear-gradient(
     to right,
     var(--accent) var(--range-progress),
-    #6876a0 var(--range-progress)
+    #6780a5 var(--range-progress)
   );
 }
 .range-field > input::-webkit-slider-thumb,
@@ -848,7 +842,7 @@
   border-radius: 10px;
 }
 .palettes > button:hover {
-  background: #2c3648;
+  background: #314c76;
 }
 .palette-colors {
   display: flex;
@@ -893,7 +887,7 @@
   width: 48px;
   height: 28px;
   min-width: 48px;
-  border: 2px solid #7e8faa;
+  border: 2px solid #8da6c9;
   border-radius: 16px;
   background: var(--bg);
   position: relative;
@@ -906,7 +900,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #afb9cf;
+  background: #b2c4e0;
   transition: transform 0.18s;
 }
 .toggle-field input:checked + .switch {
@@ -947,7 +941,7 @@
 .motion-grid > button.active {
   color: var(--accent);
   background: var(--selected);
-  border-color: #6e9acf;
+  border-color: #89b2ec;
 }
 .motion-grid > button:hover {
   border-color: var(--accent);
@@ -1061,7 +1055,7 @@
   background: var(--accent);
 }
 .play-button:hover {
-  background: #b1d4fb;
+  background: #b5d3ff;
 }
 .timecode {
   font: var(--type-label-medium);
@@ -1126,7 +1120,7 @@
 }
 .clip {
   height: 100%;
-  border: 1px solid #5c78a0;
+  border: 1px solid #6f96c9;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -1134,8 +1128,8 @@
   font: var(--type-body-small);
 }
 .title-clip {
-  background: #253450;
-  color: #d9e8f9;
+  background: #2e5184;
+  color: #e0edff;
 }
 .clip-in,
 .clip-out {
@@ -1147,8 +1141,8 @@
   overflow: hidden;
   background: repeating-linear-gradient(
     -45deg,
-    #8fb8f81a,
-    #8fb8f81a 1px,
+    #93beff1a,
+    #93beff1a 1px,
     transparent 1px,
     transparent 5px
   );
@@ -1279,7 +1273,7 @@ dialog {
   overflow-y: auto;
 }
 dialog::backdrop {
-  background: #050810b8;
+  background: #040d20b8;
   backdrop-filter: blur(6px);
 }
 .template-dialog {
@@ -1342,7 +1336,7 @@ dialog::backdrop {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #0a1020bb;
+  background: #0c1c36bb;
   color: var(--accent);
 }
 .template-card-info {
@@ -1463,11 +1457,10 @@ dialog::backdrop {
   align-items: center;
   gap: 12px;
   padding: 8px 8px 8px 20px;
-  border: 1px solid #7488a8;
-  padding: 8px 14px;
+  border: 1px solid #8aaada;
   border-radius: 16px;
-  background: #1e2d48;
-  color: #dfe8ff;
+  background: #233f67;
+  color: #e1edff;
   box-shadow: 0 8px 24px #0005;
   max-width: calc(100% - 32px);
   font: var(--type-body-medium);
@@ -1592,7 +1585,7 @@ dialog::backdrop {
 }
 .format-option.selected {
   background: var(--selected);
-  border-color: #6e9acf;
+  border-color: #91b8ee;
 }
 .format-option.selected > svg {
   color: var(--accent);
@@ -1605,7 +1598,7 @@ dialog::backdrop {
   font: var(--type-label-large);
 }
 .format-title small {
-  border: 1px solid #6b7fa0;
+  border: 1px solid #789dce;
   border-radius: 4px;
   font: var(--type-label-medium);
   padding: 0 4px;
@@ -1621,7 +1614,7 @@ dialog::backdrop {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  border: 2px solid #9aa8be;
+  border: 2px solid #a6bfdf;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -1712,8 +1705,8 @@ dialog::backdrop {
 }
 .success-banner {
   color: var(--accent);
-  background: #1e2d48;
-  border: 1px solid #5478a0;
+  background: #223f67;
+  border: 1px solid #729bcc;
 }
 .help-dialog {
   width: 540px;
@@ -2116,7 +2109,7 @@ dialog::backdrop {
   padding: 4px 8px;
   border-radius: 6px;
   color: var(--muted);
-  background: #101318ee;
+  background: #0e1829ee;
   font: var(--type-label-medium);
   pointer-events: none;
 }
@@ -2176,4 +2169,9 @@ dialog::backdrop {
 }
 .stage-surround.artwork-detail {
   padding-top: calc(1rem + 24px);
+}
+
+/* Preview-only photograph: never passed to the artwork/export renderer. */
+.live {
+  background: #126bee url('/assets/preview/live-preview.png') center / cover no-repeat;
 }
