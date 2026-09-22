@@ -1,0 +1,223 @@
+{
+  "labels": [
+    {
+      "text": "Saving…",
+      "px": 10
+    },
+    {
+      "text": "720 × 1280",
+      "px": 10
+    },
+    {
+      "text": "2.20 / 4.40 s",
+      "px": 10
+    },
+    {
+      "text": "Your words",
+      "px": 11
+    },
+    {
+      "text": "Title",
+      "px": 10
+    },
+    {
+      "text": "Subtitle",
+      "px": 10
+    },
+    {
+      "text": "Type & shape",
+      "px": 11
+    },
+    {
+      "text": "Typeface",
+      "px": 10
+    },
+    {
+      "text": "Tile size",
+      "px": 10
+    },
+    {
+      "text": "Corner radius",
+      "px": 10
+    },
+    {
+      "text": "Letter padding",
+      "px": 10
+    },
+    {
+      "text": "Tile spacing",
+      "px": 10
+    },
+    {
+      "text": "Line spacing",
+      "px": 10
+    },
+    {
+      "text": "Depth",
+      "px": 10
+    }
+  ],
+  "targets": [
+    {
+      "name": "Project menu",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Undo",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Redo",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Export",
+      "w": 104,
+      "h": 36
+    },
+    {
+      "name": "Play it boldThe original, reimagined",
+      "w": 191,
+      "h": 134
+    },
+    {
+      "name": "Acid houseA little extra energy",
+      "w": 191,
+      "h": 134
+    },
+    {
+      "name": "On the recordClean. Confident. Classic.",
+      "w": 191,
+      "h": 134
+    },
+    {
+      "name": "Sweet talkMade to stand out",
+      "w": 191,
+      "h": 134
+    },
+    {
+      "name": "After hoursKeep the lights on",
+      "w": 191,
+      "h": 134
+    },
+    {
+      "name": "Good companyA familiar kind of fun",
+      "w": 191,
+      "h": 134
+    },
+    {
+      "name": "Toggle safe area guides",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Fullscreen preview",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Set checker preview",
+      "w": 14,
+      "h": 13
+    },
+    {
+      "name": "Set dark preview",
+      "w": 14,
+      "h": 13
+    },
+    {
+      "name": "Set light preview",
+      "w": 14,
+      "h": 13
+    },
+    {
+      "name": "Fit",
+      "w": 51,
+      "h": 24
+    },
+    {
+      "name": "Go to start",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Play animation",
+      "w": 29,
+      "h": 27
+    },
+    {
+      "name": "Go to end",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Loop playback",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Replay animation",
+      "w": 31,
+      "h": 31
+    },
+    {
+      "name": "Design",
+      "w": 85,
+      "h": 37
+    },
+    {
+      "name": "Motion",
+      "w": 85,
+      "h": 37
+    },
+    {
+      "name": "Canvas",
+      "w": 85,
+      "h": 37
+    },
+    {
+      "name": "Subtitle above title",
+      "w": 27,
+      "h": 22
+    },
+    {
+      "name": "Subtitle below title",
+      "w": 27,
+      "h": 22
+    },
+    {
+      "name": "Tiles",
+      "w": 121,
+      "h": 28
+    },
+    {
+      "name": "Typography",
+      "w": 121,
+      "h": 28
+    },
+    {
+      "name": "Align left",
+      "w": 27,
+      "h": 23
+    },
+    {
+      "name": "Align center",
+      "w": 27,
+      "h": 23
+    },
+    {
+      "name": "Align right",
+      "w": 27,
+      "h": 23
+    }
+  ],
+  "smallLabels": 14,
+  "smallTargets": 25,
+  "narrow": {
+    "viewport": 320,
+    "page": 360
+  }
+}

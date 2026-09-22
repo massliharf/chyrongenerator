@@ -5,4 +5,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/chyrongenerator/',
   plugins: [react()],
+  optimizeDeps: { exclude: ['@ffmpeg/ffmpeg'] },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: { 'font-engine': ['opentype.js'] },
+      },
+    },
+  },
 })
