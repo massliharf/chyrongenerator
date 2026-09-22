@@ -187,7 +187,7 @@ export function buildScene(p: Project, fonts: Fonts): Scene {
     paths: new Map(),
   }
 }
-function placement(scene: Scene, p: Project) {
+export function placement(scene: Scene, p: Project) {
   const angle = (p.compositionRotation * Math.PI) / 180
   const rotatedWidth =
     Math.abs(scene.width * Math.cos(angle)) + Math.abs(scene.height * Math.sin(angle))
@@ -202,6 +202,18 @@ function placement(scene: Scene, p: Project) {
     y: (p.height * p.y) / 100 - (scene.height * scale) / 2,
   }
 }
+
+export function chyronBounds(scene: Scene, p: Project) {
+  const { scale } = placement(scene, p)
+  return {
+    cx: (p.width * p.x) / 100,
+    cy: (p.height * p.y) / 100,
+    width: scene.width * scale,
+    height: scene.height * scale,
+    rotation: p.compositionRotation,
+  }
+}
+
 export function renderFrame(ctx: CanvasRenderingContext2D, scene: Scene, p: Project, time: number) {
   const { scale, x, y } = placement(scene, p)
   ctx.save()
