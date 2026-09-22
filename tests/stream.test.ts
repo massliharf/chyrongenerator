@@ -14,6 +14,9 @@ describe('stream output geometry', () => {
     expect(doc.layouts.host.zoom).toBe(100)
     expect(doc.layouts.stream.zoom).toBe(100)
     expect(doc.layouts.host.background).toBe('gradient')
+    expect(doc.layouts.hero.bottomShadow).toBe(65)
+    expect(doc.layouts.host.bottomShadow).toBe(0)
+    expect(doc.layouts.stream.bottomShadow).toBe(0)
   })
   it('fits the visible host without stretching and ignores transparent padding', () => {
     const f = FORMATS[0],

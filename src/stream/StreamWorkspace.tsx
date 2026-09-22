@@ -250,8 +250,8 @@ export default function StreamWorkspace({
               </button>
               <button
                 className={`icon-button ${showControls ? 'selected' : ''}`}
-                aria-label={showControls ? 'Hide frame controls' : 'Show frame controls'}
-                title={showControls ? 'Hide frame controls' : 'Frame controls (or click host image)'}
+                aria-label="Show image controls"
+                title={showControls ? 'Hide frame controls' : 'Show frame controls (or click host image)'}
                 aria-pressed={showControls}
                 disabled={disabled || !doc.host}
                 onClick={() => setShowControls(!showControls)}
@@ -635,8 +635,16 @@ export default function StreamWorkspace({
               summary="Shadow, fade & preview guides"
               open={open.finish}
               onToggle={() => toggle('finish')}
-              onReset={() => patch({ shadow: 0, fade: 0 })}
+              onReset={() => patch({ shadow: 0, fade: 0, bottomShadow: selected === 'hero' ? 65 : 0 })}
             >
+              <Range
+                label="Bottom shadow"
+                min={0}
+                max={100}
+                value={layout.bottomShadow ?? (selected === 'hero' ? 65 : 0)}
+                unit="%"
+                onChange={(bottomShadow) => patch({ bottomShadow })}
+              />
               <Range
                 label="Host shadow"
                 min={0}

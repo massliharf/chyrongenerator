@@ -67,6 +67,7 @@ export interface Layout {
   flip: boolean
   shadow: number
   fade: number
+  bottomShadow: number
 }
 export interface StreamDocument {
   version: 1
@@ -87,6 +88,7 @@ export function defaultLayout(id: FormatId): Layout {
     ...DEFAULT_FRAMING,
     shadow: 0,
     fade: 0,
+    bottomShadow: id === 'hero' ? 65 : 0,
     background: id === 'hero' ? 'grid' : id === 'host' ? 'gradient' : 'savvy',
     color: '#126BEE',
     color2: '#47DFFF',
