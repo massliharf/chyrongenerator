@@ -19,6 +19,7 @@ import {
   Redo2,
   Save,
   ScanLine,
+  SquareDashed,
   Trash2,
   Undo2,
   X,
@@ -73,6 +74,7 @@ function ChyronEditor({
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [guides, setGuides] = useState(false)
   const [focusCanvas, setFocusCanvas] = useState(false)
+  const [showTransform, setShowTransform] = useState(false)
   const [compactViewport, setCompactViewport] = useState(
     () => window.matchMedia('(max-width: 899px)').matches,
   )
@@ -657,6 +659,15 @@ function ChyronEditor({
                 </div>
               </details>
               <button
+                className={`icon-button ${showTransform ? 'selected' : ''}`}
+                aria-label="Show transform controls"
+                title="Move, scale & rotate controls (or click chyron on canvas)"
+                aria-pressed={showTransform}
+                onClick={() => setShowTransform(!showTransform)}
+              >
+                <SquareDashed size={20} />
+              </button>
+              <button
                 className={`icon-button focus-canvas-toggle ${focusCanvas ? 'selected' : ''}`}
                 aria-label={focusCanvas ? 'Show settings' : 'Focus canvas'}
                 aria-pressed={focusCanvas}
@@ -678,8 +689,19 @@ function ChyronEditor({
                     project.previewBackground === 'color' ? project.background : undefined,
                 } as React.CSSProperties
               }
+              onPointerDown={(e) => {
+                if (e.target === e.currentTarget && showTransform) {
+                  setShowTransform(false)
+                }
+              }}
             >
-              <Composition project={project} time={playback.time} />
+              <Composition
+                project={project}
+                time={playback.time}
+                onTransform={patch}
+                showControls={showTransform}
+                onSelectChyron={setShowTransform}
+              />
               {guides && (
                 <div className="safe-guides">
                   <span>SAFE AREA · 90%</span>
@@ -718,7 +740,11 @@ function ChyronEditor({
               ))}
               <span>Preview background</span>
             </div>
-            <button className="fit-button" onClick={() => patch({ scale: 100, x: 50, y: 50 })}>
+            <button
+              className="fit-button"
+              title="Reset position, scale & rotation"
+              onClick={() => patch({ scale: 100, x: 50, y: 50, compositionRotation: 0 })}
+            >
               Fit <Expand size={12} />
             </button>
           </div>
