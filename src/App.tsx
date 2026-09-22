@@ -1,710 +1,849 @@
-import { useState, useRef, useCallback } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { PreviewArea } from './components/PreviewArea';
-import { toPng, toSvg, toCanvas } from 'html-to-image';
-import { usePersistentState } from './hooks/usePersistentState';
-import { TypographyGenerator } from './components/styles/TypographyGenerator';
-import { MaterialIcon } from './components/MaterialIcon';
-import { createZipBlob, type ZipEntry } from './utils/zipWriter';
+import { useEffect, useRef, useState } from 'react'
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ChevronDown,
+  Download,
+  Expand,
+  FolderOpen,
+  Grid2X2,
+  HelpCircle,
+  Layers3,
+  Plus,
+  PanelRightClose,
+  PanelRightOpen,
+  MoreHorizontal,
+  Search,
+  ZoomIn,
+  ZoomOut,
+  Redo2,
+  Save,
+  ScanLine,
+  Trash2,
+  Undo2,
+  X,
+} from 'lucide-react'
+import { Composition } from './components/Composition'
+import { Inspector } from './components/Inspector'
+import { Timeline } from './components/Timeline'
+import { ExportDialog } from './components/ExportDialog'
+import { WorkspaceNav, type Workspace } from './components/WorkspaceNav'
+import StreamWorkspace from './stream/StreamWorkspace'
+import {
+  applyTemplate,
+  DEFAULT_PROJECT,
+  fileStem,
+  parseProject,
+  restTime,
+  TEMPLATES,
+} from './studio/model'
+import { loadPresets, storePresets, useProject, type SavedPreset } from './studio/useProject'
+import { usePlayback } from './studio/usePlayback'
+import { saveBlob } from './studio/export'
+import './App.css'
+import { uuid } from './utils/uuid'
 
-export type AnimationPreset =
-  | 'none'
-  | 'pop'
-  | 'slide'
-  | 'typewriter'
-  | 'bounce'
-  | 'flip'
-  | 'wave'
-  | 'elastic'
-  | 'glitch'
-  | 'zoom'
-  | 'spin'
-  | 'cascade'
-  | 'shutter'
-  | 'swing'
-  | 'drift'
-  | 'pulse';
+const templateSamples = TEMPLATES.map((template) =>
+  applyTemplate(
+    {
+      ...DEFAULT_PROJECT,
+      width: 720,
+      height: 1280,
+      text: 'Your\nMoment',
+      subtitle: 'MAKE IT COUNT',
+    },
+    template,
+  ),
+)
 
-type ChyronMode = 'tiles' | 'typography';
-const MODES: { id: ChyronMode; label: string }[] = [
-  { id: 'tiles', label: 'Tiles Mode' },
-  { id: 'typography', label: 'Typography Mode' },
-];
-
-export interface Preset {
-  id: string;
-  name: string;
-  timestamp: number;
-  text: string;
-  subtitle: string;
-  subtitlePos: 'top' | 'bottom';
-  subtitleSize: number;
-  subtitlePadding: { x: number, y: number };
-  subtitleRadius: number;
-  bannerGap: number;
-  tileColor: string;
-  textColor: string;
-  subTileColor: string;
-  subTextColor: string;
-  fontFamily: string;
-  chaosLevel: number;
-  tileSize: number;
-  tileGap: number;
-  lineGap: number;
-  shadowOffset: number;
-  shadowChaos: number;
-  borderRadius: number;
-  tilePadding: number;
-  canvasBg: string;
-  blackBgBlur: boolean;
-  scaleChaos: number;
-  posChaos: number;
-  compositionShadow: number;
-  animationPreset: AnimationPreset;
-  animationDuration: number;
-}
-
-function App() {
-  const [chyronMode, setChyronMode] = useState<ChyronMode>('tiles');
-  const [text, setText] = usePersistentState('text', 'Scott\nRogowsky');
-  const [subtitle, setSubtitle] = usePersistentState('subtitle', 'PUZZLE PAPI');
-
-  // Subtitle Customization
-  const [subtitlePos, setSubtitlePos] = usePersistentState<'top' | 'bottom'>('subtitlePos', 'bottom');
-  const [subtitleSize, setSubtitleSize] = usePersistentState('subtitleSize', 2); // rem
-  const [subtitlePadding, setSubtitlePadding] = usePersistentState('subtitlePadding', { x: 26, y: 6 }); // px
-  const [subtitleRadius, setSubtitleRadius] = usePersistentState('subtitleRadius', 12); // px
-  const [bannerGap, setBannerGap] = usePersistentState('bannerGap', 32); // px
-
-  // Colors matching the reference image style
-  const [tileColor, setTileColor] = usePersistentState('tileColor', '#CCE1FF');
-  const [textColor, setTextColor] = usePersistentState('textColor', '#001533');
-  const [subTileColor, setSubTileColor] = usePersistentState('subTileColor', '#006AFF');
-  const [subTextColor, setSubTextColor] = usePersistentState('subTextColor', '#FFFFFF');
-
-  const [fontFamily, setFontFamily] = usePersistentState('fontFamily', 'Wicked Mouse');
-
-  const [chaosLevel, setChaosLevel] = usePersistentState('chaosLevel', 5);
-  const [tileSize, setTileSize] = usePersistentState('tileSize', 1.4); // Scale factor (0.5 to 2)
-  const [tileGap, setTileGap] = usePersistentState('tileGap', 8); // px
-  const [lineGap, setLineGap] = usePersistentState('lineGap', 8); // px
-  // Shadow controls
-  const [shadowOffset, setShadowOffset] = usePersistentState('shadowOffset', 4); // px
-  const [shadowChaos, setShadowChaos] = usePersistentState('shadowChaos', 0); // 0-10 intensity
-
-  // Advanced styling
-  const [borderRadius, setBorderRadius] = usePersistentState('borderRadius', 16); // px
-  const [tilePadding, setTilePadding] = usePersistentState('tilePadding', 16); // px
-  const [canvasBg, setCanvasBg] = usePersistentState('canvasBg', '#171717'); // hex
-  const [blackBgBlur, setBlackBgBlur] = usePersistentState('blackBgBlur', false); // boolean
-
-  // Advanced Chaos
-  const [scaleChaos, setScaleChaos] = usePersistentState('scaleChaos', 0); // 0-1 intensity factor
-  const [posChaos, setPosChaos] = usePersistentState('posChaos', 0); // px max offset
-
-  // Global Effects
-  const [compositionShadow, setCompositionShadow] = usePersistentState('compositionShadow', 0); // px blur/spread for global drop-shadow
-
-  // Animation
-  const [animationPreset, setAnimationPreset] = usePersistentState<AnimationPreset>('animationPreset', 'none');
-  const [animationDuration, setAnimationDuration] = usePersistentState('animationDuration', 2); // seconds
-  const [animationProgress, setAnimationProgress] = useState(1); // 1 = complete (default state)
-
-  // Export Settings
-  const [exportWidth, setExportWidth] = usePersistentState('exportWidth', 1920);
-  const [exportHeight, setExportHeight] = usePersistentState('exportHeight', 1080);
-  const [useCustomExportSize, setUseCustomExportSize] = usePersistentState('useCustomExportSize', false);
-  const [includeBackground, setIncludeBackground] = usePersistentState('includeBackground', false);
-  const [exportAlignment, setExportAlignment] = usePersistentState<'center' | 'bottom' | 'top'>('exportAlignment', 'center');
-  const [compositionScale, setCompositionScale] = usePersistentState('compositionScale', 1.0);
-  const [exportPosX, setExportPosX] = usePersistentState('exportPosX', 0);
-  const [exportPosY, setExportPosY] = usePersistentState('exportPosY', 0);
-  const [enableSnapping, setEnableSnapping] = usePersistentState('enableSnapping', true);
-
-  const [presets, setPresets] = usePersistentState<Preset[]>('presets', []);
-
-  const handleSavePreset = (name: string) => {
-    const newPreset: Preset = {
-      id: crypto.randomUUID(),
-      name,
-      timestamp: Date.now(),
-      text, subtitle, subtitlePos, subtitleSize, subtitlePadding, subtitleRadius, bannerGap,
-      tileColor, textColor, subTileColor, subTextColor, fontFamily,
-      chaosLevel, tileSize, tileGap, lineGap, shadowOffset, shadowChaos,
-      borderRadius, tilePadding, canvasBg, blackBgBlur, scaleChaos, posChaos,
-      compositionShadow, animationPreset, animationDuration
-    };
-    setPresets([...presets, newPreset]);
-  };
-
-  const handleLoadPreset = (preset: Preset) => {
-    setText(preset.text);
-    setSubtitle(preset.subtitle);
-    setSubtitlePos(preset.subtitlePos);
-    setSubtitleSize(preset.subtitleSize);
-    setSubtitlePadding(preset.subtitlePadding);
-    setSubtitleRadius(preset.subtitleRadius);
-    setBannerGap(preset.bannerGap);
-    setTileColor(preset.tileColor);
-    setTextColor(preset.textColor);
-    setSubTileColor(preset.subTileColor);
-    setSubTextColor(preset.subTextColor);
-    setFontFamily(preset.fontFamily);
-    setChaosLevel(preset.chaosLevel);
-    setTileSize(preset.tileSize);
-    setTileGap(preset.tileGap);
-    setLineGap(preset.lineGap ?? preset.tileGap ?? 16); // Fallback for old presets
-    setShadowOffset(preset.shadowOffset);
-    setShadowChaos(preset.shadowChaos);
-    setBorderRadius(preset.borderRadius);
-    setTilePadding(preset.tilePadding);
-    setCanvasBg(preset.canvasBg);
-    setBlackBgBlur(preset.blackBgBlur);
-    setScaleChaos(preset.scaleChaos);
-    setPosChaos(preset.posChaos);
-    setCompositionShadow(preset.compositionShadow ?? 0);
-    setAnimationPreset(preset.animationPreset ?? 'none');
-    setAnimationDuration(preset.animationDuration ?? 2);
-  };
-
-  const handleDeletePreset = (id: string) => {
-    setPresets(presets.filter(p => p.id !== id));
-  };
-
-  const handleResetDefaults = () => {
-    setTileColor('#CCE1FF');
-    setTextColor('#001533');
-    setSubTileColor('#006AFF');
-    setSubTextColor('#FFFFFF');
-    setFontFamily('Wicked Mouse');
-    setSubtitlePos('bottom');
-    setSubtitleSize(2);
-    setSubtitlePadding({ x: 26, y: 6 });
-    setSubtitleRadius(12);
-    setBannerGap(32);
-    setChaosLevel(5);
-    setTileSize(1.4);
-    setTileGap(8);
-    setLineGap(8);
-    setShadowOffset(4);
-    setShadowChaos(0);
-    setBorderRadius(16);
-    setTilePadding(16);
-    setCanvasBg('#171717');
-    setBlackBgBlur(false);
-    setScaleChaos(0);
-    setPosChaos(0);
-    setCompositionShadow(0);
-    setAnimationPreset('none');
-    setAnimationDuration(2);
-    setCompositionScale(1.0);
-    setExportPosX(0);
-    setExportPosY(0);
-    setExportAlignment('center');
-  };
-
-  const handlePlayAnimation = () => {
-    if (animationPreset === 'none') return;
-
-    // Animate from 0 to 1 over duration
-    const startTime = performance.now();
-    const durationMs = animationDuration * 1000;
-
-    const animate = (time: number) => {
-      const elapsed = time - startTime;
-      const progress = Math.min(1, elapsed / durationMs);
-      setAnimationProgress(progress);
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
+function ChyronEditor({
+  active,
+  onWorkspaceChange,
+}: {
+  active: boolean
+  onWorkspaceChange: (workspace: Workspace) => void
+}) {
+  const editor = useProject()
+  const { project, patch, replace } = editor
+  const playback = usePlayback(project)
+  const [tab, setTab] = useState<'design' | 'motion' | 'canvas'>('design')
+  const [exportOpen, setExportOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [guides, setGuides] = useState(false)
+  const [focusCanvas, setFocusCanvas] = useState(false)
+  const [compactViewport, setCompactViewport] = useState(
+    () => window.matchMedia('(max-width: 899px)').matches,
+  )
+  const [detailOverride, setDetailOverride] = useState<boolean | null>(null)
+  const artworkDetail = !focusCanvas && tab !== 'canvas' && (detailOverride ?? compactViewport)
+  const [templateQuery, setTemplateQuery] = useState('')
+  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [deletedPreset, setDeletedPreset] = useState<SavedPreset | null>(null)
+  const [presets, setPresets] = useState(loadPresets)
+  const [presetName, setPresetName] = useState('')
+  const [savingPreset, setSavingPreset] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [help, setHelp] = useState(false)
+  const importInput = useRef<HTMLInputElement>(null)
+  const stage = useRef<HTMLDivElement>(null)
+  const helpDialog = useRef<HTMLDialogElement>(null)
+  const templateDialog = useRef<HTMLDialogElement>(null)
+  const projectMenu = useRef<HTMLDivElement>(null)
+  const projectMenuButton = useRef<HTMLButtonElement>(null)
+  const viewMenu = useRef<HTMLDetailsElement>(null)
+  const closeTemplates = () => {
+    templateDialog.current?.close()
+    setTemplatesOpen(false)
+  }
+  const closeProjectMenu = () => {
+    setMenuOpen(false)
+    projectMenuButton.current?.focus()
+  }
+  const closeHelp = () => {
+    helpDialog.current?.close()
+    setHelp(false)
+  }
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 899px)')
+    const update = () => setCompactViewport(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  useEffect(() => {
+    if (templatesOpen) templateDialog.current?.showModal()
+  }, [templatesOpen])
+  useEffect(() => {
+    if (menuOpen) projectMenu.current?.querySelector('button')?.focus()
+  }, [menuOpen])
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (viewMenu.current && !viewMenu.current.contains(event.target as Node))
+        viewMenu.current.open = false
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [])
+  useEffect(() => {
+    if (!notice) return
+    const timeout = setTimeout(() => setNotice(''), deletedPreset ? 12000 : 6000)
+    return () => clearTimeout(timeout)
+  }, [notice, deletedPreset])
+  useEffect(() => {
+    if (help) helpDialog.current?.showModal()
+  }, [help])
+  const saveProject = () =>
+    saveBlob(
+      new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }),
+      `${fileStem(project.name)}.chyron.json`,
+    )
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (!active) return
+      const element = event.target as HTMLElement
+      const typing =
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable
+      if (exportOpen || help || templatesOpen) return
+      if (event.key === 'Escape' && menuOpen) {
+        closeProjectMenu()
+        return
       }
-    };
-
-    requestAnimationFrame(animate);
-  };
-
-  const handleDownloadVideo = async () => {
-    if (!previewRef.current || animationPreset === 'none') return;
-
-    setIsExportingVideo(true);
-    setVideoProgress(0);
-
-    try {
-      // Dynamic import for webm-writer to avoid SSR/build issues if it's not friendly
-      // But we are in Vite, so import should work. 
-      // If imports fail, we might need a script tag or simple hack.
-      // Assuming user installed webm-writer. 
-      // Since we don't have types working perfectly, use any.
-      const WebMWriter = (await import('webm-writer')).default;
-
-      const fps = 30;
-      const durationMs = animationDuration * 1000;
-      const totalFrames = Math.ceil((durationMs / 1000) * fps);
-
-      const videoWriter = new WebMWriter({
-        quality: 0.95,
-        frameRate: fps,
-        transparent: true // Alpha channel support!
-      });
-
-      const node = previewRef.current;
-
-      // Loop through frames
-      for (let i = 0; i <= totalFrames; i++) {
-        const progress = i / totalFrames;
-        setAnimationProgress(progress);
-        setVideoProgress(Math.round(progress * 100));
-
-        // Wait for React to render the new state
-        await new Promise(resolve => setTimeout(resolve, 50));
-
-        // Capture frame with proper alpha channel and no squeezing
-        const canvasOpts: Record<string, unknown> = {
-          cacheBust: true,
-          filter: (domNode: HTMLElement) => !domNode.classList?.contains('export-ignore'),
-          style: {
-            transform: 'none',
-            backgroundColor: includeBackground ? canvasBg : 'transparent',
-          }
-        };
-        if (useCustomExportSize) {
-          canvasOpts.pixelRatio = 1;
-          canvasOpts.width = exportWidth;
-          canvasOpts.height = exportHeight;
-          canvasOpts.canvasWidth = exportWidth;
-          canvasOpts.canvasHeight = exportHeight;
-        } else {
-          canvasOpts.pixelRatio = 2;
-        }
-        const canvas = await toCanvas(node, canvasOpts);
-
-        // If transparent, create a clean, boosted alpha canvas so tiles don't have transparent holes
-        if (!includeBackground) {
-          const alphaCanvas = document.createElement('canvas');
-          alphaCanvas.width = canvas.width;
-          alphaCanvas.height = canvas.height;
-          const actx = alphaCanvas.getContext('2d');
-          const cctx = canvas.getContext('2d');
-          if (actx && cctx) {
-            const imgData = cctx.getImageData(0, 0, canvas.width, canvas.height);
-            const alphaData = actx.createImageData(canvas.width, canvas.height);
-            const src = imgData.data;
-            const dst = alphaData.data;
-            for (let p = 0; p < src.length; p += 4) {
-              const a = src[p + 3];
-              // Boost alpha to prevent Chrome WebP lossy clamping holes
-              const boosted = a > 140 ? 255 : (a < 15 ? 0 : Math.min(255, Math.round(a * 1.3)));
-              dst[p] = boosted;
-              dst[p + 1] = boosted;
-              dst[p + 2] = boosted;
-              dst[p + 3] = 255;
-            }
-            actx.putImageData(alphaData, 0, 0);
-            videoWriter.addFrame(canvas, alphaCanvas);
-          } else {
-            videoWriter.addFrame(canvas);
-          }
-        } else {
-          videoWriter.addFrame(canvas);
-        }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        saveProject()
+        return
       }
-
-      const blob = await videoWriter.complete();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `chyron-${Date.now()}.webm`;
-      link.href = url;
-      link.click();
-
-    } catch (err) {
-      console.error('Video export failed', err);
-      alert('Video export failed. See console.');
-    } finally {
-      setIsExportingVideo(false);
-      setAnimationProgress(1); // Reset to full visibility
-    }
-  };
-
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isExportingVideo, setIsExportingVideo] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [isExportingSequence, setIsExportingSequence] = useState(false);
-  const [sequenceProgress, setSequenceProgress] = useState(0);
-
-  const handleExportPngSequence = async () => {
-    if (!previewRef.current || animationPreset === 'none') return;
-
-    setIsExportingSequence(true);
-    setSequenceProgress(0);
-
-    try {
-      const fps = 30;
-      const durationMs = animationDuration * 1000;
-      const totalFrames = Math.ceil((durationMs / 1000) * fps);
-      const node = previewRef.current;
-      const zipEntries: ZipEntry[] = [];
-
-      for (let i = 0; i <= totalFrames; i++) {
-        const progress = i / totalFrames;
-        setAnimationProgress(progress);
-        setSequenceProgress(Math.round(progress * 100));
-
-        // Allow React state to update DOM
-        await new Promise(resolve => setTimeout(resolve, 50));
-
-        const canvasOpts: Record<string, unknown> = {
-          cacheBust: true,
-          filter: (domNode: HTMLElement) => !domNode.classList?.contains('export-ignore'),
-          style: {
-            transform: 'none',
-            backgroundColor: includeBackground ? canvasBg : 'transparent',
-          }
-        };
-        if (useCustomExportSize) {
-          canvasOpts.pixelRatio = 1;
-          canvasOpts.width = exportWidth;
-          canvasOpts.height = exportHeight;
-          canvasOpts.canvasWidth = exportWidth;
-          canvasOpts.canvasHeight = exportHeight;
-        } else {
-          canvasOpts.pixelRatio = 2;
-        }
-        const canvas = await toCanvas(node, canvasOpts);
-
-        // Convert canvas to pure lossless PNG Blob
-        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-        if (blob) {
-          const arrayBuffer = await blob.arrayBuffer();
-          const frameNum = String(i + 1).padStart(4, '0');
-          zipEntries.push({
-            name: `chyron_frame_${frameNum}.png`,
-            data: new Uint8Array(arrayBuffer)
-          });
-        }
+      if (typing) return
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        if (event.shiftKey) editor.redo()
+        else editor.undo()
+        return
       }
-
-      const instructions = `CHYRON ANIMATION - 100% LOSSLESS ALPHA PNG SEQUENCE
-============================================================
-Total Frames: ${totalFrames + 1}
-Resolution: ${useCustomExportSize ? `${exportWidth}x${exportHeight}` : 'Dynamic'}
-Framerate: ${fps} FPS
-Alpha Channel: 32-bit RGBA (100% True Transparency)
-
-HOW TO IMPORT INTO VIDEO EDITORS:
---------------------------------
-1. ADOBE PREMIERE PRO:
-   - File -> Import (Cmd+I or Ctrl+I).
-   - Select ONLY the first file: 'chyron_frame_0001.png'.
-   - At the bottom of the import window, CHECK the 'Image Sequence' box.
-   - Click 'Open'. Premiere creates a single transparent video clip!
-
-2. DAVINCI RESOLVE:
-   - Open the Media Pool.
-   - Drag and drop this extracted folder into the Media Pool.
-   - DaVinci automatically loads it as a video clip with embedded transparency!
-
-3. ADOBE AFTER EFFECTS:
-   - File -> Import -> File...
-   - Select 'chyron_frame_0001.png' with 'PNG Sequence' checked.
-
-4. APPLE FINAL CUT PRO:
-   - Drag frames into timeline or import as image sequence compound clip.
-`;
-      const textEncoder = new TextEncoder();
-      zipEntries.push({
-        name: 'HOW_TO_USE_IN_PREMIERE_DAVINCI.txt',
-        data: textEncoder.encode(instructions)
-      });
-
-      const zipBlob = createZipBlob(zipEntries);
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.download = `chyron-alpha-sequence-${Date.now()}.zip`;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-
-    } catch (err) {
-      console.error('PNG sequence export failed', err);
-      alert('PNG sequence export failed. See console.');
-    } finally {
-      setIsExportingSequence(false);
-      setAnimationProgress(1); // Reset to full visibility
+      if (element.closest('button, a, summary, [role=tab]')) return
+      if (event.code === 'Space') {
+        event.preventDefault()
+        playback.toggle()
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        playback.seek(playback.time + 1 / project.fps)
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        playback.seek(playback.time - 1 / project.fps)
+      }
+      if (event.key === 'Escape') {
+        closeTemplates()
+        closeProjectMenu()
+      }
     }
-  };
-
-  const previewRef = useRef<HTMLDivElement>(null);
-
-  const getExportOptions = () => {
-    if (useCustomExportSize && previewRef.current) {
-      return {
-        cacheBust: true,
-        pixelRatio: 1,
-        width: exportWidth,
-        height: exportHeight,
-        canvasWidth: exportWidth,
-        canvasHeight: exportHeight,
-        filter: (domNode: HTMLElement) => !domNode.classList?.contains('export-ignore'),
-        style: {
-          transform: 'none',
-          backgroundColor: includeBackground ? canvasBg : 'transparent',
-        },
-      };
-    } else {
-      return {
-        cacheBust: true,
-        pixelRatio: 2,
-        filter: (domNode: HTMLElement) => !domNode.classList?.contains('export-ignore'),
-        style: {
-          backgroundColor: includeBackground ? canvasBg : 'transparent',
-        },
-      };
+    window.addEventListener('keydown', keydown)
+    return () => window.removeEventListener('keydown', keydown)
+  })
+  const savePreset = () => {
+    if (!presetName.trim()) return
+    if (presets.length >= 40) {
+      setNotice('Your library is full. Remove a preset to add another.')
+      return
     }
-  };
-
-  const handleDownload = useCallback(async () => {
-    if (previewRef.current === null) {
-      return;
-    }
-
-    setIsDownloading(true);
-
+    const next = [
+      ...presets,
+      { id: uuid(), name: presetName.trim(), project: { ...project } },
+    ]
     try {
-      const opts = getExportOptions();
-      const dataUrl = await toPng(previewRef.current, opts);
-      const link = document.createElement('a');
-      link.download = `chyron-${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
-      console.error('Failed to generate image', err);
-      alert('Failed to generate image. Please try again.');
-    } finally {
-      setIsDownloading(false);
+      storePresets(next)
+      setPresets(next)
+      setSavingPreset(false)
+      setLibraryOpen(true)
+      setPresetName('')
+      setNotice('Preset added to your library.')
+    } catch {
+      setNotice('Device storage is unavailable. Save a project file instead.')
     }
-  }, [previewRef, useCustomExportSize, exportWidth, exportHeight, includeBackground, canvasBg]);
-
-  const handleDownloadSvg = useCallback(async () => {
-    if (previewRef.current === null) return;
-    setIsDownloading(true);
+  }
+  const removePreset = (id: string) => {
+    const next = presets.filter((p) => p.id !== id)
     try {
-      const opts = getExportOptions();
-      const dataUrl = await toSvg(previewRef.current, opts);
-      const link = document.createElement('a');
-      link.download = `chyron-${Date.now()}.svg`;
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
-      console.error('Failed to generate SVG', err);
-      alert('Failed to generate SVG.');
-    } finally {
-      setIsDownloading(false);
+      storePresets(next)
+      setPresets(next)
+      setDeletedPreset(presets.find((p) => p.id === id) || null)
+      setNotice('Preset removed.')
+    } catch {
+      setNotice('Unable to update your saved presets.')
     }
-  }, [previewRef, useCustomExportSize, exportWidth, exportHeight, includeBackground, canvasBg]);
-
+  }
+  const restorePreset = () => {
+    if (!deletedPreset) return
+    if (presets.length >= 40) {
+      setNotice('Remove a preset to make room before restoring.')
+      return
+    }
+    const next = [...presets, deletedPreset]
+    try {
+      storePresets(next)
+      setPresets(next)
+      setDeletedPreset(null)
+      setNotice('Preset restored.')
+    } catch {
+      setNotice('Unable to restore this preset. Device storage is unavailable.')
+    }
+  }
   return (
-    <div className="flex flex-col h-screen w-full bg-[#fafaf9] overflow-hidden font-sans">
-      {/* ── Notion Header Navigation with Material Design Icons ── */}
-      <header className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 bg-white border-b border-[#e5e3df] z-30">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-md bg-[#5645d4] flex items-center justify-center text-white shadow-xs select-none">
-            <MaterialIcon name="tv" className="w-4 h-4 text-white" />
-          </div>
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="font-semibold text-[#1a1a1a]">Chyron Studio</span>
-            <span className="text-[#a4a097]">/</span>
-            <span className="text-[#787671] hidden sm:inline">Broadcast Graphics</span>
-            <span className="notion-tag notion-tag-purple ml-1">Workspace</span>
-          </div>
-        </div>
-
-        {/* Mode Switcher (Notion Pill-Tabs with Material Design Icons) */}
-        <div className="flex items-center gap-1 bg-[#f6f5f4] p-1 rounded-full border border-[#e5e3df]">
-          {MODES.map(mode => (
-            <button
-              key={mode.id}
-              onClick={() => setChyronMode(mode.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full text-[12px] font-medium transition-all cursor-pointer ${
-                chyronMode === mode.id
-                  ? 'bg-[#1a1a1a] text-white shadow-xs'
-                  : 'text-[#787671] hover:text-[#1a1a1a] hover:bg-white/60'
-              }`}
-            >
-              <MaterialIcon name={mode.id === 'tiles' ? 'grid_view' : 'text_fields'} className="w-3.5 h-3.5" />
-              <span>{mode.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Right Action: Signature Notion Purple CTA with Material Download Icon */}
-        <div className="flex items-center gap-2">
-          <span className="hidden md:inline-flex notion-tag notion-tag-mint items-center gap-1">
-            <MaterialIcon name="check_circle" className="w-3 h-3 text-[#1aae39]" />
-            Alpha Active
+    <div
+      className={`studio-shell ${focusCanvas ? 'canvas-focused' : ''}`}
+      style={
+        {
+          '--live-preview-url': `url(${import.meta.env.BASE_URL}live-preview.png)`,
+        } as React.CSSProperties
+      }
+    >
+      <a className="skip-link" href="#settings-panel" onClick={() => setFocusCanvas(false)}>
+        Skip to settings
+      </a>
+      <header className="app-header">
+        <h1 className="brand" aria-label="Chyron Studio">
+          <span className="brand-symbol">
+            <i />
+            <i />
+            <i />
           </span>
+          <strong>
+            chyron<span>studio</span>
+          </strong>
+          <span className="version-pill">2.3</span>
+        </h1>
+        <div className="project-header">
+          <span className="header-divider" />
+          <input
+            aria-label="Project name"
+            className="project-name"
+            value={project.name}
+            maxLength={80}
+            onChange={(e) => patch({ name: e.target.value })}
+          />
+          <div className="project-menu-wrap">
+            <button
+              className="icon-button"
+              ref={projectMenuButton}
+              aria-label="Project menu"
+              aria-controls="project-actions"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              <ChevronDown size={14} />
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  className="menu-dismiss"
+                  aria-label="Close project menu"
+                  onClick={closeProjectMenu}
+                />
+                <div
+                  className="project-menu"
+                  id="project-actions"
+                  ref={projectMenu}
+                  role="group"
+                  aria-label="Project actions"
+                  onKeyDown={(e) => {
+                    const buttons = Array.from(e.currentTarget.querySelectorAll('button'))
+                    const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      buttons[
+                        (index + (e.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length
+                      ]?.focus()
+                    }
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      saveProject()
+                      closeProjectMenu()
+                    }}
+                  >
+                    <ArrowDownToLine size={15} /> Save project file <kbd>⌘ S</kbd>
+                  </button>
+                  <button
+                    onClick={() => {
+                      importInput.current?.click()
+                      closeProjectMenu()
+                    }}
+                  >
+                    <ArrowUpFromLine size={15} /> Open project file
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSavingPreset(true)
+                      setLibraryOpen(true)
+                      setTemplatesOpen(true)
+                      closeProjectMenu()
+                    }}
+                  >
+                    <Save size={15} /> Save as preset
+                  </button>
+                  <hr />
+                  <button
+                    onClick={() => {
+                      replace({ ...DEFAULT_PROJECT })
+                      playback.seek(restTime(DEFAULT_PROJECT))
+                      closeProjectMenu()
+                      setNotice('New composition. Undo to return to your previous work.')
+                    }}
+                  >
+                    <Plus size={15} /> New composition
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="header-actions">
+          <div className="history-actions">
+            <button
+              className="icon-button"
+              aria-label="Undo"
+              title="Undo (⌘/Ctrl Z)"
+              disabled={!editor.canUndo}
+              onClick={editor.undo}
+            >
+              <Undo2 size={17} />
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Redo"
+              title="Redo (⌘/Ctrl Shift Z)"
+              disabled={!editor.canRedo}
+              onClick={editor.redo}
+            >
+              <Redo2 size={17} />
+            </button>
+          </div>
           <button
-            onClick={handleDownload}
-            disabled={isDownloading}
-            className="notion-btn notion-btn-primary text-[13px] py-1.5 px-3.5 shadow-xs gap-1.5"
+            className="button primary export-trigger"
+            aria-label="Export"
+            onClick={() => {
+              playback.pause()
+              setExportOpen(true)
+            }}
           >
-            <MaterialIcon name="download" className="w-3.5 h-3.5" />
-            Export PNG
+            <Download size={20} /> <span>Export</span>
           </button>
         </div>
+        <input
+          type="file"
+          ref={importInput}
+          hidden
+          accept=".json,.chyron.json"
+          onChange={async (e) => {
+            const input = e.currentTarget,
+              file = input.files?.[0]
+            if (!file) return
+            try {
+              if (file.size > 1024 * 1024)
+                throw new Error('Choose a project file smaller than 1 MB.')
+              const imported = parseProject(await file.text())
+              replace(imported)
+              playback.seek(restTime(imported))
+              setNotice('Project opened.')
+            } catch (error) {
+              setNotice(error instanceof Error ? error.message : 'Unable to open this file.')
+            }
+            input.value = ''
+          }}
+        />
       </header>
-
-      {/* ── Content Area ── */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {chyronMode === 'tiles' ? (
-          <>
-            {/* Existing Tile Generator — ZERO CHANGES */}
-            <div className="flex-shrink-0 w-full md:w-auto h-1/3 md:h-full relative z-20 overflow-y-auto md:overflow-visible">
-              <Sidebar
-                text={text}
-                setText={setText}
-                subtitle={subtitle}
-                setSubtitle={setSubtitle}
-                subtitlePos={subtitlePos}
-                setSubtitlePos={setSubtitlePos}
-                subtitleSize={subtitleSize}
-                setSubtitleSize={setSubtitleSize}
-                subtitlePadding={subtitlePadding}
-                setSubtitlePadding={setSubtitlePadding}
-                subtitleRadius={subtitleRadius}
-                setSubtitleRadius={setSubtitleRadius}
-                tileColor={tileColor}
-                setTileColor={setTileColor}
-                textColor={textColor}
-                setTextColor={setTextColor}
-                subTileColor={subTileColor}
-                setSubTileColor={setSubTileColor}
-                subTextColor={subTextColor}
-                setSubTextColor={setSubTextColor}
-                fontFamily={fontFamily}
-                setFontFamily={setFontFamily}
-                chaosLevel={chaosLevel}
-                setChaosLevel={setChaosLevel}
-                tileSize={tileSize}
-                setTileSize={setTileSize}
-                tileGap={tileGap}
-                setTileGap={setTileGap}
-                lineGap={lineGap}
-                setLineGap={setLineGap}
-                shadowOffset={shadowOffset}
-                setShadowOffset={setShadowOffset}
-                shadowChaos={shadowChaos}
-                setShadowChaos={setShadowChaos}
-                borderRadius={borderRadius}
-                setBorderRadius={setBorderRadius}
-                tilePadding={tilePadding}
-                setTilePadding={setTilePadding}
-                canvasBg={canvasBg}
-                setCanvasBg={setCanvasBg}
-                scaleChaos={scaleChaos}
-                setScaleChaos={setScaleChaos}
-                posChaos={posChaos}
-                setPosChaos={setPosChaos}
-                bannerGap={Number(bannerGap)}
-                setBannerGap={setBannerGap}
-                blackBgBlur={blackBgBlur}
-                setBlackBgBlur={setBlackBgBlur}
-                compositionShadow={compositionShadow}
-                setCompositionShadow={setCompositionShadow}
-                presets={presets}
-                onSavePreset={handleSavePreset}
-                onLoadPreset={handleLoadPreset}
-                onDeletePreset={handleDeletePreset}
-                onResetDefaults={handleResetDefaults}
-                onDownload={handleDownload}
-                onDownloadSvg={handleDownloadSvg}
-                onDownloadVideo={handleDownloadVideo}
-                isDownloading={isDownloading}
-                isExportingVideo={isExportingVideo}
-                videoProgress={videoProgress}
-                onExportPngSequence={handleExportPngSequence}
-                isExportingSequence={isExportingSequence}
-                sequenceProgress={sequenceProgress}
-                animationPreset={animationPreset}
-                setAnimationPreset={setAnimationPreset}
-                animationDuration={animationDuration}
-                setAnimationDuration={setAnimationDuration}
-                onPlayAnimation={handlePlayAnimation}
-                exportWidth={exportWidth}
-                setExportWidth={setExportWidth}
-                exportHeight={exportHeight}
-                setExportHeight={setExportHeight}
-                useCustomExportSize={useCustomExportSize}
-                setUseCustomExportSize={setUseCustomExportSize}
-                includeBackground={includeBackground}
-                setIncludeBackground={setIncludeBackground}
-                exportAlignment={exportAlignment}
-                setExportAlignment={setExportAlignment}
-                compositionScale={compositionScale}
-                setCompositionScale={setCompositionScale}
-                exportPosX={exportPosX}
-                setExportPosX={setExportPosX}
-                exportPosY={exportPosY}
-                setExportPosY={setExportPosY}
-                enableSnapping={enableSnapping}
-                setEnableSnapping={setEnableSnapping}
+      <WorkspaceNav
+        current="chyron"
+        onChange={(workspace) => {
+          playback.pause()
+          onWorkspaceChange(workspace)
+        }}
+      />
+      <div className="workspace">
+        {templatesOpen && (
+          <dialog
+            className="template-dialog"
+            ref={templateDialog}
+            aria-labelledby="templates-title"
+            onCancel={(e) => {
+              e.preventDefault()
+              closeTemplates()
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeTemplates()
+            }}
+          >
+            <div className="sidebar-title">
+              <h2 id="templates-title">
+                <Grid2X2 size={22} /> Your starting point
+              </h2>
+              <button
+                className="icon-button close-templates"
+                aria-label="Close template panel"
+                onClick={closeTemplates}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="sidebar-intro">Styles keep your words, canvas and timing.</p>
+            <div className="template-search settings-search">
+              <Search size={20} />
+              <input
+                type="search"
+                aria-label="Search templates"
+                placeholder="Search templates…"
+                value={templateQuery}
+                onChange={(e) => setTemplateQuery(e.target.value)}
               />
             </div>
-            <div className="flex-grow relative z-10 bg-[#f6f5f4] border-l border-[#e5e3df]">
-              <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                <PreviewArea
-                  ref={previewRef}
-                  text={text}
-                  subtitle={subtitle}
-                  subtitlePos={subtitlePos}
-                  subtitleSize={subtitleSize}
-                  subtitlePadding={subtitlePadding}
-                  subtitleRadius={subtitleRadius}
-                  tileColor={tileColor}
-                  textColor={textColor}
-                  subTileColor={subTileColor}
-                  subTextColor={subTextColor}
-                  fontFamily={fontFamily}
-                  chaosLevel={chaosLevel}
-                  tileSize={tileSize}
-                  tileGap={tileGap}
-                  lineGap={lineGap}
-                  shadowOffset={shadowOffset}
-                  shadowChaos={shadowChaos}
-                  borderRadius={borderRadius}
-                  tilePadding={tilePadding}
-                  canvasBg={canvasBg}
-                  scaleChaos={scaleChaos}
-                  posChaos={posChaos}
-                  bannerGap={Number(bannerGap)}
-                  blackBgBlur={blackBgBlur}
-                  compositionShadow={compositionShadow}
-                  animationProgress={animationProgress}
-                  animationPreset={animationPreset}
-                  exportWidth={exportWidth}
-                  exportHeight={exportHeight}
-                  useCustomExportSize={useCustomExportSize}
-                  includeBackground={includeBackground}
-                  exportAlignment={exportAlignment}
-                  compositionScale={compositionScale}
-                  setCompositionScale={setCompositionScale}
-                  exportPosX={exportPosX}
-                  exportPosY={exportPosY}
-                  onPositionChange={(x, y) => {
-                    setExportPosX(x);
-                    setExportPosY(y);
-                  }}
-                  enableSnapping={enableSnapping}
-                  isExporting={isDownloading || isExportingVideo || isExportingSequence}
-                />
-              </div>
+            <div className="template-list">
+              {TEMPLATES.map((template, index) => {
+                if (
+                  !`${template.name} ${template.caption}`
+                    .toLowerCase()
+                    .includes(templateQuery.toLowerCase())
+                )
+                  return null
+                const sample = templateSamples[index]
+                return (
+                  <button
+                    className="template-card"
+                    key={template.id}
+                    onClick={() => {
+                      const next = applyTemplate(project, template)
+                      replace(next)
+                      playback.seek(restTime(next))
+                      closeTemplates()
+                    }}
+                  >
+                    <div className="template-art" style={{ background: template.background }}>
+                      <Composition project={sample} time={restTime(sample)} thumbnail />
+                      <span className="template-use">
+                        <Plus size={13} />
+                      </span>
+                    </div>
+                    <span className="template-card-info">
+                      <strong>{template.name}</strong>
+                      <span>{template.caption}</span>
+                    </span>
+                  </button>
+                )
+              })}
             </div>
-          </>
-        ) : chyronMode === 'typography' ? (
-          <TypographyGenerator />
-        ) : null}
+            {!TEMPLATES.some((t) =>
+              `${t.name} ${t.caption}`.toLowerCase().includes(templateQuery.toLowerCase()),
+            ) && <p className="field-hint">No matching templates. Try a different name.</p>}
+            <details
+              className="preset-library"
+              open={libraryOpen}
+              onToggle={(e) => setLibraryOpen(e.currentTarget.open)}
+            >
+              <summary>
+                <FolderOpen size={20} /> Saved presets <span>{presets.length}</span>
+                <ChevronDown size={20} />
+              </summary>
+              <div className="library-header">
+                <span>
+                  <FolderOpen size={18} /> Your compositions
+                </span>
+                <button
+                  className="icon-button"
+                  aria-label="Save preset"
+                  title="Save current composition as a preset"
+                  onClick={() => setSavingPreset(!savingPreset)}
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
+              {savingPreset && (
+                <form
+                  className="preset-form"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    savePreset()
+                  }}
+                >
+                  <input
+                    aria-label="Preset name"
+                    placeholder="Name your preset"
+                    maxLength={80}
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    autoFocus
+                  />
+                  <button className="button primary" type="submit" disabled={!presetName.trim()}>
+                    Save
+                  </button>
+                </form>
+              )}
+              {presets.length ? (
+                <div className="saved-presets">
+                  {presets.map((preset) => (
+                    <div key={preset.id}>
+                      <button
+                        onClick={() => {
+                          replace(preset.project)
+                          playback.seek(restTime(preset.project))
+                          closeTemplates()
+                        }}
+                      >
+                        <Layers3 size={14} />
+                        <span>{preset.name}</span>
+                      </button>
+                      <button
+                        className="icon-button"
+                        aria-label={`Delete preset ${preset.name}`}
+                        onClick={() => removePreset(preset.id)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="library-empty">
+                  Your signature styles, saved here.
+                  <br />
+                  <button onClick={() => setSavingPreset(true)}>
+                    Create your first preset <Plus size={11} />
+                  </button>
+                </p>
+              )}
+            </details>
+            <button
+              className="help-link"
+              onClick={() => {
+                closeTemplates()
+                setHelp(true)
+              }}
+            >
+              <HelpCircle size={15} /> A quick tour <span>↗</span>
+            </button>
+          </dialog>
+        )}
+        <main className="main-workspace" aria-label="Canvas and playback">
+          <h2 className="sr-only">Canvas preview</h2>
+          <div className="canvas-toolbar">
+            <div>
+              <button
+                className="button templates-trigger"
+                aria-label="Templates"
+                aria-haspopup="dialog"
+                onClick={() => setTemplatesOpen(true)}
+              >
+                <Grid2X2 size={20} /> <span>Templates</span>
+              </button>
+              <button
+                className="canvas-size"
+                aria-label={`Canvas settings: ${project.width} by ${project.height}`}
+                onClick={() => {
+                  setFocusCanvas(false)
+                  setTab('canvas')
+                }}
+              >
+                {project.width} <span>×</span> {project.height}
+                <ChevronDown size={16} />
+              </button>
+            </div>
+            <div className="canvas-tools">
+              <button
+                className={`icon-button ${artworkDetail ? 'selected' : ''}`}
+                aria-label={artworkDetail ? 'Fit canvas preview' : 'Show artwork detail'}
+                aria-pressed={artworkDetail}
+                title={artworkDetail ? 'Fit canvas' : 'Artwork detail'}
+                disabled={tab === 'canvas' || focusCanvas}
+                onClick={() => setDetailOverride(!artworkDetail)}
+              >
+                {artworkDetail ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
+              </button>
+              <details
+                className="view-menu"
+                ref={viewMenu}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.currentTarget.open = false
+                    e.currentTarget.querySelector('summary')?.focus()
+                    e.stopPropagation()
+                  }
+                }}
+              >
+                <summary aria-label="Preview options" title="Preview options">
+                  <MoreHorizontal size={22} />
+                </summary>
+                <div className="view-menu-content">
+                  <button
+                    className="mobile-focus-action"
+                    onClick={() => {
+                      setFocusCanvas(!focusCanvas)
+                      if (viewMenu.current) viewMenu.current.open = false
+                    }}
+                  >
+                    <PanelRightClose size={20} />
+                    {focusCanvas ? 'Show settings' : 'Focus canvas'}
+                  </button>
+                  <button aria-pressed={guides} onClick={() => setGuides(!guides)}>
+                    <ScanLine size={20} /> {guides ? 'Hide' : 'Show'} safe area
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (viewMenu.current) viewMenu.current.open = false
+                      if (document.fullscreenElement) void document.exitFullscreen()
+                      else if (stage.current?.requestFullscreen)
+                        void stage.current
+                          .requestFullscreen()
+                          .catch(() => setNotice('Fullscreen is unavailable in this browser.'))
+                      else setNotice('Fullscreen is unavailable in this browser.')
+                    }}
+                  >
+                    <Expand size={20} /> Fullscreen preview
+                  </button>
+                  {(['live', 'checker', 'dark', 'light'] as const).map((bg) => (
+                    <button
+                      key={bg}
+                      aria-pressed={project.previewBackground === bg}
+                      onClick={() => {
+                        patch({ previewBackground: bg })
+                        if (viewMenu.current) viewMenu.current.open = false
+                      }}
+                    >
+                      <span className={`menu-swatch ${bg}`} />{' '}
+                      {bg === 'live'
+                        ? 'Live stream preview'
+                        : bg === 'checker'
+                          ? 'Transparency checker'
+                          : `${bg === 'dark' ? 'Dark' : 'Light'} preview`}
+                    </button>
+                  ))}
+                </div>
+              </details>
+              <button
+                className={`icon-button focus-canvas-toggle ${focusCanvas ? 'selected' : ''}`}
+                aria-label={focusCanvas ? 'Show settings' : 'Focus canvas'}
+                aria-pressed={focusCanvas}
+                title={focusCanvas ? 'Show settings' : 'Focus canvas'}
+                onClick={() => setFocusCanvas(!focusCanvas)}
+              >
+                {focusCanvas ? <PanelRightOpen size={20} /> : <PanelRightClose size={20} />}
+              </button>
+            </div>
+          </div>
+          <div className={`stage-surround ${artworkDetail ? 'artwork-detail' : ''}`} ref={stage}>
+            <div
+              className={`stage-canvas ${project.previewBackground}`}
+              style={
+                {
+                  aspectRatio: `${project.width}/${project.height}`,
+                  '--canvas-aspect': project.width / project.height,
+                  backgroundColor:
+                    project.previewBackground === 'color' ? project.background : undefined,
+                } as React.CSSProperties
+              }
+            >
+              <Composition project={project} time={playback.time} />
+              {guides && (
+                <div className="safe-guides">
+                  <span>SAFE AREA · 90%</span>
+                </div>
+              )}
+              {!project.text.trim() && !project.subtitle.trim() && (
+                <div className="empty-canvas">
+                  <span className="empty-type">Aa</span>
+                  <strong>Your next big moment starts here.</strong>
+                  <span>Add your words in the Design panel.</span>
+                </div>
+              )}
+            </div>
+            {artworkDetail && <span className="preview-detail-label">Cropped preview</span>}
+            <div className="stage-meta">
+              <span>
+                <span className="status-dot" /> LIVE PREVIEW
+              </span>
+              <span>
+                {project.fps} FPS <span className="meta-separator">/</span>{' '}
+                {project.mode === 'tiles' ? 'TILE COMPOSITION' : 'TYPOGRAPHY'}
+              </span>
+            </div>
+          </div>
+          <div className="canvas-bottom">
+            <div className="preview-swatches">
+              {(['live', 'checker', 'dark', 'light'] as const).map((bg) => (
+                <button
+                  key={bg}
+                  aria-label={`Set ${bg} preview`}
+                  title={
+                    bg === 'live'
+                      ? 'Live stream preview background'
+                      : `${bg[0].toUpperCase() + bg.slice(1)} background`
+                  }
+                  className={`background-chip ${bg} ${project.previewBackground === bg ? 'selected' : ''}`}
+                  aria-pressed={project.previewBackground === bg}
+                  onClick={() => patch({ previewBackground: bg })}
+                />
+              ))}
+              <span>Preview background</span>
+            </div>
+            <button className="fit-button" onClick={() => patch({ scale: 100, x: 50, y: 50 })}>
+              Fit <Expand size={12} />
+            </button>
+          </div>
+          <Timeline project={project} playback={playback} />
+        </main>
+        <div className="inspector-wrap" hidden={focusCanvas}>
+          <Inspector
+            project={project}
+            patch={patch}
+            tab={tab}
+            setTab={setTab}
+            replay={() => playback.play(true)}
+            previewPhase={playback.previewPhase}
+            saveStatus={editor.saveStatus}
+            onHelp={() => setHelp(true)}
+          />
+        </div>
       </div>
+      {exportOpen && (
+        <ExportDialog project={project} time={playback.time} onClose={() => setExportOpen(false)} />
+      )}
+      {notice && (
+        <div className="toast" role="status">
+          <span>{notice}</span>
+          {deletedPreset && (
+            <button className="text-button" onClick={restorePreset}>
+              Undo removal
+            </button>
+          )}
+          <button
+            className="icon-button"
+            aria-label="Dismiss notification"
+            onClick={() => setNotice('')}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      {help && (
+        <dialog
+          className="help-dialog"
+          ref={helpDialog}
+          onCancel={(event) => {
+            event.preventDefault()
+            closeHelp()
+          }}
+          aria-labelledby="help-title"
+        >
+          <div className="dialog-heading">
+            <h2 id="help-title">From words to wow.</h2>
+            <button className="icon-button" aria-label="Close tour" onClick={closeHelp}>
+              <X size={18} />
+            </button>
+          </div>
+          <ol>
+            <li>
+              <strong>Find your starting point.</strong> Pick a template, then make it yours with
+              your words, fonts, colors and shapes.
+            </li>
+            <li>
+              <strong>Give it a little motion.</strong> Choose an animation and set one duration for
+              its intro and reversed outro. Preview either transition, scrub the timeline or press
+              Space to play the full clip.
+            </li>
+            <li>
+              <strong>Take it anywhere.</strong> Every format preserves alpha. Use WebM for OBS,
+              ProRes for editing, or PNG sequences for lossless frames.
+            </li>
+          </ol>
+          <p>
+            Changes are saved on this device. Use the project menu to save a portable project file
+            or add a preset to your library.
+          </p>
+          <button className="button primary full" onClick={() => setHelp(false)}>
+            Let's make something.
+          </button>
+        </dialog>
+      )}
     </div>
-  );
+  )
 }
-
-export default App;
+function App() {
+  const [workspace, setWorkspace] = useState<Workspace>(() => {
+    try {
+      return localStorage.getItem('chyron-studio:workspace') === 'stream' ? 'stream' : 'chyron'
+    } catch {
+      return 'chyron'
+    }
+  })
+  const [streamVisited, setStreamVisited] = useState(workspace === 'stream')
+  const changeWorkspace = (next: Workspace) => {
+    if (next === workspace) return
+    if (next === 'stream') setStreamVisited(true)
+    setWorkspace(next)
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>(
+          `[data-workspace="${next}"] .workspace-nav button[aria-pressed="true"]`,
+        )
+        ?.focus()
+    })
+    try {
+      localStorage.setItem('chyron-studio:workspace', next)
+    } catch {
+      /* Current session still works. */
+    }
+  }
+  return (
+    <>
+      <div data-workspace="chyron" hidden={workspace !== 'chyron'}>
+        <ChyronEditor active={workspace === 'chyron'} onWorkspaceChange={changeWorkspace} />
+      </div>
+      {streamVisited && (
+        <div data-workspace="stream" hidden={workspace !== 'stream'}>
+          <StreamWorkspace active={workspace === 'stream'} onWorkspaceChange={changeWorkspace} />
+        </div>
+      )}
+    </>
+  )
+}
+export default App

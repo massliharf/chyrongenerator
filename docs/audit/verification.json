@@ -1,0 +1,346 @@
+{
+  "version": "2.2.0",
+  "date": "2026-09-22",
+  "build": "production",
+  "unitTests": 29,
+  "browserJourneys": 8,
+  "desktop": {
+    "viewport": 1440,
+    "page": 1440,
+    "labels": [
+      {
+        "text": "720 × 1280",
+        "px": 12
+      },
+      {
+        "text": "2.20 / 4.40 s",
+        "px": 12
+      },
+      {
+        "text": "Your words",
+        "px": 14
+      },
+      {
+        "text": "2 lines · 14/160 characters",
+        "px": 12
+      },
+      {
+        "text": "Title",
+        "px": 14
+      },
+      {
+        "text": "Subtitle",
+        "px": 14
+      },
+      {
+        "text": "Enter creates a new title line. Up to 5 lines.",
+        "px": 12
+      },
+      {
+        "text": "Typography",
+        "px": 14
+      },
+      {
+        "text": "Wicked Mouse · Tiles",
+        "px": 12
+      },
+      {
+        "text": "Colors & palettes",
+        "px": 14
+      },
+      {
+        "text": "Editable HEX · 6 starting palettes",
+        "px": 12
+      },
+      {
+        "text": "Shape & spacing",
+        "px": 14
+      },
+      {
+        "text": "18px corners · 6px depth",
+        "px": 12
+      },
+      {
+        "text": "Subtitle style",
+        "px": 14
+      },
+      {
+        "text": "Below title · Pill",
+        "px": 12
+      },
+      {
+        "text": "Character & finishing",
+        "px": 14
+      },
+      {
+        "text": "Rotation, variation & shadows",
+        "px": 12
+      },
+      {
+        "text": "Saved on this device",
+        "px": 12
+      }
+    ],
+    "targets": [
+      {
+        "name": "Project menu",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Undo",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Redo",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Export",
+        "w": 109,
+        "h": 48
+      },
+      {
+        "name": "Templates",
+        "w": 136,
+        "h": 48
+      },
+      {
+        "name": "Canvas settings: 720 by 1280",
+        "w": 116,
+        "h": 48
+      },
+      {
+        "name": "Show artwork detail",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Show safe area",
+        "w": 250,
+        "h": 48
+      },
+      {
+        "name": "Fullscreen preview",
+        "w": 250,
+        "h": 48
+      },
+      {
+        "name": "Transparency checker",
+        "w": 250,
+        "h": 48
+      },
+      {
+        "name": "Dark preview",
+        "w": 250,
+        "h": 48
+      },
+      {
+        "name": "Light preview",
+        "w": 250,
+        "h": 48
+      },
+      {
+        "name": "Focus canvas",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Set checker preview",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Set dark preview",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Set light preview",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Fit",
+        "w": 75,
+        "h": 48
+      },
+      {
+        "name": "Expand timeline",
+        "w": 171,
+        "h": 48
+      },
+      {
+        "name": "Go to start",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Play animation",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Go to end",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Loop playback",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Replay animation",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Design",
+        "w": 112,
+        "h": 48
+      },
+      {
+        "name": "Motion",
+        "w": 112,
+        "h": 48
+      },
+      {
+        "name": "Canvas",
+        "w": 112,
+        "h": 48
+      },
+      {
+        "name": "Collapse all sections",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "name": "Your words2 lines · 14/160 characters",
+        "w": 333,
+        "h": 64
+      },
+      {
+        "name": "TypographyWicked Mouse · Tiles",
+        "w": 333,
+        "h": 64
+      },
+      {
+        "name": "Colors & palettesEditable HEX · 6 starting palettes",
+        "w": 333,
+        "h": 64
+      },
+      {
+        "name": "Shape & spacing18px corners · 6px depth",
+        "w": 333,
+        "h": 64
+      },
+      {
+        "name": "Subtitle styleBelow title · Pill",
+        "w": 333,
+        "h": 64
+      },
+      {
+        "name": "Character & finishingRotation, variation & shadows",
+        "w": 333,
+        "h": 64
+      },
+      {
+        "name": "Quick tour",
+        "w": 48,
+        "h": 48
+      }
+    ],
+    "smallLabels": 0,
+    "smallTargets": 0
+  },
+  "layouts": [
+    {
+      "name": "laptop",
+      "width": 1024,
+      "height": 768,
+      "pageWidth": 1024,
+      "smallLabels": 0,
+      "smallTargets": 0
+    },
+    {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024,
+      "pageWidth": 768,
+      "smallLabels": 0,
+      "smallTargets": 0
+    },
+    {
+      "name": "mobile",
+      "width": 393,
+      "height": 852,
+      "pageWidth": 393,
+      "smallLabels": 0,
+      "smallTargets": 0
+    },
+    {
+      "name": "small-mobile",
+      "width": 360,
+      "height": 740,
+      "pageWidth": 360,
+      "smallLabels": 0,
+      "smallTargets": 0
+    },
+    {
+      "name": "narrow",
+      "width": 320,
+      "height": 900,
+      "pageWidth": 320,
+      "smallLabels": 0,
+      "smallTargets": 0
+    },
+    {
+      "name": "landscape",
+      "width": 844,
+      "height": 390,
+      "pageWidth": 844,
+      "smallLabels": 0,
+      "smallTargets": 0
+    }
+  ],
+  "textScaling": {
+    "percent": 200,
+    "viewport": 320,
+    "pageWidth": 320,
+    "titleEditable": true
+  },
+  "scans": [
+    {
+      "name": "Design",
+      "violations": []
+    },
+    {
+      "name": "Motion",
+      "violations": []
+    },
+    {
+      "name": "Canvas",
+      "violations": []
+    },
+    {
+      "name": "Color controls",
+      "violations": []
+    },
+    {
+      "name": "Export desktop",
+      "violations": []
+    },
+    {
+      "name": "Export mobile",
+      "violations": []
+    },
+    {
+      "name": "Templates mobile",
+      "violations": []
+    }
+  ],
+  "errors": []
+}

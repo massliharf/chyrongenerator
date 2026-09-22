@@ -1,0 +1,27 @@
+{
+  "version": "2.3.0",
+  "build": "production",
+  "unitTests": 32,
+  "browserJourneys": 11,
+  "originalBackgroundsUnchanged": true,
+  "extraChecks": {
+    "opaqueBackgroundUnderHostFade": {
+      "top": [
+        237,
+        69,
+        153,
+        255
+      ],
+      "bottom": [
+        18,
+        107,
+        238,
+        255
+      ],
+      "passed": true
+    },
+    "customBackgroundRemovalUndo": true,
+    "axeViolations": 0
+  },
+  "errors": []
+}
