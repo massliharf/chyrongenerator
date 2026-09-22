@@ -212,15 +212,6 @@ export default function StreamWorkspace({
       <WorkspaceNav current="stream" onChange={onWorkspaceChange} />
       <div className="si-workspace">
         <main className="si-main" aria-label="Stream image previews">
-          <div className="si-heading">
-            <div>
-              <h2>Stream image generator</h2>
-              <p>One host. Three images, ready to go.</p>
-            </div>
-            <span className="si-local">
-              <span className="status-dot" /> ON YOUR DEVICE
-            </span>
-          </div>
           <div className="si-preview-toolbar">
             <div>
               <strong>{format.name}</strong>

@@ -98,7 +98,7 @@ test('one host creates three exact PNGs; custom backgrounds, framing, alpha and 
   expect(pixels[(650 * 1024 + 512) * 4 + 3]).toBe(255)
   await expect(page.getByText('Images & edits saved on this device', { exact: true })).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Stream image generator' })).toBeVisible()
+  await expect(page.getByRole('main', { name: 'Stream image previews' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Download all images as ZIP' })).toBeEnabled()
   await expect(page.getByLabel('Stream set name')).toHaveValue('Savvy show')
   await expect(page.getByLabel('Host size value', { exact: true })).toHaveValue('125')
