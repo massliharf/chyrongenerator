@@ -156,8 +156,10 @@ export function Timeline({
               </div>
             </div>
             <div className="track">
-              <div className={`clip subtitle-clip ${!p.subtitle ? 'empty' : ''}`}>
-                <span>{p.subtitle || 'No subtitle'}</span>
+              <div
+                className={`clip subtitle-clip ${!p.subtitlePill || !p.subtitle ? 'empty' : ''}`}
+              >
+                <span>{!p.subtitlePill ? 'Subtitle hidden' : p.subtitle || 'No subtitle'}</span>
               </div>
             </div>
             <div className="playhead" style={{ left: `${(playback.time / total) * 100}%` }}>

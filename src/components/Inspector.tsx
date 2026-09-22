@@ -139,7 +139,7 @@ const groups: {
     id: 'preview',
     tab: 'canvas',
     title: 'Preview background',
-    keywords: 'background checker dark light custom color transparency',
+    keywords: 'background live preview photo checker dark light custom color transparency',
     reset: ['previewBackground', 'background'],
   },
 ]
@@ -572,15 +572,13 @@ export function Inspector({
         )}
         {section(
           'subtitle',
-          p.subtitlePill
-            ? `${p.subtitlePosition === 'top' ? 'Above' : 'Below'} title · Pill`
-            : 'Subtitle disabled',
+          `${p.subtitlePosition === 'top' ? 'Above' : 'Below'} title · ${p.subtitlePill ? 'Pill' : 'Hidden'}`,
           <>
             <Toggle
               label="Subtitle pill"
               checked={p.subtitlePill}
               onChange={(subtitlePill) => patch({ subtitlePill })}
-              hint={p.subtitlePill ? 'Turn off to disable subtitle' : 'Turn on to show subtitle pill'}
+              hint="Show or hide the entire subtitle, including its text"
             />
             {p.subtitlePill && (
               <>
@@ -782,7 +780,7 @@ export function Inspector({
         )}
         {section(
           'preview',
-          `${p.previewBackground === 'live' ? 'Live stream preview' : p.previewBackground === 'checker' ? 'Transparency checker' : p.previewBackground === 'color' ? 'Custom color' : p.previewBackground} · preview only`,
+          `${p.previewBackground === 'live' ? 'Live preview' : p.previewBackground === 'checker' ? 'Transparency checker' : p.previewBackground === 'color' ? 'Custom color' : p.previewBackground} · preview only`,
           <>
             <div className="background-options">
               {(['live', 'checker', 'dark', 'light', 'color'] as const).map((bg) => (
@@ -803,11 +801,7 @@ export function Inspector({
               value={p.background}
               onChange={(background) => patch({ background, previewBackground: 'color' })}
             />
-            <p className="field-hint">
-              {p.previewBackground === 'live'
-                ? 'Live preview is for on-screen positioning only. Exported background stays transparent.'
-                : 'Your exported background stays transparent.'}
-            </p>
+            <p className="field-hint">Your exported background stays transparent.</p>
           </>,
         )}
       </div>

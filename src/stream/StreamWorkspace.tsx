@@ -8,8 +8,8 @@ import {
   Move,
   Redo2,
   RotateCcw,
-  RotateCw,
   ScanLine,
+  SquareDashed,
   Trash2,
   Undo2,
   Upload,
@@ -32,7 +32,6 @@ import {
 } from './model'
 import { useStreamImages } from './renderer'
 import { StreamCanvas } from './StreamCanvas'
-import { TransformOverlay } from './TransformOverlay'
 import { useStreamProject } from './useStreamProject'
 import './StreamWorkspace.css'
 
@@ -70,6 +69,7 @@ export default function StreamWorkspace({
   const [notice, setNotice] = useState('')
   const [dragging, setDragging] = useState(false)
   const [guides, setGuides] = useState(false)
+  const [showControls, setShowControls] = useState(false)
   const [open, setOpen] = useState({ framing: false, background: true, finish: false })
   const hostInput = useRef<HTMLInputElement>(null)
   const backgroundInput = useRef<HTMLInputElement>(null)
@@ -164,7 +164,7 @@ export default function StreamWorkspace({
           <strong>
             chyron<span>studio</span>
           </strong>
-          <span className="version-pill">2.3</span>
+          <span className="version-pill">2.4</span>
         </h1>
         <div className="project-header">
           <span className="header-divider" />
@@ -228,15 +228,46 @@ export default function StreamWorkspace({
                 {format.width} × {format.height} <span aria-hidden="true">·</span> {format.ratio}
               </span>
             </div>
-            <button
-              className={`icon-button ${guides ? 'selected' : ''}`}
-              aria-label="Show image safe area"
-              aria-pressed={guides}
-              onClick={() => setGuides(!guides)}
-              title="Safe area guides"
-            >
-              <ScanLine size={20} />
-            </button>
+            <div className="si-canvas-tools" role="group" aria-label="Canvas tools">
+              <button
+                className="icon-button"
+                aria-label="Fit host to canvas"
+                title="Fit host to canvas"
+                disabled={disabled || !doc.host}
+                onClick={() => patch(DEFAULT_FRAMING)}
+              >
+                <RotateCcw size={20} />
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Flip host horizontally"
+                title="Flip host horizontally"
+                aria-pressed={layout.flip}
+                disabled={disabled || !doc.host}
+                onClick={() => patch({ flip: !layout.flip })}
+              >
+                <FlipHorizontal2 size={20} />
+              </button>
+              <button
+                className={`icon-button ${showControls ? 'selected' : ''}`}
+                aria-label={showControls ? 'Hide frame controls' : 'Show frame controls'}
+                title={showControls ? 'Hide frame controls' : 'Frame controls (or click host image)'}
+                aria-pressed={showControls}
+                disabled={disabled || !doc.host}
+                onClick={() => setShowControls(!showControls)}
+              >
+                <SquareDashed size={20} />
+              </button>
+              <button
+                className={`icon-button ${guides ? 'selected' : ''}`}
+                aria-label="Show image safe area"
+                aria-pressed={guides}
+                onClick={() => setGuides(!guides)}
+                title="Safe area guides"
+              >
+                <ScanLine size={20} />
+              </button>
+            </div>
           </div>
           <div
             className={`si-stage ${dragging ? 'is-dragging' : ''}`}
@@ -251,6 +282,11 @@ export default function StreamWorkspace({
               e.preventDefault()
               setDragging(false)
               if (!disabled) void upload(e.dataTransfer.files[0])
+            }}
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget && showControls) {
+                setShowControls(false)
+              }
             }}
           >
             <div
@@ -268,15 +304,9 @@ export default function StreamWorkspace({
                 host={doc.host}
                 images={images}
                 onTransform={disabled ? undefined : patch}
+                showControls={showControls}
+                onSelectHost={setShowControls}
               />
-              {doc.host && images?.host && !disabled && (
-                <TransformOverlay
-                  format={format}
-                  layout={layout}
-                  host={doc.host}
-                  onTransform={patch}
-                />
-              )}
               {guides && (
                 <div className="si-guides" aria-hidden="true">
                   <span>SAFE AREA</span>
@@ -308,7 +338,9 @@ export default function StreamWorkspace({
             <span>
               <Move size={16} />{' '}
               {doc.host
-                ? 'Drag to move · Drag corners to scale · Drag top handle to rotate · Scroll to zoom'
+                ? showControls
+                  ? 'Drag to move · Corners to resize · Top handle to rotate'
+                  : 'Click host image to frame · Move, resize & rotate'
                 : 'Your PNG cutout is placed over the background.'}
             </span>
             <button className="button" disabled={!canExport} onClick={() => void download(false)}>
@@ -413,26 +445,6 @@ export default function StreamWorkspace({
                     onClick={() => patch({ flip: !layout.flip })}
                   >
                     <FlipHorizontal2 size={16} /> Flip
-                  </button>
-                  <button
-                    className="button"
-                    aria-label="Rotate 90° counter-clockwise"
-                    title="Rotate −90°"
-                    onClick={() =>
-                      patch({ rotation: ((layout.rotation - 90 + 180) % 360) - 180 })
-                    }
-                  >
-                    <RotateCcw size={16} />
-                  </button>
-                  <button
-                    className="button"
-                    aria-label="Rotate 90° clockwise"
-                    title="Rotate +90°"
-                    onClick={() =>
-                      patch({ rotation: ((layout.rotation + 90 + 180) % 360) - 180 })
-                    }
-                  >
-                    <RotateCw size={16} />
                   </button>
                 </div>
                 <Range

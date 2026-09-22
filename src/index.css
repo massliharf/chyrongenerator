@@ -7,8 +7,8 @@
   font-family: Inter, system-ui, sans-serif;
   font-size: 16px;
   font-weight: 400;
-  color: #e7ecf5;
-  background: #101318;
+  color: #e6edfa;
+  background: #0e1829;
   color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -25,17 +25,17 @@
   --type-body-small: 400 0.75rem/1rem var(--font);
   --type-label-large: 500 0.875rem/1.25rem var(--font);
   --type-label-medium: 500 0.75rem/1rem var(--font);
-  --bg: #101318;
-  --panel: #161a22;
-  --panel-raised: #222832;
-  --surface-container: #1a1f2a;
-  --border: #3d4860;
-  --border-soft: #2b3348;
-  --muted: #afb9cf;
-  --text: #e7ecf5;
-  --accent: #8fb8f8;
-  --accent-ink: #0b1a30;
-  --selected: #253350;
+  --bg: #0e1829;
+  --panel: #16243b;
+  --panel-raised: #233858;
+  --surface-container: #1c2e4a;
+  --border: #4b6285;
+  --border-soft: #314969;
+  --muted: #b2c4e0;
+  --text: #e6edfa;
+  --accent: #93beff;
+  --accent-ink: #0b2548;
+  --selected: #294671;
   --danger: #ffb4ab;
   --target: 48px;
 }
@@ -106,7 +106,7 @@ summary svg {
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: #4a5570 transparent;
+  scrollbar-color: #6884ac transparent;
 }
 kbd {
   font: var(--type-label-medium);

@@ -1,4 +1,4 @@
-# Stream Images · Chyron Studio 2.3
+# Stream Images · Chyron Studio 2.4
 
 Create three production-size graphics from one host image in the **Stream Images** tool.
 
@@ -6,11 +6,11 @@ Create three production-size graphics from one host image in the **Stream Images
 
 ## Workflow
 
-1. Open **Stream Images** in the navigation below the studio header.
+1. Open **Stream Images** in the left tool rail on desktop, or the navigation below the header on mobile.
 2. Upload or drop a host PNG onto the preview. All three images fill automatically. Transparent edges are excluded from the initial fit.
 3. Select **Hero image**, **Host card** or **Stream image** below the preview. Edits apply to that output only.
 4. Choose a supplied background, upload a custom background, or select a gradient/solid color. The color swatches and editable HEX fields customize the host card's colorful background.
-5. Drag the host directly, or open **Host framing** for size, position, rotation and flip. **Auto fit** restores the initial host framing. Arrow keys nudge a focused preview; Shift makes larger steps.
+5. Drag the host to move it, drag a corner handle to resize proportionally, or drag the round top handle to rotate. Hold Shift to snap rotation to 15°. Use the preview toolbar to fit, flip, or hide the handles. Open **Host framing** for exact values and full ±180° rotation. Arrow keys nudge the focused canvas, resize a focused corner or rotate a focused top handle; Shift makes larger steps. Escape cancels an active drag.
 6. **Download PNG** exports the selected output. **Download set** creates one ZIP with all three PNGs.
 
 | Output       | Pixels      | Aspect ratio | Filename suffix        |
@@ -27,7 +27,7 @@ The three supplied files are included as **Blue grid**, **Savvy** and **Super Sa
 
 Up to eight custom backgrounds can be kept in a set. Select one to use it; **Remove custom background** removes it from the set and changes affected images to a color gradient. Undo restores it. **Use this background for all 3** copies the background settings while preserving each host's framing.
 
-**Finishing** adds a host shadow or fades the host toward the bottom of the canvas. Background pixels remain intact. Safe-area guides appear in the preview only.
+**Finishing** adds a host shadow or fades the host toward the bottom of the canvas. Background pixels remain intact. Safe-area guides and transform handles appear in the preview only; neither is drawn into exported PNGs.
 
 ## Image handling and saved drafts
 
@@ -40,6 +40,8 @@ Up to eight custom backgrounds can be kept in a set. Select one to use it; **Rem
 - Images are processed on the device. No image upload service or runtime external asset host is used.
 
 ## Validation
+
+The v2.4 update passed TypeScript, ESLint, the production build, **46 unit tests** and **8 targeted browser scenarios**. This adds mouse/touch corner resizing, full rotation, keyboard handles and exact PNG/preview pixel matching with guides and handles visible. Live-preview alpha and whole-subtitle hiding are verified through PNG/SVG downloads. See [v2.4 verification](verification-v2.4.json).
 
 The v2.3 check passed TypeScript, ESLint, the production build, **32 unit tests** and **11 browser scenarios**, including the existing Chyron video/alpha exports. [Production verification](stream-verification.json) also records the host-fade/background pixel check and custom-background removal/undo. Original background bytes were compared against all three supplied files.
 

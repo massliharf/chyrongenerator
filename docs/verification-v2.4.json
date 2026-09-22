@@ -1,0 +1,21 @@
+{
+  "version": "2.4.0",
+  "checks": ["TypeScript", "ESLint", "Vite production build"],
+  "unitTests": 46,
+  "targetedBrowserScenarios": 8,
+  "browser": "Chromium",
+  "verified": [
+    "Mouse drag, proportional anchored resize, rotation and undo",
+    "Touch resize and rotation at 393px",
+    "Keyboard nudge, resize and rotation",
+    "Transformed PNG pixels match preview canvas; controls and guides excluded",
+    "Live photo bundled unchanged and served at production base path",
+    "720x1280 PNG keeps transparent pixels over live preview",
+    "Subtitle OFF matches empty-subtitle SVG without leftover spacing",
+    "New screenshot defaults and paused visible starting composition",
+    "Independent output framing and IndexedDB reload",
+    "Responsive layouts, 48px targets, text scaling and axe accessibility",
+    "Production desktop and mobile screenshots"
+  ],
+  "scope": "Video codecs unchanged; this run targets UI, transforms and still exports. Prior video verification remains in stream-verification.json."
+}

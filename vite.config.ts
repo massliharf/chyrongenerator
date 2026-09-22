@@ -5,6 +5,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/chyrongenerator/',
   plugins: [react()],
+  server: {
+    host: true,
+  },
   optimizeDeps: { exclude: ['@ffmpeg/ffmpeg'] },
   build: {
     rollupOptions: {

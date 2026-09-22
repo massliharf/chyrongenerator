@@ -22,7 +22,18 @@ npm run preview
 
 The application remains compatible with GitHub Pages at `/chyrongenerator/`. The deployment command is still `npm run deploy`. Set `base` in `vite.config.ts` if you host it at a different path.
 
+## What’s new in 2.4
+
+- A blue interface throughout the header, navigation, workspace, inspector and controls.
+- Stream Images starts with on-canvas transform controls enabled: drag to move, drag a corner to resize proportionally with the opposite corner fixed, or drag the top handle to rotate. Hold Shift while rotating to snap to 15°. Toolbar actions fit, flip and hide/show the controls. Keyboard arrows work on the canvas and handles; Host framing retains numeric controls.
+- The supplied **Live preview** photo is the default Chyron preview background. It is a CSS layer outside the renderer and never appears in PNG, SVG, sequence or video exports. Checker, dark, light and custom backgrounds remain available.
+- New compositions use **720 × 1280 (720p)**, Fredoka tiles at **128 px**, uppercase and centered. Shape defaults: **24 px** corners, **16 px** letter padding, **8 px** tile spacing, **16 px** line spacing and **8 px** depth.
+- Subtitle defaults: pill enabled, **64 px** type, **32 px** gap, **24 px** radius and **24 × 32 px** padding. Turning off **Subtitle pill** now hides both the pill and its text, removes their layout spacing and preserves the text for re-enabling.
+- The editor opens paused on the fully visible composition. Intro/outro timing remains one second each. Saved drafts keep their values; **Project menu → New composition** applies the new defaults, while group Reset actions update individual sections.
+
 ## What’s new in 2.3 — Stream Images
+
+**2.3.1 layout update:** The header, desktop tool rail, canvas and inspector now have separate surfaces, visible borders and 12 px gutters. Canvas backgrounds are quieter, selected tools are clearer, and mobile keeps compact horizontal navigation with 8 px gutters.
 
 Open **Stream Images** beside Chyron to create a complete image set from one host upload. Each output keeps its own background and framing:
 
@@ -45,8 +56,8 @@ See [Stream Images guide](docs/stream-images.md) for workflow, limits and valida
 - Material 3 typography roles with 12/14/16/22/24 px text and 48 px interaction targets. Inter stays the interface typeface.
 - Twelve collapsible settings groups with live summaries, global settings search, expand/collapse controls, persistent panel state and per-group resets that work with undo.
 - Templates open in a searchable modal; the timeline folds into a compact transport bar. Focus canvas hides the inspector when you need more room.
-- Mobile and tablet layouts keep a preview above independently scrolling controls. On narrow screens, Design/Motion default to a labeled cropped detail view; the zoom button returns to the full canvas. Canvas settings and focus mode show the complete frame. Preview zoom never changes exported pixels.
-- Editable 3/6-digit HEX colors, letter case, typography tracking, text-only subtitles, custom canvas dimensions with aspect lock/swap, composition rotation and group opacity.
+- Mobile and tablet layouts keep a preview above independently scrolling controls. Live preview shows the complete frame on narrow screens. Other backgrounds default to a labeled cropped detail view in Design/Motion; the zoom button switches between full frame and artwork detail. Canvas settings and focus mode show the complete frame. Preview zoom never changes exported pixels.
+- Editable 3/6-digit HEX colors, letter case, typography tracking, subtitle styling, custom canvas dimensions with aspect lock/swap, composition rotation and group opacity.
 - Improved keyboard behavior: native button activation, arrow-key tabs and export choices, modal focus return, and undo for deleted presets. Choosing a template retains canvas, timing and placement.
 - The export action remains visible while format choices scroll. The portrait 720p default, shared 1-second intro/outro duration and transparent exports are retained.
 
@@ -110,7 +121,7 @@ The UX browser suite checks disclosure, search, numeric input, preset recovery, 
 
 Unit tests cover new customization defaults and validation, preservation of user settings when applying a template, reversed intro/outro symmetry, long-text stagger completion, deterministic seeking, frame-boundary transparency at 24/30/60 fps, default dimensions/timing, legacy migration and malformed project imports. `npm run build` includes TypeScript checking.
 
-Stream image tests verify the exact three PNG dimensions, decoded background/host pixels, transparent output, independent framing, drag/keyboard editing, failed-upload recovery, image persistence after reload, tool switching and responsive/accessibility checks. Synthetic images are used as test fixtures; no host photograph is bundled.
+Stream image tests verify the exact three PNG dimensions, decoded background/host pixels, transparent output, independent framing, drag/keyboard editing, failed-upload recovery, image persistence after reload, tool switching and responsive/accessibility checks. Synthetic cutouts are used as test fixtures. The user-supplied live screenshot is bundled only as a Chyron preview background, separately from Stream Images assets.
 
 ## Code map
 

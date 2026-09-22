@@ -118,7 +118,7 @@ export const DEFAULT_PROJECT: Project = {
   hold: 2.4,
   stagger: 0.45,
   previewBackground: 'live',
-  background: '#202126',
+  background: '#14243d',
 }
 
 const numericLimits: Partial<Record<keyof Project, [number, number]>> = {

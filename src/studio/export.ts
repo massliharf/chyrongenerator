@@ -40,7 +40,8 @@ export function exportAvailability(format: ExportFormat, p: Project): string | n
     return 'Video exports support up to 1920 × 1080 in the browser. Choose Full HD, or use a PNG sequence for larger frames.'
   if ((format === 'mov' || format === 'webm') && frameCount(p) > 600)
     return 'Keep video exports under 600 frames. Reduce the duration or frame rate, or choose a PNG sequence.'
-  if (!p.text.trim() && !p.subtitle.trim()) return 'Add a title or subtitle before exporting.'
+  if (!p.text.trim() && (!p.subtitlePill || !p.subtitle.trim()))
+    return 'Add a title or enable a subtitle before exporting.'
   return null
 }
 export async function exportProject(
