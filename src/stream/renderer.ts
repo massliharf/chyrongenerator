@@ -165,5 +165,18 @@ export function drawStream(
       layer.width = layer.height = 1
     }
   }
+  const bottomShadow = layout.bottomShadow ?? (format.id === 'hero' ? 65 : 0)
+  if (bottomShadow > 0 && layout.background !== 'transparent') {
+    const shadowHeight = height * 0.55
+    const startY = height - shadowHeight
+    const gradient = ctx.createLinearGradient(0, startY, 0, height)
+    const maxAlpha = (bottomShadow / 100) * 0.88
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)')
+    gradient.addColorStop(0.3, `rgba(0, 0, 0, ${maxAlpha * 0.2})`)
+    gradient.addColorStop(0.65, `rgba(0, 0, 0, ${maxAlpha * 0.6})`)
+    gradient.addColorStop(1, `rgba(0, 0, 0, ${maxAlpha})`)
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, startY, width, shadowHeight)
+  }
   ctx.restore()
 }
