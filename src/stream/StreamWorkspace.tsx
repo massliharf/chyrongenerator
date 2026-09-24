@@ -3,7 +3,7 @@ import {
   Check,
   Download,
   FlipHorizontal2,
-  ImagePlus,
+  Image as ImageIcon,
   LoaderCircle,
   Move,
   Redo2,
@@ -21,6 +21,8 @@ import { WorkspaceNav, type Workspace } from '../components/WorkspaceNav'
 import { saveBlob } from '../studio/export'
 import { importImage } from './assets'
 import { exportStreamPng, exportStreamSet } from './export'
+import { MediaGalleryModal } from '../components/MediaGalleryModal'
+import { fetchGalleryFile, type GalleryItem } from '../studio/galleryData'
 import {
   assetUrl,
   BACKGROUNDS,
@@ -72,6 +74,7 @@ export default function StreamWorkspace({
   const [guides, setGuides] = useState(false)
   const [showControls, setShowControls] = useState(false)
   const [open, setOpen] = useState({ framing: false, background: true, finish: false })
+  const [galleryTarget, setGalleryTarget] = useState<'host' | 'background' | null>(null)
   const hostInput = useRef<HTMLInputElement>(null)
   const backgroundInput = useRef<HTMLInputElement>(null)
   const pending = useRef(false)
@@ -80,6 +83,19 @@ export default function StreamWorkspace({
   const disabled = !editor.ready || !!busy
   const canExport = !disabled && !!doc.host && !!images
   const imageBackground = !['gradient', 'solid', 'transparent'].includes(layout.background)
+
+  const handleSelectGallery = async (item: GalleryItem) => {
+    const isBg = galleryTarget === 'background'
+    setGalleryTarget(null)
+    try {
+      setBusy(isBg ? 'Opening background…' : 'Preparing your host…')
+      const file = await fetchGalleryFile(item)
+      await upload(file, isBg)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load gallery asset.')
+      setBusy('')
+    }
+  }
 
   useEffect(() => {
     if (!active) return
@@ -312,14 +328,23 @@ export default function StreamWorkspace({
                 <div className="si-placeholder">
                   <UserRound size={48} strokeWidth={1.25} />
                   <strong>Your host goes here</strong>
-                  <span>Drop a transparent PNG to create all three images.</span>
-                  <button
-                    className="button primary"
-                    disabled={disabled}
-                    onClick={() => hostInput.current?.click()}
-                  >
-                    <Upload size={18} /> Upload host
-                  </button>
+                  <span>Drop a transparent PNG or select from the gallery.</span>
+                  <div className="si-placeholder-buttons">
+                    <button
+                      className="button primary"
+                      disabled={disabled}
+                      onClick={() => setGalleryTarget('host')}
+                    >
+                      <ImageIcon size={18} /> Choose from gallery
+                    </button>
+                    <button
+                      className="button subtle"
+                      disabled={disabled}
+                      onClick={() => hostInput.current?.click()}
+                    >
+                      <Upload size={18} /> Upload host
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -411,12 +436,22 @@ export default function StreamWorkspace({
               ) : (
                 <p>Upload once to fill every format.</p>
               )}
-              <button
-                className={`button ${doc.host ? '' : 'primary'} full`}
-                onClick={() => hostInput.current?.click()}
-              >
-                <ImagePlus size={18} /> {doc.host ? 'Replace host image' : 'Upload host image'}
-              </button>
+              <div className="si-quick-actions" style={{ flexDirection: 'column', gap: '8px' }}>
+                <button
+                  className="button primary full"
+                  disabled={disabled}
+                  onClick={() => setGalleryTarget('host')}
+                >
+                  <ImageIcon size={16} /> Choose from gallery
+                </button>
+                <button
+                  className={`button ${doc.host ? '' : 'subtle'} full`}
+                  disabled={disabled}
+                  onClick={() => hostInput.current?.click()}
+                >
+                  <Upload size={16} /> {doc.host ? 'Upload host image' : 'Upload host'}
+                </button>
+              </div>
               <p className="field-hint">
                 PNG, JPEG or WebP · up to 20 MB. Use a transparent PNG for a cutout; photo
                 backgrounds are kept.
@@ -532,7 +567,18 @@ export default function StreamWorkspace({
                 ))}
               </div>
               <div className="si-quick-actions">
-                <button className="button" onClick={() => backgroundInput.current?.click()}>
+                <button
+                  className="button"
+                  disabled={disabled}
+                  onClick={() => setGalleryTarget('background')}
+                >
+                  <ImageIcon size={16} /> Choose from gallery
+                </button>
+                <button
+                  className="button"
+                  disabled={disabled}
+                  onClick={() => backgroundInput.current?.click()}
+                >
                   <Upload size={16} /> Upload background
                 </button>
               </div>
@@ -728,6 +774,16 @@ export default function StreamWorkspace({
           )}
         </div>
       )}
+      <MediaGalleryModal
+        open={galleryTarget !== null}
+        initialCategory={galleryTarget === 'host' ? 'Host Images' : 'Backgrounds'}
+        onClose={() => setGalleryTarget(null)}
+        onSelect={handleSelectGallery}
+        onUploadClick={() => {
+          if (galleryTarget === 'host') hostInput.current?.click()
+          else backgroundInput.current?.click()
+        }}
+      />
     </div>
   )
 }

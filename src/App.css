@@ -1358,24 +1358,26 @@
 /* Menus, templates and feedback. */
 .project-menu-wrap {
   position: relative;
+  z-index: 300;
 }
 .menu-dismiss {
   position: fixed;
   inset: 0;
-  z-index: 29;
+  z-index: 299;
   cursor: default;
 }
 .project-menu {
   position: absolute;
-  z-index: 30;
-  top: 56px;
-  left: -160px;
+  z-index: 300;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
   width: 292px;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   background: var(--panel-raised);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 .project-menu > button {
   min-height: 48px;
