@@ -1,6 +1,7 @@
 import { outline, type Fonts } from './fonts'
-import { poseAt } from './motion'
-import type { Project } from './model'
+import { hash, imagePoseAt, poseAt, type ImagePose } from './motion'
+import { chyronLayer, imageLayers, type ImageLayer, type Project } from './model'
+import type { ImageMap } from './assets'
 
 interface Shape {
   d: string
@@ -291,7 +292,7 @@ export function renderFrame(ctx: CanvasRenderingContext2D, scene: Scene, p: Proj
     ctx.restore()
   }
 }
-export function renderSvg(scene: Scene, p: Project, time: number) {
+function chyronSvg(scene: Scene, p: Project, time: number) {
   const { scale, x, y } = placement(scene, p)
   const defs: string[] = []
   const content = scene.elements
@@ -323,5 +324,329 @@ export function renderSvg(scene: Scene, p: Project, time: number) {
     defs.push('<filter id="backdrop"><feGaussianBlur stdDeviation="10"/></filter>')
     backdrop = `<rect x="60" y="60" width="${scene.width - 120}" height="${scene.height - 120}" opacity="${poseAt(time, 0, 1, p).opacity * 0.4}" filter="url(#backdrop)"/>`
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}"><defs>${defs.join('')}</defs><g opacity="${p.opacity / 100}" transform="translate(${x} ${y}) scale(${scale}) rotate(${p.compositionRotation} ${scene.width / 2} ${scene.height / 2})">${backdrop}${content}</g></svg>`
+  return {
+    defs: defs.join(''),
+    body: `<g opacity="${p.opacity / 100}" transform="translate(${x} ${y}) scale(${scale}) rotate(${p.compositionRotation} ${scene.width / 2} ${scene.height / 2})">${backdrop}${content}</g>`,
+  }
+}
+
+const esc = (value: string) => value.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)
+function imageSvg(l: ImageLayer, p: Project, time: number, href: string, n: number) {
+  const pose = imagePoseAt(time, l, p)
+  const opacity = pose.opacity * (l.opacity / 100)
+  if (opacity <= 0 || pose.reveal <= 0) return { defs: '', body: '' }
+  const { w, h, cx, cy } = imageBox(l, p)
+  const defs: string[] = []
+  const r = radiusPx(l, w, h)
+  const id = `img${n}`
+  defs.push(
+    `<clipPath id="${id}-frame"><rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${r}"/></clipPath>`,
+  )
+  let reveal = ''
+  if (pose.reveal < 1) {
+    defs.push(
+      pose.revealMode === 'iris'
+        ? `<clipPath id="${id}-reveal"><circle cx="0" cy="0" r="${(pose.reveal * Math.hypot(w, h)) / 2}"/></clipPath>`
+        : `<clipPath id="${id}-reveal"><rect x="${-w / 2 - 2}" y="${-h / 2 - 2}" width="${(w + 4) * pose.reveal}" height="${h + 4}"/></clipPath>`,
+    )
+    reveal = ` clip-path="url(#${id}-reveal)"`
+  }
+  const filters: string[] = []
+  if (pose.blur > 0.05) filters.push(`<feGaussianBlur stdDeviation="${pose.blur / 2}"/>`)
+  if (l.shadow > 0)
+    filters.push(
+      `<feDropShadow dx="0" dy="${l.shadow * 0.3}" stdDeviation="${l.shadow / 2}" flood-opacity="0.5"/>`,
+    )
+  if (filters.length)
+    defs.push(
+      `<filter id="${id}-fx" x="-50%" y="-50%" width="200%" height="200%">${filters.join('')}</filter>`,
+    )
+  const zoom = pose.contentZoom
+  const border =
+    l.border > 0
+      ? `<rect x="${-w / 2 + l.border / 2}" y="${-h / 2 + l.border / 2}" width="${Math.max(0, w - l.border)}" height="${Math.max(0, h - l.border)}" rx="${Math.max(0, r - l.border / 2)}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}"/>`
+      : ''
+  const sx = pose.scale * pose.scaleX * (l.flipX ? -1 : 1)
+  const sy = pose.scale * pose.scaleY
+  const pivot = pose.pivotY * h
+  const body = `<g opacity="${opacity}" transform="translate(${cx + pose.x} ${cy + pose.y + pivot}) rotate(${l.rotation + pose.rotation}) translate(0 ${-pivot}) scale(${sx} ${sy})"${reveal}><g${filters.length ? ` filter="url(#${id}-fx)"` : ''}><g clip-path="url(#${id}-frame)"><image href="${esc(href)}" x="${(-w * zoom) / 2}" y="${(-h * zoom) / 2}" width="${w * zoom}" height="${h * zoom}" preserveAspectRatio="none"/></g>${border}</g></g>`
+  return { defs: defs.join(''), body }
+}
+
+/** Standalone SVG of every visible layer. `images` maps asset ids to data URLs. */
+export function renderSvg(
+  scene: Scene,
+  p: Project,
+  time: number,
+  images: ReadonlyMap<string, string> = new Map(),
+) {
+  const defs: string[] = []
+  const bodies: string[] = []
+  let n = 0
+  for (const layer of p.layers) {
+    if (!layer.visible) continue
+    const part =
+      layer.kind === 'chyron'
+        ? chyronSvg(scene, p, time)
+        : images.has(layer.assetId)
+          ? imageSvg(layer, p, time, images.get(layer.assetId)!, n++)
+          : null
+    if (!part) continue
+    defs.push(part.defs)
+    bodies.push(part.body)
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}"><defs>${defs.join('')}</defs>${bodies.join('')}</svg>`
+}
+
+/* ---------- Image layers ---------- */
+
+export function imageBox(l: ImageLayer, p: Project) {
+  const w = (l.width / 100) * p.width
+  return { w, h: w * l.aspect, cx: (l.x / 100) * p.width, cy: (l.y / 100) * p.height }
+}
+export function imageBounds(l: ImageLayer, p: Project) {
+  const { w, h, cx, cy } = imageBox(l, p)
+  return { cx, cy, width: w, height: h, rotation: l.rotation }
+}
+const radiusPx = (l: ImageLayer, w: number, h: number) => (l.radius / 100) * Math.min(w, h)
+
+type Surface = HTMLCanvasElement | OffscreenCanvas
+function surface(width: number, height: number): Surface {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height)
+  const c = document.createElement('canvas')
+  c.width = width
+  c.height = height
+  return c
+}
+const context2d = (s: Surface) =>
+  s.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+
+/* Framed images (radius, border, Ken Burns zoom) are cached by their exact pixel size. */
+const cards = new Map<string, Surface>()
+function framedImage(
+  image: CanvasImageSource & { width: number; height: number },
+  l: ImageLayer,
+  pw: number,
+  ph: number,
+  k: number,
+  zoom: number,
+) {
+  const key = `${l.assetId}|${pw}|${ph}|${l.radius}|${l.border}|${l.borderColor}|${zoom.toFixed(4)}`
+  const cached = cards.get(key)
+  if (cached) {
+    cards.delete(key)
+    cards.set(key, cached)
+    return cached
+  }
+  const card = surface(pw, ph)
+  const ctx = context2d(card)
+  if (!ctx) return card
+  const r = (l.radius / 100) * Math.min(pw, ph)
+  ctx.save()
+  if (r > 0) {
+    ctx.beginPath()
+    ctx.roundRect(0, 0, pw, ph, r)
+    ctx.clip()
+  }
+  ctx.imageSmoothingQuality = 'high'
+  const dw = pw * zoom,
+    dh = ph * zoom
+  ctx.drawImage(image, (pw - dw) / 2, (ph - dh) / 2, dw, dh)
+  ctx.restore()
+  if (l.border > 0) {
+    const b = l.border * k
+    ctx.strokeStyle = l.borderColor
+    ctx.lineWidth = b
+    ctx.beginPath()
+    ctx.roundRect(b / 2, b / 2, Math.max(0, pw - b), Math.max(0, ph - b), Math.max(0, r - b / 2))
+    ctx.stroke()
+  }
+  cards.set(key, card)
+  // Ken Burns creates a new size every frame; keep memory bounded.
+  while (cards.size > 24) cards.delete(cards.keys().next().value!)
+  return card
+}
+function tinted(card: Surface, color: string) {
+  const out = surface(card.width, card.height)
+  const ctx = context2d(out)
+  if (!ctx) return out
+  ctx.drawImage(card, 0, 0)
+  ctx.globalCompositeOperation = 'source-atop'
+  ctx.fillStyle = color
+  ctx.fillRect(0, 0, out.width, out.height)
+  return out
+}
+function shineCard(card: Surface, position: number, strength: number) {
+  const out = surface(card.width, card.height)
+  const ctx = context2d(out)
+  if (!ctx) return card
+  ctx.drawImage(card, 0, 0)
+  ctx.globalCompositeOperation = 'source-atop'
+  const w = out.width,
+    h = out.height
+  const band = Math.max(w, h) * (0.12 + 0.18 * strength)
+  const center = -band + (w + h + band * 2) * position
+  const gradient = ctx.createLinearGradient(center - band, 0, center + band, h * 0.35)
+  gradient.addColorStop(0, 'rgba(255,255,255,0)')
+  gradient.addColorStop(0.5, `rgba(255,255,255,${0.35 + 0.45 * strength})`)
+  gradient.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, w, h)
+  return out
+}
+
+function drawSparks(
+  ctx: CanvasRenderingContext2D,
+  pose: ImagePose,
+  l: ImageLayer,
+  w: number,
+  h: number,
+) {
+  const t = pose.sparks
+  const size = Math.max(w, h) * 0.6
+  ctx.save()
+  ctx.globalAlpha *= (1 - t) ** 1.2
+  ctx.strokeStyle = l.burstColor
+  ctx.fillStyle = l.burstColor
+  ctx.lineCap = 'round'
+  const count = 16
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + hash(i, 3) * 0.3
+    const reach = size * (0.35 + 0.9 * Math.sqrt(t)) * (0.75 + 0.4 * hash(i, 4))
+    const length = size * 0.22 * (1 - t) * (0.6 + 0.6 * hash(i, 5))
+    ctx.lineWidth = Math.max(1, size * 0.018 * (1 - t))
+    ctx.beginPath()
+    ctx.moveTo(Math.cos(angle) * reach, Math.sin(angle) * reach)
+    ctx.lineTo(Math.cos(angle) * (reach + length), Math.sin(angle) * (reach + length))
+    ctx.stroke()
+  }
+  // A soft flash ring that expands with the burst.
+  ctx.globalAlpha *= 0.5
+  ctx.lineWidth = Math.max(1, size * 0.03 * (1 - t))
+  ctx.beginPath()
+  ctx.arc(0, 0, size * (0.3 + t), 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+export function drawImageLayer(
+  ctx: CanvasRenderingContext2D,
+  l: ImageLayer,
+  image: CanvasImageSource & { width: number; height: number },
+  p: Project,
+  time: number,
+) {
+  const pose = imagePoseAt(time, l, p)
+  const opacity = pose.opacity * (l.opacity / 100)
+  if (opacity <= 0 || pose.reveal <= 0) return
+  const k = ctx.canvas.width / p.width
+  const { w, h, cx, cy } = imageBox(l, p)
+  const pw = Math.max(1, Math.min(8192, Math.round(w * k)))
+  const ph = Math.max(1, Math.min(8192, Math.round(h * k)))
+  let card: Surface = framedImage(image, l, pw, ph, k, pose.contentZoom)
+  if (pose.shine >= 0) card = shineCard(card, pose.shine, l.emphasisStrength / 100)
+  ctx.save()
+  ctx.setTransform(k, 0, 0, ctx.canvas.height / p.height, 0, 0)
+  ctx.globalAlpha = opacity
+  const pivot = pose.pivotY * h
+  ctx.translate(cx + pose.x, cy + pose.y + pivot)
+  ctx.rotate(((l.rotation + pose.rotation) * Math.PI) / 180)
+  ctx.translate(0, -pivot)
+  if (pose.sparks >= 0) drawSparks(ctx, pose, l, w, h)
+  ctx.scale(pose.scale * pose.scaleX * (l.flipX ? -1 : 1), pose.scale * pose.scaleY)
+  if (pose.reveal < 1) {
+    ctx.beginPath()
+    if (pose.revealMode === 'iris')
+      ctx.arc(0, 0, (pose.reveal * Math.hypot(w, h)) / 2, 0, Math.PI * 2)
+    else ctx.rect(-w / 2 - 2, -h / 2 - 2, (w + 4) * pose.reveal, h + 4)
+    ctx.clip()
+  }
+  // Canvas filters and shadows are measured in device pixels, not in the current transform.
+  const filters: string[] = []
+  if (pose.blur > 0.05) filters.push(`blur(${(pose.blur * k).toFixed(2)}px)`)
+  if (pose.brightness !== 1) filters.push(`brightness(${pose.brightness.toFixed(3)})`)
+  if (filters.length) ctx.filter = filters.join(' ')
+  if (l.shadow > 0) {
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'
+    ctx.shadowBlur = l.shadow * k
+    ctx.shadowOffsetY = l.shadow * 0.3 * k
+  }
+  if (pose.glitch > 0.01) {
+    const g = pose.glitch
+    const split = w * 0.03 * g
+    ctx.save()
+    ctx.shadowColor = 'transparent'
+    ctx.globalAlpha = opacity * 0.6
+    ctx.drawImage(tinted(card, '#ff2a55'), -w / 2 - split, -h / 2, w, h)
+    ctx.drawImage(tinted(card, '#22e4ff'), -w / 2 + split, -h / 2, w, h)
+    ctx.restore()
+    const slices = 7
+    for (let i = 0; i < slices; i++) {
+      const offset = (hash(pose.seed, i + 11) - 0.5) * 2 * g * w * 0.1
+      const sy = (i / slices) * card.height
+      const sh = card.height / slices
+      ctx.drawImage(
+        card,
+        0,
+        sy,
+        card.width,
+        sh,
+        -w / 2 + offset,
+        -h / 2 + (i / slices) * h,
+        w,
+        h / slices + 0.5,
+      )
+    }
+  } else ctx.drawImage(card, -w / 2, -h / 2, w, h)
+  ctx.restore()
+}
+
+const chyronSurfaces = new WeakMap<HTMLCanvasElement | OffscreenCanvas, Surface>()
+/**
+ * Render every visible layer, bottom to top. A project with only its chyron renders
+ * exactly as before; otherwise the chyron is composited from its own surface so its
+ * group opacity never affects the images beneath it.
+ */
+export function renderComposition(
+  ctx: CanvasRenderingContext2D,
+  scene: Scene | null,
+  p: Project,
+  time: number,
+  images: ImageMap = new Map(),
+) {
+  const images_ = imageLayers(p).filter((l) => l.visible && images.has(l.assetId))
+  const chyron = chyronLayer(p)
+  if (!images_.length && scene && chyron.visible) {
+    renderFrame(ctx, scene, p, time)
+    return
+  }
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+  ctx.restore()
+  for (const layer of p.layers) {
+    if (!layer.visible) continue
+    if (layer.kind === 'image') {
+      const image = images.get(layer.assetId)
+      if (image) drawImageLayer(ctx, layer, image, p, time)
+      continue
+    }
+    if (!scene) continue
+    let layerSurface = chyronSurfaces.get(ctx.canvas)
+    if (
+      !layerSurface ||
+      layerSurface.width !== ctx.canvas.width ||
+      layerSurface.height !== ctx.canvas.height
+    ) {
+      layerSurface = surface(ctx.canvas.width, ctx.canvas.height)
+      chyronSurfaces.set(ctx.canvas, layerSurface)
+    }
+    const layerContext = context2d(layerSurface)
+    if (!layerContext) continue
+    renderFrame(layerContext as CanvasRenderingContext2D, scene, p, time)
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(layerSurface, 0, 0)
+    ctx.restore()
+  }
 }

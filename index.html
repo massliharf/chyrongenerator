@@ -4,7 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1c1d1f" />
+    <meta name="theme-color" content="#080e19" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#e9eef5" media="(prefers-color-scheme: light)" />
+    <script>
+      // Apply a saved theme before first paint to avoid a flash of the wrong theme.
+      try {
+        const theme = localStorage.getItem('chyron-studio:theme')
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+      } catch {}
+    </script>
     <meta
       name="description"
       content="Make your next big moment. Design animated chyrons and export transparent WebM, ProRes, PNG and SVG, right in your browser."

@@ -1,6 +1,15 @@
 import { strToU8, Zip, ZipPassThrough } from 'fflate'
-import { duration, fileStem, frameCount, frameTime, type Project } from './model'
-import { buildScene, renderFrame, renderSvg } from './renderer'
+import {
+  duration,
+  fileStem,
+  frameCount,
+  frameTime,
+  hasArtwork,
+  imageLayers,
+  type Project,
+} from './model'
+import { buildScene, renderComposition, renderSvg } from './renderer'
+import { blobToDataUrl, embedAssets, loadProjectImages, readAsset } from './assets'
 import { loadFonts } from './fonts'
 
 export type ExportFormat = 'webm' | 'mov' | 'sequence' | 'png' | 'svg'
@@ -40,8 +49,7 @@ export function exportAvailability(format: ExportFormat, p: Project): string | n
     return 'Video exports support up to 1920 × 1080 in the browser. Choose Full HD, or use a PNG sequence for larger frames.'
   if ((format === 'mov' || format === 'webm') && frameCount(p) > 600)
     return 'Keep video exports under 600 frames. Reduce the duration or frame rate, or choose a PNG sequence.'
-  if (!p.text.trim() && (!p.subtitlePill || !p.subtitle.trim()))
-    return 'Add a title or enable a subtitle before exporting.'
+  if (!hasArtwork(p)) return 'Add a title, a subtitle or a visible image before exporting.'
   return null
 }
 export async function exportProject(
@@ -58,11 +66,33 @@ export async function exportProject(
   checkAbort(signal)
   const scene = buildScene(p, fonts)
   const name = fileStem(p.name)
-  if (format === 'svg')
+  const missing = imageLayers(p).filter((l) => l.visible)
+  if (format === 'svg') {
+    const urls = new Map<string, string>()
+    for (const l of missing) {
+      if (urls.has(l.assetId)) continue
+      const stored = await readAsset(l.assetId)
+      if (stored) urls.set(l.assetId, await blobToDataUrl(stored.blob))
+    }
+    checkAbort(signal)
     return {
-      blob: new Blob([renderSvg(scene, p, time)], { type: 'image/svg+xml' }),
+      blob: new Blob([renderSvg(scene, p, time, urls)], { type: 'image/svg+xml' }),
       filename: `${name}.svg`,
     }
+  }
+  const images = await loadProjectImages(p)
+  checkAbort(signal)
+  const lost = missing.filter((l) => !images.has(l.assetId))
+  if (lost.length)
+    throw new Error(
+      `${lost.map((l) => l.name).join(', ')} could not be loaded. Upload the image again, or hide that layer.`,
+    )
+  const renderFrame = (
+    context: CanvasRenderingContext2D,
+    _scene: typeof scene,
+    project: Project,
+    t: number,
+  ) => renderComposition(context, _scene, project, t, images)
   const canvas = document.createElement('canvas')
   canvas.width = p.width
   canvas.height = p.height
@@ -89,7 +119,8 @@ export async function exportProject(
         zip.add(entry)
         entry.push(data, true)
       }
-      add('project.chyron.json', strToU8(JSON.stringify(p, null, 2)))
+      const assets = imageLayers(p).length ? await embedAssets(p) : undefined
+      add('project.chyron.json', strToU8(JSON.stringify({ ...p, assets }, null, 2)))
       add(
         'README.txt',
         strToU8(

@@ -136,3 +136,49 @@ export function scaleChyron(
   const factor = currentDist / initialDist
   return Math.round(Math.min(150, Math.max(20, initialScale * factor)))
 }
+
+/**
+ * Snap an image layer's center to the canvas center, and its edges to the canvas edges,
+ * so full-bleed backgrounds and edge-aligned logos land exactly. Values are percentages.
+ */
+export function snapImagePosition(
+  rawX: number,
+  rawY: number,
+  widthPercent: number,
+  heightPercent: number,
+  threshold = 1.5,
+): { x: number; y: number; snap: SnapState } {
+  const snap: SnapState = { x: null, y: null }
+  const axis = (raw: number, size: number, labels: [string, string, string]) => {
+    const half = size / 2
+    const candidates: [number, number, string][] = [
+      [50, 50, labels[0]],
+      [half, 0, labels[1]],
+      [100 - half, 100, labels[2]],
+    ]
+    for (const [value, guide, label] of candidates)
+      if (Math.abs(raw - value) < threshold) return { value, guide: { position: guide, label } }
+    return { value: raw, guide: null }
+  }
+  const x = axis(rawX, widthPercent, ['Center', 'Left edge', 'Right edge'])
+  const y = axis(rawY, heightPercent, ['Middle', 'Top edge', 'Bottom edge'])
+  snap.x = x.guide
+  snap.y = y.guide
+  const round = (v: number) => Math.round(Math.min(150, Math.max(-50, v)) * 10) / 10
+  return { x: round(x.value), y: round(y.value), snap }
+}
+
+/** Proportional resize from a corner: returns the new width percentage. */
+export function scaleImage(
+  initialWidth: number,
+  center: Point,
+  startPoint: Point,
+  currentPoint: Point,
+): number {
+  const initialDist = Math.hypot(startPoint.x - center.x, startPoint.y - center.y)
+  const currentDist = Math.hypot(currentPoint.x - center.x, currentPoint.y - center.y)
+  if (initialDist < 5) return initialWidth
+  return (
+    Math.round(Math.min(400, Math.max(2, initialWidth * (currentDist / initialDist))) * 10) / 10
+  )
+}

@@ -11,8 +11,151 @@ export const FONT_NAMES = [
   'Nunito',
 ] as const
 export type FontName = (typeof FONT_NAMES)[number]
-export type Motion = 'pop' | 'flip' | 'slide' | 'wipe' | 'typewriter' | 'fade' | 'none'
+export const MOTIONS = [
+  'pop',
+  'flip',
+  'slide',
+  'wipe',
+  'typewriter',
+  'fade',
+  'drop',
+  'zoom',
+  'spin',
+  'wave',
+  'elastic',
+  'swing',
+  'bounce',
+  'from-left',
+  'from-right',
+  'split',
+  'scatter',
+  'cascade',
+  'stamp',
+  'slam',
+  'shake',
+  'blink',
+  'glitch',
+  'none',
+] as const
+export type Motion = (typeof MOTIONS)[number]
 export type Effect = 'extrude' | 'skew' | 'offset' | 'outline' | 'retro' | 'glow' | 'neon'
+
+/** Intro/outro styles for uploaded images. Each describes the journey from hidden (0) to settled (1). */
+export const IMAGE_MOTIONS = [
+  'fade',
+  'pop',
+  'burst',
+  'rise',
+  'drop',
+  'slide-left',
+  'slide-right',
+  'zoom',
+  'slam',
+  'spin',
+  'flip',
+  'swing',
+  'wipe',
+  'iris',
+  'focus',
+  'glitch',
+  'stretch',
+  'roll',
+  'unfold',
+  'bounce',
+  'from-top',
+  'from-bottom',
+  'flicker',
+  'none',
+] as const
+export type ImageMotion = (typeof IMAGE_MOTIONS)[number]
+export const EASINGS = ['auto', 'smooth', 'snappy', 'bounce', 'elastic', 'linear'] as const
+export type Easing = (typeof EASINGS)[number]
+export const HOLD_EFFECTS = [
+  'none',
+  'pulse',
+  'float',
+  'sway',
+  'kenburns',
+  'shine',
+  'rumble',
+  'wiggle',
+  'heartbeat',
+  'orbit',
+  'glow',
+  'jelly',
+] as const
+export type HoldEffect = (typeof HOLD_EFFECTS)[number]
+
+export interface ChyronLayer {
+  id: 'chyron'
+  kind: 'chyron'
+  name: string
+  visible: boolean
+  /** Seconds after the clip starts before the title's intro begins; the outro finishes this early. */
+  delay: number
+}
+export interface ImageLayer {
+  id: string
+  kind: 'image'
+  name: string
+  assetId: string
+  /** Natural height ÷ width, kept on the layer so layout never waits for decoding. */
+  aspect: number
+  visible: boolean
+  /** Center position as a percentage of the canvas. Values outside 0–100 sit partly off-canvas. */
+  x: number
+  y: number
+  /** Width as a percentage of the canvas width. */
+  width: number
+  rotation: number
+  opacity: number
+  flipX: boolean
+  radius: number
+  border: number
+  borderColor: string
+  shadow: number
+  intro: ImageMotion
+  outro: ImageMotion | 'mirror'
+  easing: Easing
+  duration: number
+  delay: number
+  emphasis: HoldEffect
+  emphasisStrength: number
+  /** Seconds per emphasis cycle. */
+  emphasisSpeed: number
+  burstColor: string
+}
+export type Layer = ChyronLayer | ImageLayer
+export const CHYRON_LAYER: ChyronLayer = {
+  id: 'chyron',
+  kind: 'chyron',
+  name: 'Chyron',
+  visible: true,
+  delay: 0,
+}
+export const DEFAULT_IMAGE_LAYER: Omit<ImageLayer, 'id' | 'assetId' | 'aspect' | 'name'> = {
+  kind: 'image',
+  visible: true,
+  x: 50,
+  y: 50,
+  width: 60,
+  rotation: 0,
+  opacity: 100,
+  flipX: false,
+  radius: 0,
+  border: 0,
+  borderColor: '#ffffff',
+  shadow: 0,
+  intro: 'pop',
+  outro: 'mirror',
+  easing: 'auto',
+  duration: 1,
+  delay: 0,
+  emphasis: 'none',
+  emphasisStrength: 50,
+  emphasisSpeed: 2,
+  burstColor: '#ffffff',
+}
 export interface Project {
   version: 2
   name: string
@@ -65,6 +208,8 @@ export interface Project {
   stagger: number
   previewBackground: 'live' | 'checker' | 'dark' | 'light' | 'color'
   background: string
+  /** Bottom-to-top stack. Always contains exactly one chyron layer. */
+  layers: Layer[]
 }
 
 export const DEFAULT_PROJECT: Project = {
@@ -119,6 +264,7 @@ export const DEFAULT_PROJECT: Project = {
   stagger: 0.45,
   previewBackground: 'live',
   background: '#14243d',
+  layers: [CHYRON_LAYER],
 }
 
 const numericLimits: Partial<Record<keyof Project, [number, number]>> = {
@@ -158,7 +304,7 @@ const enums: Partial<Record<keyof Project, readonly (string | number)[]>> = {
   subtitlePosition: ['top', 'bottom'],
   align: ['left', 'center', 'right'],
   fps: [24, 30, 60],
-  motion: ['pop', 'flip', 'slide', 'wipe', 'typewriter', 'fade', 'none'],
+  motion: [...MOTIONS],
   previewBackground: ['live', 'checker', 'dark', 'light', 'color'],
 }
 const colors = [
@@ -183,7 +329,7 @@ export function normalizeProject(value: unknown): Project {
   }
   for (const key of Object.keys(output) as (keyof Project)[]) {
     const input = record[key]
-    if (input === undefined || key === 'version') continue
+    if (input === undefined || key === 'version' || key === 'layers') continue
     const limits = numericLimits[key]
     let validated: unknown
     if (limits) {
@@ -208,7 +354,96 @@ export function normalizeProject(value: unknown): Project {
   }
   output.width = Math.round(output.width / 2) * 2
   output.height = Math.round(output.height / 2) * 2
+  output.layers = normalizeLayers(record.layers)
   return output
+}
+
+const num = (value: unknown, fallback: number, min: number, max: number) =>
+  typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback
+const pick = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
+  options.includes(value as T) ? (value as T) : fallback
+const hex = (value: unknown, fallback: string) =>
+  typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
+const text = (value: unknown, fallback: string) =>
+  typeof value === 'string' && value.trim() ? value.slice(0, 80) : fallback
+
+export const MAX_IMAGE_LAYERS = 12
+export function normalizeImageLayer(raw: Record<string, unknown>): ImageLayer | null {
+  if (typeof raw.id !== 'string' || !raw.id || raw.id === 'chyron') return null
+  if (typeof raw.assetId !== 'string' || !/^[\w-]{1,80}$/.test(raw.assetId)) return null
+  const d = DEFAULT_IMAGE_LAYER
+  return {
+    id: raw.id.slice(0, 80),
+    kind: 'image',
+    name: text(raw.name, 'Image'),
+    assetId: raw.assetId,
+    aspect: num(raw.aspect, 1, 0.01, 100),
+    visible: typeof raw.visible === 'boolean' ? raw.visible : true,
+    x: num(raw.x, d.x, -50, 150),
+    y: num(raw.y, d.y, -50, 150),
+    width: num(raw.width, d.width, 2, 400),
+    rotation: num(raw.rotation, d.rotation, -180, 180),
+    opacity: num(raw.opacity, d.opacity, 0, 100),
+    flipX: typeof raw.flipX === 'boolean' ? raw.flipX : false,
+    radius: num(raw.radius, d.radius, 0, 50),
+    border: num(raw.border, d.border, 0, 40),
+    borderColor: hex(raw.borderColor, d.borderColor),
+    shadow: num(raw.shadow, d.shadow, 0, 80),
+    intro: pick(raw.intro, IMAGE_MOTIONS, d.intro),
+    outro:
+      raw.outro === 'mirror' ? 'mirror' : pick(raw.outro, IMAGE_MOTIONS, 'mirror' as ImageMotion),
+    easing: pick(raw.easing, EASINGS, d.easing),
+    duration: num(raw.duration, d.duration, 0.2, 4),
+    delay: num(raw.delay, d.delay, 0, 10),
+    emphasis: pick(raw.emphasis, HOLD_EFFECTS, d.emphasis),
+    emphasisStrength: num(raw.emphasisStrength, d.emphasisStrength, 0, 100),
+    emphasisSpeed: num(raw.emphasisSpeed, d.emphasisSpeed, 0.5, 8),
+    burstColor: hex(raw.burstColor, d.burstColor),
+  }
+}
+export function normalizeLayers(value: unknown): Layer[] {
+  if (!Array.isArray(value)) return [{ ...CHYRON_LAYER }]
+  const layers: Layer[] = []
+  const ids = new Set<string>()
+  let chyron: ChyronLayer | null = null
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+    const raw = entry as Record<string, unknown>
+    if (raw.kind === 'chyron') {
+      if (chyron) continue
+      chyron = {
+        ...CHYRON_LAYER,
+        name: text(raw.name, CHYRON_LAYER.name),
+        visible: typeof raw.visible === 'boolean' ? raw.visible : true,
+        delay: num(raw.delay, 0, 0, 10),
+      }
+      layers.push(chyron)
+    } else if (raw.kind === 'image') {
+      const layer = normalizeImageLayer(raw)
+      if (!layer || ids.has(layer.id) || ids.size >= MAX_IMAGE_LAYERS) continue
+      ids.add(layer.id)
+      layers.push(layer)
+    }
+  }
+  if (!chyron) layers.push({ ...CHYRON_LAYER })
+  return layers
+}
+export const chyronLayer = (p: Pick<Project, 'layers'>): ChyronLayer =>
+  (p.layers?.find((l) => l.kind === 'chyron') as ChyronLayer | undefined) ?? CHYRON_LAYER
+export const imageLayers = (p: Pick<Project, 'layers'>) =>
+  (p.layers ?? []).filter((l): l is ImageLayer => l.kind === 'image')
+/** True when the export would contain visible artwork. */
+export const hasArtwork = (p: Project) =>
+  (chyronLayer(p).visible && (!!p.text.trim() || (p.subtitlePill && !!p.subtitle.trim()))) ||
+  imageLayers(p).some((l) => l.visible && l.opacity > 0)
+/** Longest intro among visible layers, in seconds, bounded by half the clip. */
+export function introLength(p: Project) {
+  const half = duration(p) / 2
+  let end = p.motion === 'none' ? 0 : p.animationDuration + chyronLayer(p).delay
+  for (const l of imageLayers(p)) if (l.visible) end = Math.max(end, l.delay + l.duration)
+  return Math.min(half, Math.max(0.2, end))
 }
 export function parseProject(json: string): Project {
   const raw: unknown = JSON.parse(json)
@@ -362,6 +597,7 @@ export function applyTemplate(project: Project, template: Template): Project {
     opacity: project.opacity,
     previewBackground: project.previewBackground,
     background: project.background,
+    layers: project.layers,
   })
 }
 

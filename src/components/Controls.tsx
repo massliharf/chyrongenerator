@@ -251,21 +251,33 @@ export function Section({
   const id = useId()
   return (
     <section className={`control-section ${open ? 'is-open' : ''}`}>
-      <h3 className="section-heading">
-        <button
-          id={`${id}-heading`}
-          className="section-trigger"
-          aria-expanded={open}
-          aria-controls={`${id}-content`}
-          onClick={onToggle}
-        >
-          <span>
-            <span className="section-title">{title}</span>
-            {summary && <span className="section-summary">{summary}</span>}
-          </span>
-          <ChevronDown size={20} aria-hidden="true" />
-        </button>
-      </h3>
+      <div className="section-heading">
+        <h3>
+          <button
+            id={`${id}-heading`}
+            className="section-trigger"
+            aria-expanded={open}
+            aria-controls={`${id}-content`}
+            onClick={onToggle}
+          >
+            <span>
+              <span className="section-title">{title}</span>
+              {summary && <span className="section-summary">{summary}</span>}
+            </span>
+            <ChevronDown size={18} aria-hidden="true" />
+          </button>
+        </h3>
+        {open && onReset && (
+          <button
+            className="icon-button section-reset"
+            aria-label={`Reset ${title}`}
+            title="Reset to default"
+            onClick={onReset}
+          >
+            <RotateCcw size={16} />
+          </button>
+        )}
+      </div>
       <div
         id={`${id}-content`}
         role="region"
@@ -273,16 +285,7 @@ export function Section({
         hidden={!open}
         className="section-content"
       >
-        {(extra || onReset) && (
-          <div className="section-actions">
-            {extra}
-            {onReset && (
-              <button className="text-button" aria-label={`Reset ${title}`} onClick={onReset}>
-                <RotateCcw size={16} /> Reset
-              </button>
-            )}
-          </div>
-        )}
+        {extra && <div className="section-actions">{extra}</div>}
         {children}
       </div>
     </section>

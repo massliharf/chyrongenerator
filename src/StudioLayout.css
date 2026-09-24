@@ -2,26 +2,26 @@
 .studio-shell {
   padding: 12px;
   gap: 12px;
-  background: #081222;
+  background: var(--app);
 }
 .studio-shell > .app-header {
-  border: 1px solid #425c80;
-  border-radius: 16px;
-  background: #213554;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-xl);
+  background: var(--panel);
   padding-inline: 20px;
-  box-shadow: 0 2px 8px #0003;
+  box-shadow: var(--shadow-sm);
 }
 .studio-shell > .workspace-nav {
-  background: #14243c;
-  border: 1px solid #344e72;
-  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-xl);
 }
 .workspace-nav > span {
   display: none;
 }
 .workspace-nav button[aria-pressed='true'] {
   color: var(--accent-ink);
-  background: var(--accent);
+  background: var(--accent-fill);
 }
 .workspace,
 .si-workspace {
@@ -31,63 +31,63 @@
 .si-main,
 .inspector-wrap,
 .si-inspector {
-  border: 1px solid #425c80;
-  border-radius: 16px;
-  background: #182b47;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-xl);
+  background: var(--panel);
   min-width: 0;
 }
 .main-workspace,
 .si-main {
-  background: #112039;
+  background: var(--panel);
 }
 .inspector-wrap,
 .si-inspector {
   overflow: hidden;
 }
 .inspector {
-  background: #182b47;
+  background: var(--panel);
 }
 .canvas-toolbar,
 .si-heading {
-  background: #182b47;
-  border-radius: 15px 15px 0 0;
-  border-bottom: 1px solid #344e72;
+  background: var(--panel);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  border-bottom: 1px solid var(--border-soft);
 }
 .si-preview-toolbar {
   padding-top: 8px;
-  background: #162941;
-  border-bottom: 1px solid #344e72;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border-soft);
 }
 .stage-surround,
 .si-stage {
-  background-color: #0b192e;
+  background-color: var(--stage);
   background-image: none;
 }
 .stage-canvas,
 .si-artboard {
-  box-shadow: 0 8px 28px #0006;
+  box-shadow: var(--shadow-md);
 }
 .inspector-tabs,
 .si-panel-heading {
-  background: #243c5e;
-  border-bottom: 1px solid #425c80;
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--border-soft);
 }
 .control-section {
-  background: #13243d;
-  border-color: #344e72;
+  background: var(--surface-container);
+  border-color: var(--border-soft);
 }
 .inspector-footer,
 .si-save-state {
-  background: #142640;
-  border-top: 1px solid #425c80;
+  background: var(--panel);
+  border-top: 1px solid var(--border-soft);
 }
 .timeline {
-  border-top: 1px solid #425c80;
-  border-radius: 0 0 15px 15px;
-  background: #1d3354;
+  border-top: 1px solid var(--border-soft);
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+  background: var(--panel);
 }
 .si-preview-actions {
-  border-top: 1px solid #344e72;
+  border-top: 1px solid var(--border-soft);
 }
 .si-formats {
   padding-top: 4px;
@@ -155,11 +155,11 @@
   }
   .studio-shell > .app-header {
     padding-inline: 12px;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
   }
   .studio-shell > .workspace-nav {
     padding: 4px 8px;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
   }
   .workspace,
   .si-workspace {
@@ -178,14 +178,14 @@
   .si-main,
   .inspector-wrap,
   .si-inspector {
-    border-radius: 12px;
+    border-radius: var(--r-lg);
   }
   .canvas-toolbar,
   .si-heading {
-    border-radius: 11px 11px 0 0;
+    border-radius: var(--r-md) var(--r-md) 0 0;
   }
   .timeline {
-    border-radius: 0 0 11px 11px;
+    border-radius: 0 0 var(--r-md) var(--r-md);
   }
   .stream-shell > .app-header {
     top: 8px;

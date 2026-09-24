@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MOTIONS,
   DEFAULT_PROJECT,
   duration,
   frameCount,
@@ -14,7 +15,7 @@ import {
 import { poseAt } from '../src/studio/motion'
 
 describe('frame-accurate animation contract', () => {
-  for (const motion of ['pop', 'flip', 'slide', 'wipe', 'typewriter', 'fade'] as Motion[]) {
+  for (const motion of MOTIONS.filter((m) => m !== 'none') as Motion[]) {
     it(`${motion}: all 160 elements finish their entrance`, () => {
       const p = { ...DEFAULT_PROJECT, motion, stagger: 0.8 }
       for (let index = 0; index < 160; index++) {

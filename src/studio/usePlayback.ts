@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { duration, restTime, type Project } from './model'
+import { duration, introLength, restTime, type Project } from './model'
 
 export function usePlayback(project: Project) {
   const [time, setTime] = useState(() => restTime(project))
@@ -8,11 +8,17 @@ export function usePlayback(project: Project) {
   const [run, setRun] = useState(0)
   const [phase, setPhase] = useState<'intro' | 'outro' | null>(null)
   const timeRef = useRef(time)
+  // Automatic previews return to the rest frame so the canvas never stays empty.
+  const returnRef = useRef(false)
+  const restRef = useRef(restTime(project))
+  restRef.current = restTime(project)
   const total = duration(project)
-  const transitionDuration = project.animationDuration
+  // Intro/outro previews cover the longest layer transition, including delays.
+  const transitionDuration = introLength(project)
   const seek = useCallback(
     (value: number) => {
       const next = Math.max(0, Math.min(total, value))
+      returnRef.current = false
       timeRef.current = next
       setTime(next)
       setPlaying(false)
@@ -33,7 +39,8 @@ export function usePlayback(project: Project) {
     [total, project.fps],
   )
   const previewPhase = useCallback(
-    (nextPhase: 'intro' | 'outro') => {
+    (nextPhase: 'intro' | 'outro', returnToRest = false) => {
+      returnRef.current = returnToRest
       const start = nextPhase === 'intro' ? 0 : total - transitionDuration
       timeRef.current = start
       setTime(start)
@@ -59,6 +66,11 @@ export function usePlayback(project: Project) {
       setTime(value)
       if (!shouldLoop && elapsed >= endTime) {
         setPlaying(false)
+        if (returnRef.current) {
+          returnRef.current = false
+          timeRef.current = restRef.current
+          setTime(restRef.current)
+        }
         return
       }
       id = requestAnimationFrame(animate)

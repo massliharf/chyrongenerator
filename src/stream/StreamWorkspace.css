@@ -14,7 +14,7 @@
   justify-content: center;
   gap: 8px;
   padding: 8px 18px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   font: var(--type-label-large);
   color: var(--muted);
 }
@@ -84,7 +84,7 @@
 }
 .si-preview-toolbar > div > span {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 4px 8px;
   font: var(--type-label-medium);
   color: var(--muted);
@@ -98,7 +98,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px 24px;
-  background: radial-gradient(#294671 1px, transparent 1px);
+  background: radial-gradient(var(--stage-dot) 1px, transparent 1px);
   background-size: 20px 20px;
   overflow: hidden;
 }
@@ -106,14 +106,14 @@
   position: relative;
   flex: none;
   width: min(100%, calc((100cqh - 32px) * var(--si-aspect)));
-  border-radius: 2px;
-  outline: 1px solid #ffffff24;
-  box-shadow: 0 12px 40px #0004;
-  background-color: #22334d;
+  border-radius: var(--r-xs);
+  outline: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-md);
+  background-color: var(--checker-b);
   background-image: conic-gradient(
-    #ffffff06 25%,
+    var(--checker-a) 25%,
     transparent 0 50%,
-    #ffffff06 0 75%,
+    var(--checker-a) 0 75%,
     transparent 0
   );
   background-size: 20px 20px;
@@ -170,9 +170,9 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: #0b2548ee;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
   border: 2px dashed var(--accent);
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   pointer-events: none;
   font: var(--type-title-medium);
   color: var(--accent);
@@ -241,7 +241,7 @@
   padding: 10px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
 }
 .si-format:hover {
   background: var(--panel-raised);
@@ -258,7 +258,7 @@
   height: 80px;
   flex: none;
   background: var(--bg);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   overflow: hidden;
 }
 .si-format-preview canvas {
@@ -370,7 +370,7 @@
   justify-content: center;
   align-items: center;
   background: var(--surface-container);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   overflow: hidden;
 }
 .si-file-thumb canvas {
@@ -400,7 +400,7 @@
 .si-quick-actions .button {
   flex: 1;
   padding-inline: 8px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
 }
 .si-quick-actions .button.selected {
   background: var(--selected);
@@ -417,7 +417,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 0;
   min-width: 48px;
   min-height: 48px;
@@ -451,7 +451,7 @@
 .si-palette button {
   width: 48px;
   height: 48px;
-  border: 1px solid #ffffff80;
+  border: 1px solid var(--border);
   border-radius: 50%;
 }
 .si-palette button:hover {
@@ -500,17 +500,17 @@
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background: #482924;
-  color: #ffdad6;
+  background: var(--danger-soft);
+  color: var(--text);
   border: 1px solid var(--danger);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 12px;
   width: max-content;
   max-width: calc(100% - 24px);
-  box-shadow: 0 8px 24px #0008;
+  box-shadow: var(--shadow-lg);
 }
 .si-count {
   padding-left: 8px;
@@ -707,14 +707,14 @@
   padding: 0;
   pointer-events: auto;
   touch-action: none;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   transform: translate(-50%, -50%);
 }
 .si-resize-handle span {
   width: 12px;
   height: 12px;
   border: 2px solid #0b2548;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   background: #dceaff;
   box-shadow: 0 0 0 1px #b5d3ff;
 }

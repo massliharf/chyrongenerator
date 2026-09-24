@@ -22,6 +22,69 @@ npm run preview
 
 The application remains compatible with GitHub Pages at `/chyrongenerator/`. The deployment command is still `npm run deploy`. Set `base` in `vite.config.ts` if you host it at a different path.
 
+## What’s new in 2.5 — Image layers
+
+Chyron Studio now builds complete motion graphics: stack logos, photos and your chyron in one project, animate each one, and export the result with alpha. Graphics like the SHOWDOWN intermission bumper or an Affidavit card no longer need a separate editor.
+
+- **Add images** with the **Image** button in the canvas toolbar, the new **Layers** tab, or by dropping files onto the canvas. PNG, JPEG, WebP and GIF are supported, up to 25 MB each; images larger than 4096 px are downscaled. PNG transparency is preserved. Up to 12 images per composition.
+- **Smart placement.** A JPEG shaped like the canvas arrives full-bleed at the back of the stack with a soft fade. Everything else arrives centered on top with Pop.
+- **Layers.** The chyron is one layer in the stack. Reorder (front, forward, backward, back), duplicate, delete, rename and hide layers. Hide the chyron for image-only graphics.
+- **On-canvas editing.** Click any layer to select it. Drag to move (snaps to the canvas center and edges), drag a corner to resize, drag the top handle to rotate; Shift snaps to 15°. Arrow keys nudge; Delete removes the selected image.
+- **Placement and frame.** Fit, Fill, Center and Lower third; size, position (including partly off-canvas), rotation, opacity, mirror, corner roundness, border and a drop shadow that follows transparent edges.
+- **17 intro styles:** Soft fade, Pop, Burst (sparks and a flash), Rise, Drop (bounce), From left, From right, Zoom, Slam (screen shake), Spin, Flip, Swing, Wipe, Iris, Focus, Glitch (RGB split) and Cut.
+- **Outros** mirror the intro by default, or use any style (“To left”, “To right”, …). Choose Signature, Smooth, Snappy, Bounce, Elastic or Linear easing.
+- **Timing per layer.** Each image has its own transition length and start delay; the chyron has a start delay too. Delays are mirrored in the outro, so every layer is gone by the last frame. The clip length still comes from the chyron’s Animation duration and Hold. Intro/outro previews cover the longest layer.
+- **While on screen:** Pulse, Float, Sway, Ken Burns (a slow push into the picture inside its frame), Shine and Rumble, with strength and cycle length.
+- **Timeline** shows one track per image with its delay, intro, hold and outro.
+- **Exports.** PNG, PNG sequence, WebM and ProRes include every visible layer, and animated exports still start and end fully transparent. SVG embeds the images with their position, motion, frame and shadow; Glitch, Shine and Burst sparks are canvas-only effects and are omitted from SVG.
+- **Saving.** Images are stored in IndexedDB on this device, separate from the autosaved project, and survive reloads and undo. **Save project file** embeds the images, so `.chyron.json` files reopen complete on any device; PNG sequence ZIPs embed them in `project.chyron.json` too. Files from earlier versions open unchanged as a single chyron layer. Unused images are cleaned up when the editor opens.
+
+### A high-end shell
+
+- **One flat frame.** Edge-to-edge surfaces separated by hairlines replace the floating cards. The top bar holds the logo and the **Chyron | Stream Images** switch on the left, the project name in the center and history, theme and Export on the right. The side rail is gone, so the canvas gets that space.
+- **A dotted stage with one floating toolbar**: canvas size (opens Composition), zoom to artwork, preview options and hide/show properties.
+- **Flat property sections** with hairline dividers; Composition shows size as width × height with lock and swap buttons, and frame rate as a 24 / 30 / 60 switch.
+- On phones the top bar folds into two rows and the workspace switch becomes icons below 380 px.
+
+### A simpler editor
+
+Everything now lives where you would look for it:
+
+| Where                   | What                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Timeline** (bottom)   | Playback, the time ruler and the layer stack. Each row is a layer: click to select it, use the eye to hide it, **Image** adds a new one.               |
+| **Properties** (right)  | Settings for whatever is selected. The chyron and images share the same two tabs: **Design** and **Animate**.                                          |
+| **Composition**         | Select nothing (Esc, click empty space, or the canvas-size button) to edit canvas size, transition length, hold and frame rate.                        |
+| **Style**               | Presets and your saved styles sit at the top of the chyron's Design tab. They restyle the chyron without changing its words, canvas, timing or layers. |
+| **Preview options** (⋯) | Preview background, safe area and fullscreen.                                                                                                          |
+
+Removed: the separate Motion and Canvas tabs, the Layers tab and its sub-tabs, the Templates dialog, the settings search, the preview-background bar and redundant labels.
+
+### Faster editing
+
+- **Pick a style to see it.** Choosing an intro or outro plays it on the canvas immediately, then returns to the fully visible frame.
+- **Shape time in the timeline.** Drag a bar to change when a layer starts (snapped to frames), drag its left edge marker to change the transition length, and drag layer names to reorder the stack.
+- **Share an animation.** "Use this animation on N other images" copies intro, outro, easing, length and on-screen effect to every other image.
+- **Shortcuts:** Space play/pause · ←/→ step a frame · Esc composition settings · ⌘/Ctrl D duplicate image · `[` / `]` send backward / bring forward · H hide/show · Del delete image · ⌘/Ctrl Z undo (⇧ redo) · ⌘/Ctrl S save project file · arrows on the canvas nudge · `?` guide.
+- **Compact density.** Every setting is one row (label · control · value) on desktop; touch screens switch to 44 px targets automatically.
+
+### More motion
+
+- **Chyron: 24 per-letter styles in six groups of four.** Simple (Fade, Pop, Rise, Still), Bouncy (Drop, Bounce, Wave, Elastic), Move (From left, From right, Split, Scatter), Turn (Flip, Spin, Swing, Cascade), Impact (Zoom, Stamp, Slam, Shake), Reveal (Reveal, Typewriter, Blink, Glitch). Stagger applies to all of them.
+- **Images: 24 intro/outro styles in six groups of four.** Simple, Punchy (Burst, Slam, Drop, Bounce), Springy (Swing, Stretch, Unfold, Flip), Move (From left/right/top/bottom), Turn (Spin, Roll, Zoom, Focus), Reveal (Wipe, Iris, Glitch, Flicker).
+- **While on screen: 12 effects.** Pulse, Float, Sway, Ken Burns, Shine, Rumble, Wiggle, Heartbeat, Orbit (whole turns that end exactly upright), Glow and Jelly.
+- Every style starts and ends fully transparent at 24, 30 and 60 fps, and every outro retraces its intro; the unit tests check all of them.
+
+### Look and feel
+
+- Visual language adapted from the Magnific design system (near-black `#080808` surfaces, Geist type, pill-shaped buttons) with a blue accent: `#4c8dff` with dark text in the dark theme (5.9:1), `#1e5bd8` with white text in the light theme (5.9:1).
+- **Light and dark themes** follow the system until you pick one with the sun/moon button; the choice is remembered and applied before first paint.
+- One token system in `src/index.css`: components never use raw colors, apart from on-canvas tools that sit over your artwork. One radius scale; buttons are pills, fields and cards 10–12 px, panels 16 px.
+- Compact controls for mouse and trackpad meet WCAG 2.2 AA target size (24 px); on touch screens they grow to 44 px.
+- Both themes pass automated WCAG 2.2 AA checks, including contrast, across chyron and image settings, composition, the preview menu, export and Stream Images.
+
+Lossless video with alpha is encoded in the browser, and photographic images make that much slower than text alone: expect minutes for a few seconds of 720p. ProRes is roughly twice as fast as WebM, and a PNG sequence is fastest. Lossy VP9 was tested and rejected because it leaks faint alpha into the first and last frames.
+
 ## What’s new in 2.4
 
 - A blue interface throughout the header, navigation, workspace, inspector and controls.
@@ -125,18 +188,20 @@ Stream image tests verify the exact three PNG dimensions, decoded background/hos
 
 ## Code map
 
-- `src/studio/model.ts`: versioned project schema, validation, templates and legacy migration.
-- `src/studio/motion.ts`: pure time-to-pose animation math.
+- `src/studio/model.ts`: versioned project schema, layer schema, validation, templates and legacy migration.
+- `src/studio/motion.ts`: pure time-to-pose animation math for the chyron and image layers.
+- `src/studio/layers.ts`: pure layer operations (add, reorder, duplicate, remove, fit).
+- `src/studio/assets.ts`: IndexedDB image storage, decoding cache and project-file embedding.
 - `src/studio/fonts.ts`: self-hosted font loading and glyph outlines.
-- `src/studio/renderer.ts`: shared scene layout, canvas rendering and standalone SVG serialization.
+- `src/studio/renderer.ts`: shared scene layout, layered canvas compositing and standalone SVG serialization.
 - `src/studio/export.ts`: frame rendering, PNG/ZIP output and isolated FFmpeg encoding.
 - `src/studio/useProject.ts`: history, persistence and presets.
 - `src/studio/usePlayback.ts`: one cancellable animation clock.
-- `src/components/`: composition preview, inspector, timeline and export dialog.
+- `src/components/`: composition preview, inspector, layers panel, timeline and export dialog.
 - `src/stream/`: Stream Images workspace, image loading, per-format composition, IndexedDB drafts and PNG/ZIP exports.
 
 ## Fonts and dependencies
 
-Inter and display fonts are bundled via Fontsource; their license files ship in the respective npm packages. The existing Wicked Mouse font and its original license/readme have been retained. Check `public/assets/fonts/wicked_mouse/readme.txt` for the original font's usage terms. FFmpeg core is GPL-2.0-or-later; keep the relevant notices and comply with its license when distributing the application.
+Geist Sans (interface) and display fonts are bundled via Fontsource; their license files ship in the respective npm packages. The existing Wicked Mouse font and its original license/readme have been retained. Check `public/assets/fonts/wicked_mouse/readme.txt` for the original font's usage terms. FFmpeg core is GPL-2.0-or-later; keep the relevant notices and comply with its license when distributing the application.
 
 Useful upstream references: [FFmpeg codecs](https://ffmpeg.org/ffmpeg-codecs.html), [ffmpeg.wasm](https://ffmpegwasm.netlify.app/), [Fontsource](https://fontsource.org/).

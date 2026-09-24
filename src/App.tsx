@@ -2,61 +2,65 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  Check,
   ChevronDown,
   Download,
   Expand,
-  FolderOpen,
-  Grid2X2,
   HelpCircle,
-  Layers3,
-  Plus,
+  ImagePlus,
+  MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
-  MoreHorizontal,
-  Search,
-  ZoomIn,
-  ZoomOut,
+  Plus,
   Redo2,
-  Save,
   ScanLine,
-  SquareDashed,
-  Trash2,
   Undo2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { Composition } from './components/Composition'
-import { Inspector } from './components/Inspector'
+import { Properties, type PropertiesTab } from './components/Properties'
 import { Timeline } from './components/Timeline'
 import { ExportDialog } from './components/ExportDialog'
+import { ThemeToggle } from './components/ThemeToggle'
 import { WorkspaceNav, type Workspace } from './components/WorkspaceNav'
 import StreamWorkspace from './stream/StreamWorkspace'
 import {
   applyTemplate,
   DEFAULT_PROJECT,
+  duration,
   fileStem,
+  hasArtwork,
+  imageLayers,
   parseProject,
   restTime,
-  TEMPLATES,
+  type ImageLayer,
+  type Project,
+  type Template,
 } from './studio/model'
+import {
+  collectUnusedAssets,
+  embedAssets,
+  importImageFile,
+  referencedAssets,
+  restoreEmbeddedAssets,
+} from './studio/assets'
+import {
+  canAddImage,
+  createImageLayer,
+  duplicateLayer,
+  moveLayer,
+  removeLayer,
+  updateLayer,
+} from './studio/layers'
 import { loadPresets, storePresets, useProject, type SavedPreset } from './studio/useProject'
 import { usePlayback } from './studio/usePlayback'
 import { saveBlob } from './studio/export'
 import { generateId } from './utils/id'
 import './App.css'
 import './StudioLayout.css'
-
-const templateSamples = TEMPLATES.map((template) =>
-  applyTemplate(
-    {
-      ...DEFAULT_PROJECT,
-      width: 1920,
-      height: 1080,
-      text: 'Your\nMoment',
-      subtitle: 'MAKE IT COUNT',
-    },
-    template,
-  ),
-)
+import './Shell.css'
 
 function ChyronEditor({
   active,
@@ -68,40 +72,39 @@ function ChyronEditor({
   const editor = useProject()
   const { project, patch, replace } = editor
   const playback = usePlayback(project)
-  const [tab, setTab] = useState<'design' | 'motion' | 'canvas'>('design')
+  const [tab, setTab] = useState<PropertiesTab>('design')
+  // The chyron starts selected so its text is one click away.
+  const [selection, setSelection] = useState<string | null>('chyron')
+  const [dropping, setDropping] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [templatesOpen, setTemplatesOpen] = useState(false)
   const [guides, setGuides] = useState(false)
   const [focusCanvas, setFocusCanvas] = useState(false)
-  const [showTransform, setShowTransform] = useState(false)
   const [compactViewport, setCompactViewport] = useState(
     () => window.matchMedia('(max-width: 899px)').matches,
   )
   const [detailOverride, setDetailOverride] = useState<boolean | null>(null)
-  const artworkDetail =
-    !focusCanvas &&
-    tab !== 'canvas' &&
-    (detailOverride ?? (compactViewport && project.previewBackground !== 'live'))
-  const [templateQuery, setTemplateQuery] = useState('')
-  const [libraryOpen, setLibraryOpen] = useState(false)
   const [deletedPreset, setDeletedPreset] = useState<SavedPreset | null>(null)
   const [presets, setPresets] = useState(loadPresets)
-  const [presetName, setPresetName] = useState('')
-  const [savingPreset, setSavingPreset] = useState(false)
   const [notice, setNotice] = useState('')
   const [help, setHelp] = useState(false)
   const importInput = useRef<HTMLInputElement>(null)
   const stage = useRef<HTMLDivElement>(null)
   const helpDialog = useRef<HTMLDialogElement>(null)
-  const templateDialog = useRef<HTMLDialogElement>(null)
   const projectMenu = useRef<HTMLDivElement>(null)
   const projectMenuButton = useRef<HTMLButtonElement>(null)
   const viewMenu = useRef<HTMLDetailsElement>(null)
-  const closeTemplates = () => {
-    templateDialog.current?.close()
-    setTemplatesOpen(false)
-  }
+  // A layer removed by undo or a new composition can no longer stay selected.
+  const selected = project.layers.some((l) => l.id === selection) ? selection : null
+  const selectedImage = project.layers.find(
+    (l): l is ImageLayer => l.id === selected && l.kind === 'image',
+  )
+  const artworkDetail =
+    !focusCanvas &&
+    selected !== null &&
+    (detailOverride ?? (compactViewport && project.previewBackground !== 'live'))
+  const changeLayer = (id: string, values: Partial<ImageLayer>) =>
+    patch({ layers: updateLayer(project, id, values) })
   const closeProjectMenu = () => {
     setMenuOpen(false)
     projectMenuButton.current?.focus()
@@ -110,6 +113,40 @@ function ChyronEditor({
     helpDialog.current?.close()
     setHelp(false)
   }
+  const closeView = () => {
+    if (viewMenu.current) viewMenu.current.open = false
+  }
+  const addImages = async (files: File[]) => {
+    let next: Project = project
+    let last: string | null = null
+    const errors: string[] = []
+    for (const file of files) {
+      if (!canAddImage(next)) {
+        errors.push('Up to 12 images per composition.')
+        break
+      }
+      try {
+        const stored = await importImageFile(file)
+        const { layer, layers } = createImageLayer(next, {
+          ...stored,
+          opaque: file.type === 'image/jpeg',
+        })
+        next = { ...next, layers }
+        last = layer.id
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : `${file.name} could not be added.`)
+      }
+    }
+    if (last) {
+      patch({ layers: next.layers })
+      setSelection(last)
+      setTab('animate')
+      setFocusCanvas(false)
+    }
+    const added = imageLayers(next).length - imageLayers(project).length
+    if (errors.length) setNotice(errors[0])
+    else if (added > 1) setNotice(`${added} images added.`)
+  }
   useEffect(() => {
     const media = window.matchMedia('(max-width: 899px)')
     const update = () => setCompactViewport(media.matches)
@@ -117,15 +154,11 @@ function ChyronEditor({
     return () => media.removeEventListener('change', update)
   }, [])
   useEffect(() => {
-    if (templatesOpen) templateDialog.current?.showModal()
-  }, [templatesOpen])
-  useEffect(() => {
     if (menuOpen) projectMenu.current?.querySelector('button')?.focus()
   }, [menuOpen])
   useEffect(() => {
     const dismiss = (event: PointerEvent) => {
-      if (viewMenu.current && !viewMenu.current.contains(event.target as Node))
-        viewMenu.current.open = false
+      if (viewMenu.current && !viewMenu.current.contains(event.target as Node)) closeView()
     }
     document.addEventListener('pointerdown', dismiss)
     return () => document.removeEventListener('pointerdown', dismiss)
@@ -138,32 +171,86 @@ function ChyronEditor({
   useEffect(() => {
     if (help) helpDialog.current?.showModal()
   }, [help])
-  const saveProject = () =>
+  useEffect(() => {
+    // Remove images that neither the draft nor any saved style uses any more.
+    const keep = referencedAssets([project, ...loadPresets().map((preset) => preset.project)])
+    void collectUnusedAssets(keep).catch(() => {})
+    // Only on first open: undo history within the session may still refer to images.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const saveProject = async () => {
+    let assets: Awaited<ReturnType<typeof embedAssets>> | undefined
+    if (imageLayers(project).length) {
+      try {
+        assets = await embedAssets(project)
+      } catch {
+        setNotice('Some images could not be included in the project file.')
+      }
+    }
     saveBlob(
-      new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }),
+      new Blob([JSON.stringify({ ...project, assets }, null, 2)], { type: 'application/json' }),
       `${fileStem(project.name)}.chyron.json`,
     )
+  }
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (!active) return
       const element = event.target as HTMLElement
       const typing =
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable
-      if (exportOpen || help || templatesOpen) return
+      if (exportOpen || help) return
       if (event.key === 'Escape' && menuOpen) {
         closeProjectMenu()
         return
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        saveProject()
+        void saveProject()
         return
       }
       if (typing) return
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedImage) {
+        event.preventDefault()
+        patch({ layers: removeLayer(project, selectedImage.id) })
+        setSelection(null)
+        setNotice(`${selectedImage.name} removed. Undo to bring it back.`)
+        return
+      }
+      const layer = project.layers.find((l) => l.id === selected)
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd' && selectedImage) {
+        event.preventDefault()
+        const next = duplicateLayer(project, selectedImage.id)
+        if (next.id) {
+          patch({ layers: next.layers })
+          setSelection(next.id)
+        }
+        return
+      }
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && layer) {
+        if (event.key === ']' || event.key === '[') {
+          event.preventDefault()
+          patch({ layers: moveLayer(project, layer.id, event.key === ']' ? 1 : -1) })
+          return
+        }
+        if (event.key.toLowerCase() === 'h') {
+          event.preventDefault()
+          patch({ layers: updateLayer(project, layer.id, { visible: !layer.visible }) })
+          return
+        }
+      }
+      if (event.key === '?') {
+        event.preventDefault()
+        setHelp(true)
+        return
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) editor.redo()
         else editor.undo()
+        return
+      }
+      if (event.key === 'Escape') {
+        setSelection(null)
         return
       }
       if (element.closest('button, a, summary, [role=tab]')) return
@@ -179,79 +266,82 @@ function ChyronEditor({
         event.preventDefault()
         playback.seek(playback.time - 1 / project.fps)
       }
-      if (event.key === 'Escape') {
-        closeTemplates()
-        closeProjectMenu()
-      }
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
   })
-  const savePreset = () => {
-    if (!presetName.trim()) return
-    if (presets.length >= 40) {
-      setNotice('Your library is full. Remove a preset to add another.')
-      return
-    }
-    const next = [
-      ...presets,
-      { id: generateId(), name: presetName.trim(), project: { ...project } },
-    ]
+  const storeAll = (next: SavedPreset[], success: string) => {
     try {
       storePresets(next)
       setPresets(next)
-      setSavingPreset(false)
-      setLibraryOpen(true)
-      setPresetName('')
-      setNotice('Preset added to your library.')
+      setNotice(success)
+      return true
     } catch {
       setNotice('Device storage is unavailable. Save a project file instead.')
+      return false
     }
   }
-  const removePreset = (id: string) => {
-    const next = presets.filter((p) => p.id !== id)
-    try {
-      storePresets(next)
-      setPresets(next)
-      setDeletedPreset(presets.find((p) => p.id === id) || null)
-      setNotice('Preset removed.')
-    } catch {
-      setNotice('Unable to update your saved presets.')
+  const savePreset = (name: string) => {
+    if (presets.length >= 40) {
+      setNotice('Your library is full. Remove a style to add another.')
+      return false
     }
+    setDeletedPreset(null)
+    return storeAll(
+      [...presets, { id: generateId(), name, project: { ...project } }],
+      'Style saved.',
+    )
+  }
+  const removePreset = (id: string) => {
+    const removed = presets.find((p) => p.id === id) || null
+    if (
+      storeAll(
+        presets.filter((p) => p.id !== id),
+        'Style removed.',
+      )
+    )
+      setDeletedPreset(removed)
   }
   const restorePreset = () => {
     if (!deletedPreset) return
-    if (presets.length >= 40) {
-      setNotice('Remove a preset to make room before restoring.')
-      return
-    }
-    const next = [...presets, deletedPreset]
-    try {
-      storePresets(next)
-      setPresets(next)
-      setDeletedPreset(null)
-      setNotice('Preset restored.')
-    } catch {
-      setNotice('Unable to restore this preset. Device storage is unavailable.')
-    }
+    if (storeAll([...presets, deletedPreset], 'Style restored.')) setDeletedPreset(null)
   }
+  const applyStyle = (template: Template) => {
+    const next = applyTemplate(project, template)
+    replace(next)
+    playback.seek(restTime(next))
+  }
+  const saveLabel =
+    editor.saveStatus === 'Saved on this device'
+      ? 'Saved'
+      : editor.saveStatus === 'Saving…'
+        ? 'Saving…'
+        : 'Not saved'
   return (
     <div className={`studio-shell ${focusCanvas ? 'canvas-focused' : ''}`}>
-      <a className="skip-link" href="#settings-panel" onClick={() => setFocusCanvas(false)}>
-        Skip to settings
+      <a className="skip-link" href="#props-panel" onClick={() => setFocusCanvas(false)}>
+        Skip to properties
       </a>
       <header className="app-header">
-        <h1 className="brand" aria-label="Chyron Studio">
-          <span className="brand-symbol">
-            <i />
-            <i />
-            <i />
-          </span>
-          <strong>
-            chyron<span>studio</span>
-          </strong>
-          <span className="version-pill">2.4</span>
-        </h1>
+        <div className="header-start">
+          <h1 className="brand" aria-label="Chyron Studio">
+            <span className="brand-symbol" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            <strong>
+              chyron<span>studio</span>
+            </strong>
+          </h1>
+          <WorkspaceNav
+            current="chyron"
+            onChange={(workspace) => {
+              playback.pause()
+              onWorkspaceChange(workspace)
+            }}
+          />
+        </div>
         <div className="project-header">
           <span className="header-divider" />
           <input
@@ -270,7 +360,7 @@ function ChyronEditor({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(!menuOpen)}
             >
-              <ChevronDown size={14} />
+              <ChevronDown size={16} />
             </button>
             {menuOpen && (
               <>
@@ -299,11 +389,11 @@ function ChyronEditor({
                 >
                   <button
                     onClick={() => {
-                      saveProject()
+                      void saveProject()
                       closeProjectMenu()
                     }}
                   >
-                    <ArrowDownToLine size={15} /> Save project file <kbd>⌘ S</kbd>
+                    <ArrowDownToLine size={16} /> Save project file <kbd>⌘ S</kbd>
                   </button>
                   <button
                     onClick={() => {
@@ -311,33 +401,37 @@ function ChyronEditor({
                       closeProjectMenu()
                     }}
                   >
-                    <ArrowUpFromLine size={15} /> Open project file
+                    <ArrowUpFromLine size={16} /> Open project file
                   </button>
-                  <button
-                    onClick={() => {
-                      setSavingPreset(true)
-                      setLibraryOpen(true)
-                      setTemplatesOpen(true)
-                      closeProjectMenu()
-                    }}
-                  >
-                    <Save size={15} /> Save as preset
-                  </button>
-                  <hr />
                   <button
                     onClick={() => {
                       replace({ ...DEFAULT_PROJECT })
                       playback.seek(restTime(DEFAULT_PROJECT))
+                      setSelection('chyron')
                       closeProjectMenu()
                       setNotice('New composition. Undo to return to your previous work.')
                     }}
                   >
-                    <Plus size={15} /> New composition
+                    <Plus size={16} /> New composition
+                  </button>
+                  <hr />
+                  <button
+                    onClick={() => {
+                      closeProjectMenu()
+                      setHelp(true)
+                    }}
+                  >
+                    <HelpCircle size={16} /> Guide & shortcuts <kbd>?</kbd>
                   </button>
                 </div>
               </>
             )}
           </div>
+          <span className="save-state" role="status" title={editor.saveStatus}>
+            {saveLabel === 'Saved' && <Check size={14} aria-hidden="true" />}
+            <span className="sr-only">{editor.saveStatus}</span>
+            <span aria-hidden="true">{saveLabel}</span>
+          </span>
         </div>
         <div className="header-actions">
           <div className="history-actions">
@@ -348,7 +442,7 @@ function ChyronEditor({
               disabled={!editor.canUndo}
               onClick={editor.undo}
             >
-              <Undo2 size={17} />
+              <Undo2 size={18} />
             </button>
             <button
               className="icon-button"
@@ -357,8 +451,9 @@ function ChyronEditor({
               disabled={!editor.canRedo}
               onClick={editor.redo}
             >
-              <Redo2 size={17} />
+              <Redo2 size={18} />
             </button>
+            <ThemeToggle />
           </div>
           <button
             className="button primary export-trigger"
@@ -368,7 +463,7 @@ function ChyronEditor({
               setExportOpen(true)
             }}
           >
-            <Download size={20} /> <span>Export</span>
+            <Download size={18} /> <span>Export</span>
           </button>
         </div>
         <input
@@ -381,10 +476,14 @@ function ChyronEditor({
               file = input.files?.[0]
             if (!file) return
             try {
-              if (file.size > 1024 * 1024)
-                throw new Error('Choose a project file smaller than 1 MB.')
-              const imported = parseProject(await file.text())
+              if (file.size > 200 * 1024 * 1024)
+                throw new Error('Choose a project file smaller than 200 MB.')
+              const json = await file.text()
+              const imported = parseProject(json)
+              const raw = JSON.parse(json) as { assets?: unknown }
+              await restoreEmbeddedAssets(raw.assets)
               replace(imported)
+              setSelection('chyron')
               playback.seek(restTime(imported))
               setNotice('Project opened.')
             } catch (error) {
@@ -394,241 +493,78 @@ function ChyronEditor({
           }}
         />
       </header>
-      <WorkspaceNav
-        current="chyron"
-        onChange={(workspace) => {
-          playback.pause()
-          onWorkspaceChange(workspace)
-        }}
-      />
       <div className="workspace">
-        {templatesOpen && (
-          <dialog
-            className="template-dialog"
-            ref={templateDialog}
-            aria-labelledby="templates-title"
-            onCancel={(e) => {
-              e.preventDefault()
-              closeTemplates()
-            }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) closeTemplates()
-            }}
-          >
-            <div className="sidebar-title">
-              <h2 id="templates-title">
-                <Grid2X2 size={22} /> Your starting point
-              </h2>
-              <button
-                className="icon-button close-templates"
-                aria-label="Close template panel"
-                onClick={closeTemplates}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <p className="sidebar-intro">Styles keep your words, canvas and timing.</p>
-            <div className="template-search settings-search">
-              <Search size={20} />
-              <input
-                type="search"
-                aria-label="Search templates"
-                placeholder="Search templates…"
-                value={templateQuery}
-                onChange={(e) => setTemplateQuery(e.target.value)}
-              />
-            </div>
-            <div className="template-list">
-              {TEMPLATES.map((template, index) => {
-                if (
-                  !`${template.name} ${template.caption}`
-                    .toLowerCase()
-                    .includes(templateQuery.toLowerCase())
-                )
-                  return null
-                const sample = templateSamples[index]
-                return (
-                  <button
-                    className="template-card"
-                    key={template.id}
-                    onClick={() => {
-                      const next = applyTemplate(project, template)
-                      replace(next)
-                      playback.seek(restTime(next))
-                      closeTemplates()
-                    }}
-                  >
-                    <div className="template-art" style={{ background: template.background }}>
-                      <Composition project={sample} time={restTime(sample)} thumbnail />
-                      <span className="template-use">
-                        <Plus size={13} />
-                      </span>
-                    </div>
-                    <span className="template-card-info">
-                      <strong>{template.name}</strong>
-                      <span>{template.caption}</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-            {!TEMPLATES.some((t) =>
-              `${t.name} ${t.caption}`.toLowerCase().includes(templateQuery.toLowerCase()),
-            ) && <p className="field-hint">No matching templates. Try a different name.</p>}
-            <details
-              className="preset-library"
-              open={libraryOpen}
-              onToggle={(e) => setLibraryOpen(e.currentTarget.open)}
-            >
-              <summary>
-                <FolderOpen size={20} /> Saved presets <span>{presets.length}</span>
-                <ChevronDown size={20} />
-              </summary>
-              <div className="library-header">
-                <span>
-                  <FolderOpen size={18} /> Your compositions
-                </span>
-                <button
-                  className="icon-button"
-                  aria-label="Save preset"
-                  title="Save current composition as a preset"
-                  onClick={() => setSavingPreset(!savingPreset)}
-                >
-                  <Plus size={15} />
-                </button>
-              </div>
-              {savingPreset && (
-                <form
-                  className="preset-form"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    savePreset()
-                  }}
-                >
-                  <input
-                    aria-label="Preset name"
-                    placeholder="Name your preset"
-                    maxLength={80}
-                    value={presetName}
-                    onChange={(e) => setPresetName(e.target.value)}
-                    autoFocus
-                  />
-                  <button className="button primary" type="submit" disabled={!presetName.trim()}>
-                    Save
-                  </button>
-                </form>
-              )}
-              {presets.length ? (
-                <div className="saved-presets">
-                  {presets.map((preset) => (
-                    <div key={preset.id}>
-                      <button
-                        onClick={() => {
-                          replace(preset.project)
-                          playback.seek(restTime(preset.project))
-                          closeTemplates()
-                        }}
-                      >
-                        <Layers3 size={14} />
-                        <span>{preset.name}</span>
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`Delete preset ${preset.name}`}
-                        onClick={() => removePreset(preset.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="library-empty">
-                  Your signature styles, saved here.
-                  <br />
-                  <button onClick={() => setSavingPreset(true)}>
-                    Create your first preset <Plus size={11} />
-                  </button>
-                </p>
-              )}
-            </details>
+        <main className="main-workspace" aria-label="Canvas and timeline">
+          <h2 className="sr-only">Canvas</h2>
+          <div className="canvas-toolbar">
             <button
-              className="help-link"
+              className="canvas-size"
+              aria-label={`Canvas settings: ${project.width} by ${project.height}`}
+              aria-pressed={selected === null}
+              title="Canvas, timing and frame rate"
               onClick={() => {
-                closeTemplates()
-                setHelp(true)
+                setFocusCanvas(false)
+                setSelection(null)
               }}
             >
-              <HelpCircle size={15} /> A quick tour <span>↗</span>
+              {project.width} × {project.height}
+              <span className="canvas-size-meta">
+                {project.fps} fps · {duration(project).toFixed(1)} s
+              </span>
             </button>
-          </dialog>
-        )}
-        <main className="main-workspace" aria-label="Canvas and playback">
-          <h2 className="sr-only">Canvas preview</h2>
-          <div className="canvas-toolbar">
-            <div>
-              <button
-                className="button templates-trigger"
-                aria-label="Templates"
-                aria-haspopup="dialog"
-                onClick={() => setTemplatesOpen(true)}
-              >
-                <Grid2X2 size={20} /> <span>Templates</span>
-              </button>
-              <button
-                className="canvas-size"
-                aria-label={`Canvas settings: ${project.width} by ${project.height}`}
-                onClick={() => {
-                  setFocusCanvas(false)
-                  setTab('canvas')
-                }}
-              >
-                {project.width} <span>×</span> {project.height}
-                <ChevronDown size={16} />
-              </button>
-            </div>
             <div className="canvas-tools">
               <button
                 className={`icon-button ${artworkDetail ? 'selected' : ''}`}
                 aria-label={artworkDetail ? 'Fit canvas preview' : 'Show artwork detail'}
                 aria-pressed={artworkDetail}
-                title={artworkDetail ? 'Fit canvas' : 'Artwork detail'}
-                disabled={tab === 'canvas' || focusCanvas}
+                title={artworkDetail ? 'Fit canvas' : 'Zoom to artwork'}
+                disabled={selected === null || focusCanvas}
                 onClick={() => setDetailOverride(!artworkDetail)}
               >
-                {artworkDetail ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
+                {artworkDetail ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
               </button>
               <details
                 className="view-menu"
                 ref={viewMenu}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
-                    e.currentTarget.open = false
+                    closeView()
                     e.currentTarget.querySelector('summary')?.focus()
                     e.stopPropagation()
                   }
                 }}
               >
                 <summary aria-label="Preview options" title="Preview options">
-                  <MoreHorizontal size={22} />
+                  <MoreHorizontal size={20} />
                 </summary>
                 <div className="view-menu-content">
-                  <button
-                    className="mobile-focus-action"
-                    onClick={() => {
-                      setFocusCanvas(!focusCanvas)
-                      if (viewMenu.current) viewMenu.current.open = false
-                    }}
-                  >
-                    <PanelRightClose size={20} />
-                    {focusCanvas ? 'Show settings' : 'Focus canvas'}
-                  </button>
+                  <span className="menu-label">Preview background</span>
+                  {(['live', 'checker', 'dark', 'light'] as const).map((bg) => (
+                    <button
+                      key={bg}
+                      aria-pressed={project.previewBackground === bg}
+                      onClick={() => {
+                        patch({ previewBackground: bg })
+                        closeView()
+                      }}
+                    >
+                      <span className={`menu-swatch ${bg}`} />
+                      {bg === 'live'
+                        ? 'Live photo'
+                        : bg === 'checker'
+                          ? 'Transparency'
+                          : bg === 'dark'
+                            ? 'Dark'
+                            : 'Light'}
+                    </button>
+                  ))}
+                  <hr />
                   <button aria-pressed={guides} onClick={() => setGuides(!guides)}>
-                    <ScanLine size={20} /> {guides ? 'Hide' : 'Show'} safe area
+                    <ScanLine size={18} /> Safe area
                   </button>
                   <button
                     onClick={() => {
-                      if (viewMenu.current) viewMenu.current.open = false
+                      closeView()
                       if (document.fullscreenElement) void document.exitFullscreen()
                       else if (stage.current?.requestFullscreen)
                         void stage.current
@@ -637,48 +573,52 @@ function ChyronEditor({
                       else setNotice('Fullscreen is unavailable in this browser.')
                     }}
                   >
-                    <Expand size={20} /> Fullscreen preview
+                    <Expand size={18} /> Fullscreen
                   </button>
-                  {(['live', 'checker', 'dark', 'light'] as const).map((bg) => (
-                    <button
-                      key={bg}
-                      aria-pressed={project.previewBackground === bg}
-                      onClick={() => {
-                        patch({ previewBackground: bg })
-                        if (viewMenu.current) viewMenu.current.open = false
-                      }}
-                    >
-                      <span className={`menu-swatch ${bg}`} />{' '}
-                      {bg === 'live'
-                        ? 'Live preview'
-                        : bg === 'checker'
-                          ? 'Transparency checker'
-                          : `${bg === 'dark' ? 'Dark' : 'Light'} preview`}
-                    </button>
-                  ))}
                 </div>
               </details>
               <button
-                className={`icon-button ${showTransform ? 'selected' : ''}`}
-                aria-label="Show transform controls"
-                title="Move, scale & rotate controls (or click chyron on canvas)"
-                aria-pressed={showTransform}
-                onClick={() => setShowTransform(!showTransform)}
-              >
-                <SquareDashed size={20} />
-              </button>
-              <button
-                className={`icon-button focus-canvas-toggle ${focusCanvas ? 'selected' : ''}`}
-                aria-label={focusCanvas ? 'Show settings' : 'Focus canvas'}
+                className={`icon-button ${focusCanvas ? 'selected' : ''}`}
+                aria-label={focusCanvas ? 'Show properties' : 'Focus canvas'}
                 aria-pressed={focusCanvas}
-                title={focusCanvas ? 'Show settings' : 'Focus canvas'}
+                title={focusCanvas ? 'Show properties' : 'Hide properties'}
                 onClick={() => setFocusCanvas(!focusCanvas)}
               >
-                {focusCanvas ? <PanelRightOpen size={20} /> : <PanelRightClose size={20} />}
+                {focusCanvas ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
               </button>
             </div>
           </div>
-          <div className={`stage-surround ${artworkDetail ? 'artwork-detail' : ''}`} ref={stage}>
+          <div
+            className={`stage-surround ${artworkDetail ? 'artwork-detail' : ''} ${dropping ? 'is-dropping' : ''}`}
+            ref={stage}
+            onPointerDown={(e) => {
+              // Clicking empty space around the artwork clears the selection.
+              if (e.target === e.currentTarget) setSelection(null)
+            }}
+            onDragOver={(e) => {
+              if (!Array.from(e.dataTransfer.types).includes('Files')) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'copy'
+              if (!dropping) setDropping(true)
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropping(false)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDropping(false)
+              const files = Array.from(e.dataTransfer.files).filter((f) =>
+                f.type.startsWith('image/'),
+              )
+              if (files.length) void addImages(files)
+              else setNotice('Drop a PNG, JPEG, WebP or GIF image.')
+            }}
+          >
+            {dropping && (
+              <div className="drop-overlay" aria-hidden="true">
+                <ImagePlus size={28} /> Drop to add a layer
+              </div>
+            )}
             <div
               className={`stage-canvas ${project.previewBackground}`}
               style={
@@ -690,76 +630,87 @@ function ChyronEditor({
                 } as React.CSSProperties
               }
               onPointerDown={(e) => {
-                if (e.target === e.currentTarget && showTransform) {
-                  setShowTransform(false)
-                }
+                if (e.target === e.currentTarget) setSelection(null)
               }}
             >
               <Composition
                 project={project}
                 time={playback.time}
                 onTransform={patch}
-                showControls={showTransform}
-                onSelectChyron={setShowTransform}
+                onLayerChange={changeLayer}
+                selected={selected}
+                onSelect={setSelection}
               />
-              {guides && (
-                <div className="safe-guides">
-                  <span>SAFE AREA · 90%</span>
-                </div>
-              )}
-              {!project.text.trim() && (!project.subtitlePill || !project.subtitle.trim()) && (
+              {guides && <div className="safe-guides" />}
+              {!hasArtwork(project) && (
                 <div className="empty-canvas">
-                  <span className="empty-type">Aa</span>
-                  <strong>Your next big moment starts here.</strong>
-                  <span>Add your words in the Design panel.</span>
+                  <strong>Nothing to show yet</strong>
+                  <span>Add a title or an image.</span>
                 </div>
               )}
             </div>
-            {artworkDetail && <span className="preview-detail-label">Cropped preview</span>}
-            <div className="stage-meta">
-              <span>
-                <span className="status-dot" /> LIVE PREVIEW
-              </span>
-              <span>
-                {project.fps} FPS <span className="meta-separator">/</span>{' '}
-                {project.mode === 'tiles' ? 'TILE COMPOSITION' : 'TYPOGRAPHY'}
-              </span>
-            </div>
           </div>
-          <div className="canvas-bottom">
-            <div className="preview-swatches">
-              {(['live', 'checker', 'dark', 'light'] as const).map((bg) => (
-                <button
-                  key={bg}
-                  aria-label={`Set ${bg} preview`}
-                  title={`${bg[0].toUpperCase() + bg.slice(1)} background`}
-                  className={`background-chip ${bg} ${project.previewBackground === bg ? 'selected' : ''}`}
-                  aria-pressed={project.previewBackground === bg}
-                  onClick={() => patch({ previewBackground: bg })}
-                />
-              ))}
-              <span>Preview background</span>
-            </div>
-            <button
-              className="fit-button"
-              title="Reset position, scale & rotation"
-              onClick={() => patch({ scale: 100, x: 50, y: 50, compositionRotation: 0 })}
-            >
-              Fit <Expand size={12} />
-            </button>
-          </div>
-          <Timeline project={project} playback={playback} />
+          <Timeline
+            project={project}
+            playback={playback}
+            selected={selected}
+            onSelect={setSelection}
+            onToggleVisible={(id) => {
+              const layer = project.layers.find((l) => l.id === id)
+              if (layer) patch({ layers: updateLayer(project, id, { visible: !layer.visible }) })
+            }}
+            onAddImages={(files) => void addImages(files)}
+            onTiming={(id, { delay, length }) => {
+              const layer = project.layers.find((l) => l.id === id)
+              if (!layer) return
+              const half = duration(project) / 2
+              if (layer.kind === 'image') {
+                const values: Partial<ImageLayer> = {}
+                if (delay !== undefined) values.delay = Math.min(delay, Math.max(0, half - 0.2))
+                if (length !== undefined) values.duration = Math.min(4, length)
+                changeLayer(id, values)
+              } else if (delay !== undefined) {
+                patch({
+                  layers: updateLayer(project, id, {
+                    delay: Math.min(delay, Math.max(0, half - project.animationDuration)),
+                  }),
+                })
+              } else if (length !== undefined) {
+                // The chyron's transition sets the clip's transition length.
+                patch({ animationDuration: Math.min(4, length) })
+              }
+            }}
+            onReorder={(id, index) => {
+              const layers = project.layers.filter((l) => l.id !== id)
+              const layer = project.layers.find((l) => l.id === id)
+              if (!layer) return
+              layers.splice(Math.min(layers.length, Math.max(0, index)), 0, layer)
+              patch({ layers })
+            }}
+          />
         </main>
         <div className="inspector-wrap" hidden={focusCanvas}>
-          <Inspector
+          <Properties
             project={project}
             patch={patch}
+            selected={selected}
+            onSelect={setSelection}
             tab={tab}
-            setTab={setTab}
-            replay={() => playback.play(true)}
+            onTab={setTab}
             previewPhase={playback.previewPhase}
-            saveStatus={editor.saveStatus}
-            onHelp={() => setHelp(true)}
+            presets={presets}
+            onApplyTemplate={applyStyle}
+            onApplyPreset={(preset) =>
+              applyStyle({
+                id: preset.id,
+                name: preset.name,
+                caption: '',
+                background: '',
+                patch: preset.project,
+              })
+            }
+            onSavePreset={savePreset}
+            onRemovePreset={removePreset}
           />
         </div>
       </div>
@@ -771,7 +722,7 @@ function ChyronEditor({
           <span>{notice}</span>
           {deletedPreset && (
             <button className="text-button" onClick={restorePreset}>
-              Undo removal
+              Undo
             </button>
           )}
           <button
@@ -779,7 +730,7 @@ function ChyronEditor({
             aria-label="Dismiss notification"
             onClick={() => setNotice('')}
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       )}
@@ -794,32 +745,50 @@ function ChyronEditor({
           aria-labelledby="help-title"
         >
           <div className="dialog-heading">
-            <h2 id="help-title">From words to wow.</h2>
+            <h2 id="help-title">How it works</h2>
             <button className="icon-button" aria-label="Close tour" onClick={closeHelp}>
               <X size={18} />
             </button>
           </div>
           <ol>
             <li>
-              <strong>Find your starting point.</strong> Pick a template, then make it yours with
-              your words, fonts, colors and shapes.
+              <strong>Select, then edit.</strong> Click anything on the canvas or in the timeline;
+              its settings open on the right.
             </li>
             <li>
-              <strong>Give it a little motion.</strong> Choose an animation and set one duration for
-              its intro and reversed outro. Preview either transition, scrub the timeline or press
-              Space to play the full clip.
+              <strong>Shape time in the timeline.</strong> Drag a bar to delay it, drag its edge to
+              lengthen the transition, drag a name to reorder.
             </li>
             <li>
-              <strong>Take it anywhere.</strong> Every format preserves alpha. Use WebM for OBS,
-              ProRes for editing, or PNG sequences for lossless frames.
+              <strong>Pick a style to see it.</strong> Every animation plays as soon as you choose
+              it.
             </li>
           </ol>
-          <p>
-            Changes are saved on this device. Use the project menu to save a portable project file
-            or add a preset to your library.
-          </p>
-          <button className="button primary full" onClick={() => setHelp(false)}>
-            Let's make something.
+          <h3 className="shortcut-title">Shortcuts</h3>
+          <dl className="shortcuts">
+            {[
+              ['Space', 'Play / pause'],
+              ['← →', 'Step one frame'],
+              ['Esc', 'Composition settings'],
+              ['⌘/Ctrl D', 'Duplicate image'],
+              ['[ ]', 'Send backward / bring forward'],
+              ['H', 'Hide / show layer'],
+              ['Del', 'Delete image'],
+              ['⌘/Ctrl Z', 'Undo (⇧ to redo)'],
+              ['⌘/Ctrl S', 'Save project file'],
+              ['Arrows on canvas', 'Nudge (⇧ for 4×)'],
+              ['?', 'This guide'],
+            ].map(([keys, action]) => (
+              <div key={keys}>
+                <dt>
+                  <kbd>{keys}</kbd>
+                </dt>
+                <dd>{action}</dd>
+              </div>
+            ))}
+          </dl>
+          <button className="button primary full" onClick={closeHelp}>
+            Got it
           </button>
         </dialog>
       )}
