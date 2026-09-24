@@ -12,6 +12,7 @@
     "deploy": "gh-pages -d dist",
     "start": "vite",
     "build": "tsc -b && vite build",
+    "thumbnails": "node scripts/generate_thumbnails.js",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:e2e": "playwright test",

@@ -19,6 +19,7 @@ import {
   GALLERY_CATEGORIES,
   GALLERY_ITEMS,
   getGalleryItemUrl,
+  getGalleryItemThumbUrl,
   downloadGalleryItem,
   downloadGalleryZip,
   type GalleryItem,
@@ -346,9 +347,17 @@ export default function MediaGalleryWorkspace({
                       title={`Inspect ${item.name}`}
                     >
                       <img
-                        src={getGalleryItemUrl(item)}
+                        src={getGalleryItemThumbUrl(item)}
                         alt={item.name}
                         loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          const fullUrl = getGalleryItemUrl(item)
+                          if (target.src !== fullUrl) {
+                            target.src = fullUrl
+                          }
+                        }}
                         className="mg-card-img"
                       />
                       <span className="mg-card-ext">{ext}</span>

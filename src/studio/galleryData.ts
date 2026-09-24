@@ -6,6 +6,7 @@ export interface GalleryItem {
   name: string
   filename: string
   path: string
+  thumbPath?: string
 }
 
 export const GALLERY_ITEMS: GalleryItem[] = [
@@ -734,6 +735,14 @@ export function getGalleryItemUrl(item: GalleryItem): string {
     ? import.meta.env.BASE_URL
     : import.meta.env.BASE_URL + '/'
   return base + item.path
+}
+
+export function getGalleryItemThumbUrl(item: GalleryItem): string {
+  const base = import.meta.env.BASE_URL.endsWith('/')
+    ? import.meta.env.BASE_URL
+    : import.meta.env.BASE_URL + '/'
+  const thumbPath = item.thumbPath || item.path.replace(/^gallery\//, 'gallery_thumbs/')
+  return base + thumbPath
 }
 
 export async function fetchGalleryFile(item: GalleryItem): Promise<File> {
