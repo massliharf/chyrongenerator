@@ -6,11 +6,13 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
+  Images,
   Pause,
   Play,
   Repeat2,
   RotateCcw,
   Type,
+  Upload,
 } from 'lucide-react'
 import { chyronLayer, duration, type Layer, type Project } from '../studio/model'
 import { imageTiming } from '../studio/motion'
@@ -26,6 +28,7 @@ export function Timeline({
   onSelect,
   onToggleVisible,
   onAddImages,
+  onOpenGallery,
   onTiming,
   onReorder,
 }: {
@@ -35,6 +38,7 @@ export function Timeline({
   onSelect: (id: string | null) => void
   onToggleVisible: (id: string) => void
   onAddImages: (files: File[]) => void
+  onOpenGallery?: () => void
   /** Drag results: a new start delay, or a new transition length, in seconds. */
   onTiming: (id: string, timing: { delay?: number; length?: number }) => void
   /** Move a layer to a new stack index (0 = back). */
@@ -42,6 +46,7 @@ export function Timeline({
 }) {
   const [dragged, setDragged] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [addImageMenuOpen, setAddImageMenuOpen] = useState(false)
   const drag = useRef<{
     id: string
     mode: 'delay' | 'length'
@@ -186,15 +191,54 @@ export function Timeline({
           >
             <RotateCcw size={18} />
           </button>
-          <button
-            className="button add-layer"
-            aria-label="Add image"
-            title="Add a logo, photo or graphic"
-            onClick={() => input.current?.click()}
-          >
-            <ImagePlus size={16} />
-            <span>Image</span>
-          </button>
+          <div className="add-layer-wrap">
+            <button
+              className="button add-layer"
+              aria-label="Add image"
+              title="Add a logo, photo or graphic"
+              aria-expanded={addImageMenuOpen}
+              onClick={() => {
+                if (onOpenGallery) setAddImageMenuOpen((o) => !o)
+                else input.current?.click()
+              }}
+            >
+              <ImagePlus size={16} />
+              <span>Image</span>
+            </button>
+            {addImageMenuOpen && (
+              <>
+                <div
+                  className="menu-dismiss"
+                  aria-label="Close add image menu"
+                  onClick={() => setAddImageMenuOpen(false)}
+                />
+                <div className="add-image-menu" role="menu" aria-label="Add image options">
+                  <button
+                    type="button"
+                    className="add-image-menu-item"
+                    onClick={() => {
+                      setAddImageMenuOpen(false)
+                      onOpenGallery?.()
+                    }}
+                  >
+                    <Images size={16} />
+                    <span>Select from Media Gallery</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="add-image-menu-item"
+                    onClick={() => {
+                      setAddImageMenuOpen(false)
+                      input.current?.click()
+                    }}
+                  >
+                    <Upload size={16} />
+                    <span>Upload from device</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <input
             ref={input}
             type="file"

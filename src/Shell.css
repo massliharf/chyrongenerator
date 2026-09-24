@@ -17,6 +17,8 @@
   background: var(--app);
 }
 .studio-shell > .app-header {
+  position: relative;
+  z-index: 100;
   grid-column: 1;
   grid-row: 1;
   display: grid;

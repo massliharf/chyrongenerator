@@ -682,22 +682,72 @@ function ChyronDesign({
               onChange={(e) => patch({ text: e.target.value })}
             />
           </Field>
+        </>,
+        reset(['text']),
+      )}
+      {group(
+        'subtitle',
+        'Subtitle',
+        p.subtitlePill
+          ? `${p.subtitle ? `"${p.subtitle}" · ` : ''}${p.subtitlePosition === 'top' ? 'Above title' : 'Below title'}`
+          : 'Disabled',
+        <>
           <Toggle
             label="Subtitle"
             checked={p.subtitlePill}
             onChange={(subtitlePill) => patch({ subtitlePill })}
           />
           {p.subtitlePill && (
-            <Field label="Subtitle text">
-              <input
-                value={p.subtitle}
-                maxLength={80}
-                onChange={(e) => patch({ subtitle: e.target.value })}
-                placeholder="Role, name or detail"
+            <>
+              <Field label="Subtitle text">
+                <input
+                  value={p.subtitle}
+                  maxLength={80}
+                  onChange={(e) => patch({ subtitle: e.target.value })}
+                  placeholder="Role, name or detail"
+                />
+              </Field>
+              <Segmented
+                label="Subtitle position"
+                value={p.subtitlePosition}
+                onChange={(subtitlePosition) => patch({ subtitlePosition })}
+                items={[
+                  { id: 'top', name: 'Above', Icon: ArrowUp },
+                  { id: 'bottom', name: 'Below', Icon: ArrowDown },
+                ]}
               />
-            </Field>
+              <div className="color-grid">
+                <Color
+                  label="Subtitle fill"
+                  value={p.accent}
+                  onChange={(accent) => patch({ accent })}
+                />
+                <Color
+                  label="Subtitle text"
+                  value={p.subtitleColor}
+                  onChange={(subtitleColor) => patch({ subtitleColor })}
+                />
+              </div>
+              {r('Subtitle size', 'subtitleSize', 12, 80, 1, 'px')}
+              {r('Subtitle gap', 'subtitleGap', 0, 100, 1, 'px')}
+              {r('Subtitle radius', 'subtitleRadius', 0, 50, 1, 'px')}
+              {r('Horizontal padding', 'subtitlePaddingX', 0, 80, 1, 'px')}
+              {r('Vertical padding', 'subtitlePaddingY', 0, 40, 1, 'px')}
+            </>
           )}
         </>,
+        reset([
+          'subtitlePill',
+          'subtitle',
+          'subtitlePosition',
+          'accent',
+          'subtitleColor',
+          'subtitleSize',
+          'subtitleGap',
+          'subtitleRadius',
+          'subtitlePaddingX',
+          'subtitlePaddingY',
+        ]),
       )}
       {group(
         'type',
@@ -827,20 +877,6 @@ function ChyronDesign({
               value={p.textColor}
               onChange={(textColor) => patch({ textColor })}
             />
-            {p.subtitlePill && (
-              <>
-                <Color
-                  label="Subtitle fill"
-                  value={p.accent}
-                  onChange={(accent) => patch({ accent })}
-                />
-                <Color
-                  label="Subtitle text"
-                  value={p.subtitleColor}
-                  onChange={(subtitleColor) => patch({ subtitleColor })}
-                />
-              </>
-            )}
             {!tiles && (
               <>
                 <Color
@@ -857,7 +893,7 @@ function ChyronDesign({
             )}
           </div>
         </>,
-        reset(['tileColor', 'textColor', 'accent', 'subtitleColor', 'effectColor', 'effectColor2']),
+        reset(['tileColor', 'textColor', 'effectColor', 'effectColor2']),
       )}
       {group(
         'shape',
@@ -876,36 +912,6 @@ function ChyronDesign({
         </>,
         reset(['radius', 'padding', 'gap', 'lineGap', 'depth']),
       )}
-      {p.subtitlePill &&
-        group(
-          'subtitle',
-          'Subtitle',
-          p.subtitlePosition === 'top' ? 'Above title' : 'Below title',
-          <>
-            <Segmented
-              label="Subtitle position"
-              value={p.subtitlePosition}
-              onChange={(subtitlePosition) => patch({ subtitlePosition })}
-              items={[
-                { id: 'top', name: 'Above', Icon: ArrowUp },
-                { id: 'bottom', name: 'Below', Icon: ArrowDown },
-              ]}
-            />
-            {r('Subtitle size', 'subtitleSize', 12, 80, 1, 'px')}
-            {r('Subtitle gap', 'subtitleGap', 0, 100, 1, 'px')}
-            {r('Subtitle radius', 'subtitleRadius', 0, 50, 1, 'px')}
-            {r('Horizontal padding', 'subtitlePaddingX', 0, 80, 1, 'px')}
-            {r('Vertical padding', 'subtitlePaddingY', 0, 40, 1, 'px')}
-          </>,
-          reset([
-            'subtitlePosition',
-            'subtitleSize',
-            'subtitleGap',
-            'subtitleRadius',
-            'subtitlePaddingX',
-            'subtitlePaddingY',
-          ]),
-        )}
       {group(
         'finish',
         'Details',

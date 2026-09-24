@@ -2,6 +2,7 @@
 @import '@fontsource/geist-sans/500.css';
 @import '@fontsource/geist-sans/600.css';
 @import '@fontsource/geist-sans/800.css';
+@import './MediaGallery.css';
 
 /*
  * Design tokens. Components only ever reference these names, so light and dark
@@ -52,12 +53,12 @@
   --text: #fafafa;
   --muted: #a9a9a9;
   --subtle: #8c8c8c;
-  --accent: #4c8dff;
-  --accent-fill: #4c8dff;
-  --accent-hover: #73a6ff;
-  --accent-ink: #04112a;
-  --accent-line: #2f5fb3;
-  --selected: #0f1f3d;
+  --accent: #edb04f;
+  --accent-fill: #edb04f;
+  --accent-hover: #f5c878;
+  --accent-ink: #1a1a1a;
+  --accent-line: #b87b1c;
+  --selected: rgba(237, 176, 79, 0.14);
   --danger: #ff8f85;
   --danger-soft: #331716;
   --danger-line: #7a3530;
@@ -99,12 +100,12 @@
     --text: #0a0a0a;
     --muted: #52525b;
     --subtle: #62626b;
-    --accent: #1e5bd8;
-    --accent-fill: #1e5bd8;
-    --accent-hover: #184bb4;
-    --accent-ink: #ffffff;
-    --accent-line: #9dbcf5;
-    --selected: #e7efff;
+    --accent: #de9a2e;
+    --accent-fill: #de9a2e;
+    --accent-hover: #b87b1c;
+    --accent-ink: #1a1a1a;
+    --accent-line: #edb04f;
+    --selected: rgba(222, 154, 46, 0.14);
     --danger: #b42318;
     --danger-soft: #fdecea;
     --danger-line: #f1b3ab;
@@ -144,12 +145,12 @@
   --text: #0a0a0a;
   --muted: #52525b;
   --subtle: #62626b;
-  --accent: #1e5bd8;
-  --accent-fill: #1e5bd8;
-  --accent-hover: #184bb4;
-  --accent-ink: #ffffff;
-  --accent-line: #9dbcf5;
-  --selected: #e7efff;
+  --accent: #de9a2e;
+  --accent-fill: #de9a2e;
+  --accent-hover: #b87b1c;
+  --accent-ink: #1a1a1a;
+  --accent-line: #edb04f;
+  --selected: rgba(222, 154, 46, 0.14);
   --danger: #b42318;
   --danger-soft: #fdecea;
   --danger-line: #f1b3ab;

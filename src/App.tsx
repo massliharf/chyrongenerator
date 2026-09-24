@@ -58,6 +58,8 @@ import { loadPresets, storePresets, useProject, type SavedPreset } from './studi
 import { usePlayback } from './studio/usePlayback'
 import { saveBlob } from './studio/export'
 import { generateId } from './utils/id'
+import { MediaGalleryModal } from './components/MediaGalleryModal'
+import { fetchGalleryFile, type GalleryItem } from './studio/galleryData'
 import './App.css'
 import './StudioLayout.css'
 import './Shell.css'
@@ -88,6 +90,7 @@ function ChyronEditor({
   const [presets, setPresets] = useState(loadPresets)
   const [notice, setNotice] = useState('')
   const [help, setHelp] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
   const importInput = useRef<HTMLInputElement>(null)
   const stage = useRef<HTMLDivElement>(null)
   const helpDialog = useRef<HTMLDialogElement>(null)
@@ -146,6 +149,16 @@ function ChyronEditor({
     const added = imageLayers(next).length - imageLayers(project).length
     if (errors.length) setNotice(errors[0])
     else if (added > 1) setNotice(`${added} images added.`)
+  }
+  const handleSelectGalleryItem = async (item: GalleryItem) => {
+    try {
+      setNotice(`Adding ${item.name}…`)
+      const file = await fetchGalleryFile(item)
+      await addImages([file])
+      setGalleryOpen(false)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Could not load gallery asset.')
+    }
   }
   useEffect(() => {
     const media = window.matchMedia('(max-width: 899px)')
@@ -660,6 +673,7 @@ function ChyronEditor({
               if (layer) patch({ layers: updateLayer(project, id, { visible: !layer.visible }) })
             }}
             onAddImages={(files) => void addImages(files)}
+            onOpenGallery={() => setGalleryOpen(true)}
             onTiming={(id, { delay, length }) => {
               const layer = project.layers.find((l) => l.id === id)
               if (!layer) return
@@ -717,6 +731,12 @@ function ChyronEditor({
       {exportOpen && (
         <ExportDialog project={project} time={playback.time} onClose={() => setExportOpen(false)} />
       )}
+      <MediaGalleryModal
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onSelect={handleSelectGalleryItem}
+        onUploadClick={() => importInput.current?.click()}
+      />
       {notice && (
         <div className="toast" role="status">
           <span>{notice}</span>
