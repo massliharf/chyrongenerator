@@ -110,7 +110,7 @@
 
 .media-gallery-search input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(237, 176, 79, 0.16);
+  box-shadow: 0 0 0 2px var(--selected);
 }
 
 .media-gallery-search .clear-search {
