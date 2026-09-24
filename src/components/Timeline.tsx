@@ -207,7 +207,8 @@ export function Timeline({
             </button>
             {addImageMenuOpen && (
               <>
-                <div
+                <button
+                  type="button"
                   className="menu-dismiss"
                   aria-label="Close add image menu"
                   onClick={() => setAddImageMenuOpen(false)}
