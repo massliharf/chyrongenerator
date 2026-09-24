@@ -4,6 +4,7 @@ import {
   GALLERY_CATEGORIES,
   GALLERY_ITEMS,
   getGalleryItemUrl,
+  getGalleryItemThumbUrl,
   downloadGalleryItem,
   type GalleryItem,
 } from '../studio/galleryData'
@@ -174,9 +175,17 @@ export function MediaGalleryModal({
                   >
                     <div className="gallery-thumbnail-wrap">
                       <img
-                        src={getGalleryItemUrl(item)}
+                        src={getGalleryItemThumbUrl(item)}
                         alt={item.name}
                         loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          const fullUrl = getGalleryItemUrl(item)
+                          if (target.src !== fullUrl) {
+                            target.src = fullUrl
+                          }
+                        }}
                         className="gallery-thumbnail"
                       />
                       <button
