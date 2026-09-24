@@ -1,6 +1,6 @@
-import { Clapperboard, Images } from 'lucide-react'
+import { Clapperboard, FolderOpen, Images } from 'lucide-react'
 
-export type Workspace = 'chyron' | 'stream'
+export type Workspace = 'chyron' | 'stream' | 'gallery'
 
 export function WorkspaceNav({
   current,
@@ -19,6 +19,12 @@ export function WorkspaceNav({
         <Images size={16} aria-hidden="true" />
         <span className="nav-label">
           Stream<span className="nav-extra"> Images</span>
+        </span>
+      </button>
+      <button aria-pressed={current === 'gallery'} onClick={() => onChange('gallery')}>
+        <FolderOpen size={16} aria-hidden="true" />
+        <span className="nav-label">
+          Media<span className="nav-extra"> Gallery</span>
         </span>
       </button>
     </nav>

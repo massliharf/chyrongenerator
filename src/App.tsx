@@ -26,6 +26,7 @@ import { ExportDialog } from './components/ExportDialog'
 import { ThemeToggle } from './components/ThemeToggle'
 import { WorkspaceNav, type Workspace } from './components/WorkspaceNav'
 import StreamWorkspace from './stream/StreamWorkspace'
+import MediaGalleryWorkspace from './gallery/MediaGalleryWorkspace'
 import {
   applyTemplate,
   DEFAULT_PROJECT,
@@ -160,6 +161,18 @@ function ChyronEditor({
       setNotice(err instanceof Error ? err.message : 'Could not load gallery asset.')
     }
   }
+  const handleSelectGalleryItemRef = useRef(handleSelectGalleryItem)
+  handleSelectGalleryItemRef.current = handleSelectGalleryItem
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<GalleryItem>
+      if (custom.detail) {
+        void handleSelectGalleryItemRef.current(custom.detail)
+      }
+    }
+    window.addEventListener('chyron:import-gallery-item', handler)
+    return () => window.removeEventListener('chyron:import-gallery-item', handler)
+  }, [])
   useEffect(() => {
     const media = window.matchMedia('(max-width: 899px)')
     const update = () => setCompactViewport(media.matches)
@@ -818,15 +831,19 @@ function ChyronEditor({
 function App() {
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     try {
-      return localStorage.getItem('chyron-studio:workspace') === 'stream' ? 'stream' : 'chyron'
+      const stored = localStorage.getItem('chyron-studio:workspace')
+      if (stored === 'stream' || stored === 'gallery') return stored
+      return 'chyron'
     } catch {
       return 'chyron'
     }
   })
   const [streamVisited, setStreamVisited] = useState(workspace === 'stream')
+  const [galleryVisited, setGalleryVisited] = useState(workspace === 'gallery')
   const changeWorkspace = (next: Workspace) => {
     if (next === workspace) return
     if (next === 'stream') setStreamVisited(true)
+    if (next === 'gallery') setGalleryVisited(true)
     setWorkspace(next)
     requestAnimationFrame(() => {
       document
@@ -849,6 +866,14 @@ function App() {
       {streamVisited && (
         <div data-workspace="stream" hidden={workspace !== 'stream'}>
           <StreamWorkspace active={workspace === 'stream'} onWorkspaceChange={changeWorkspace} />
+        </div>
+      )}
+      {galleryVisited && (
+        <div data-workspace="gallery" hidden={workspace !== 'gallery'}>
+          <MediaGalleryWorkspace
+            active={workspace === 'gallery'}
+            onWorkspaceChange={changeWorkspace}
+          />
         </div>
       )}
     </>

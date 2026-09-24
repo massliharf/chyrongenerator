@@ -1,3 +1,5 @@
+import { zipSync } from 'fflate'
+
 export interface GalleryItem {
   id: string
   category: string
@@ -750,3 +752,63 @@ export async function fetchGalleryFile(item: GalleryItem): Promise<File> {
           : 'image/png')
   return new File([blob], item.filename, { type: mimeType })
 }
+
+export async function downloadGalleryItem(item: GalleryItem): Promise<void> {
+  const url = getGalleryItemUrl(item)
+  try {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = item.filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+  } catch {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = item.filename
+    a.target = '_blank'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+}
+
+export async function downloadGalleryZip(
+  items: GalleryItem[],
+  zipName: string,
+  onProgress?: (progress: { loaded: number; total: number; currentName: string }) => void,
+): Promise<void> {
+  const files: Record<string, Uint8Array> = {}
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (onProgress) {
+      onProgress({ loaded: i + 1, total: items.length, currentName: item.name })
+    }
+    try {
+      const url = getGalleryItemUrl(item)
+      const res = await fetch(url)
+      if (!res.ok) continue
+      const buf = await res.arrayBuffer()
+      const zipPath = `${item.category}/${item.filename}`
+      files[zipPath] = new Uint8Array(buf)
+    } catch (e) {
+      console.warn(`Failed to include ${item.name} in zip:`, e)
+    }
+  }
+  const zipData = zipSync(files, { level: 0 })
+  const blob = new Blob([new Uint8Array(zipData)], { type: 'application/zip' })
+  const blobUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = zipName.endsWith('.zip') ? zipName : `${zipName}.zip`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+}
+

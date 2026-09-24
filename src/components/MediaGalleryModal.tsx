@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { X, Search, Image as ImageIcon, Upload, Check } from 'lucide-react'
+import { X, Search, Image as ImageIcon, Upload, Check, Download } from 'lucide-react'
 import {
   GALLERY_CATEGORIES,
   GALLERY_ITEMS,
   getGalleryItemUrl,
+  downloadGalleryItem,
   type GalleryItem,
 } from '../studio/galleryData'
 
@@ -178,6 +179,18 @@ export function MediaGalleryModal({
                         loading="lazy"
                         className="gallery-thumbnail"
                       />
+                      <button
+                        type="button"
+                        className="gallery-item-download-btn"
+                        title={`Download ${item.filename}`}
+                        aria-label={`Download ${item.filename}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void downloadGalleryItem(item)
+                        }}
+                      >
+                        <Download size={14} />
+                      </button>
                       {isSelected && (
                         <div className="gallery-check">
                           <Check size={16} />
