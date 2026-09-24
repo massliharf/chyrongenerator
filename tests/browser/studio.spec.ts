@@ -4,35 +4,39 @@ import { readFileSync } from 'node:fs'
 import { unzipSync } from 'fflate'
 import { DEFAULT_PROJECT, duration, frameCount } from '../../src/studio/model'
 
+const alphaVisible = (canvas: import('@playwright/test').Locator) =>
+  canvas.evaluate((node) => {
+    const element = node as HTMLCanvasElement
+    return element
+      .getContext('2d')!
+      .getImageData(0, 0, element.width, element.height)
+      .data.some((value, i) => i % 4 === 3 && value > 0)
+  })
+
 test('portrait 720p defaults and linked intro/outro previews', async ({ page }, testInfo) => {
   await page.goto('./')
   const canvas = page.getByRole('img', { name: /Composition preview/ })
   await expect(canvas).toHaveCSS('opacity', '1')
-  await page.getByRole('tab', { name: 'Canvas', exact: true }).click()
-  await expect(page.getByLabel('Canvas size', { exact: true })).toHaveValue('720x1280')
-  await expect(
-    page.getByLabel('Canvas size', { exact: true }).locator('option:checked'),
-  ).toContainText('720p')
-  await page.getByRole('tab', { name: 'Motion', exact: true }).click()
-  await expect(page.getByLabel('Animation duration value', { exact: true })).toHaveValue('1')
+  // The chyron starts selected; composition settings are one click away.
+  await expect(page.getByRole('heading', { name: 'Chyron', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /Canvas settings/ }).click()
+  await expect(page.getByRole('heading', { name: 'Composition', exact: true })).toBeVisible()
+  await expect(page.getByLabel('Size', { exact: true })).toHaveValue('720x1280')
+  await expect(page.getByLabel('Transition value', { exact: true })).toHaveValue('1')
+  await page.locator('.layer-name', { hasText: 'Chyron' }).click()
+  await page.getByRole('tab', { name: 'Animate', exact: true }).click()
   await page.getByRole('button', { name: 'Flip', exact: true }).click()
-  await page.getByRole('button', { name: 'Preview intro', exact: true }).click()
+  await page.getByRole('button', { name: 'Preview in', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
   await expect(page.locator('.timecode')).toHaveText('1.00 / 4.40 s')
-  expect(
-    await canvas.evaluate((node) => {
-      const element = node as HTMLCanvasElement
-      return element
-        .getContext('2d')!
-        .getImageData(0, 0, element.width, element.height)
-        .data.some((value, i) => i % 4 === 3 && value > 0)
-    }),
-  ).toBe(true)
+  expect(await alphaVisible(canvas)).toBe(true)
   await page.screenshot({ path: testInfo.outputPath('motion-720p.png') })
-  await page.getByLabel('Animation duration value', { exact: true }).fill('1.5')
+  await page.keyboard.press('Escape')
+  await page.getByLabel('Transition value', { exact: true }).fill('1.5')
   await expect(page.locator('.clip-in')).toHaveAttribute('title', 'Intro · 1.5s')
   await expect(page.locator('.clip-out')).toHaveAttribute('title', 'Outro · 1.5s')
-  await page.getByRole('button', { name: 'Preview intro', exact: true }).click()
+  await page.locator('.layer-name', { hasText: 'Chyron' }).click()
+  await page.getByRole('button', { name: 'Preview in', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
   await expect(page.locator('.timecode')).toHaveText('1.50 / 5.40 s')
   // A phase preview plays once even when full-clip looping is enabled.
@@ -40,32 +44,24 @@ test('portrait 720p defaults and linked intro/outro previews', async ({ page }, 
     'aria-pressed',
     'true',
   )
-  await page.getByRole('button', { name: 'Preview outro', exact: true }).click()
+  await page.getByRole('button', { name: 'Preview out', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
   await expect(page.locator('.timecode')).toHaveText('5.40 / 5.40 s')
-  expect(
-    await canvas.evaluate((node) => {
-      const element = node as HTMLCanvasElement
-      return element
-        .getContext('2d')!
-        .getImageData(0, 0, element.width, element.height)
-        .data.some((value, i) => i % 4 === 3 && value > 0)
-    }),
-  ).toBe(false)
+  expect(await alphaVisible(canvas)).toBe(false)
   await page.getByRole('button', { name: 'Replay animation', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Pause animation', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Pause animation', exact: true }).click()
-  await expect(page.getByText('Saved on this device', { exact: true })).toBeVisible()
+  await expect(page.getByText('Saved on this device', { exact: true })).toBeAttached()
   await page.reload()
-  await page.getByRole('tab', { name: 'Motion', exact: true }).click()
-  await expect(page.getByLabel('Animation duration value', { exact: true })).toHaveValue('1.5')
+  await page.getByRole('tab', { name: 'Animate', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Flip', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
   await page.getByRole('button', { name: 'Still', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Preview intro', exact: true })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Preview outro', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Preview in', exact: true })).toBeHidden()
+  await page.getByRole('button', { name: /Canvas settings/ }).click()
+  await expect(page.getByLabel('Transition value', { exact: true })).toHaveValue('1.5')
 })
 
 test('editing, undo, persistence, project files and responsive layout', async ({
@@ -77,18 +73,20 @@ test('editing, undo, persistence, project files and responsive layout', async ({
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
   await page.screenshot({ path: testInfo.outputPath('desktop.png') })
   await page.getByLabel('Title', { exact: true }).fill('ALPHA\nSTUDIO')
-  await page.getByLabel('Subtitle', { exact: true }).fill('TRANSPARENT BY DESIGN')
+  await page.getByLabel('Subtitle text', { exact: true }).fill('TRANSPARENT BY DESIGN')
   await page.getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect(page.getByLabel('Subtitle', { exact: true })).toHaveValue('PUZZLE PAPI')
+  await expect(page.getByLabel('Subtitle text', { exact: true })).toHaveValue('PUZZLE PAPI')
   await page.getByRole('button', { name: 'Redo', exact: true }).click()
-  await expect(page.getByLabel('Subtitle', { exact: true })).toHaveValue('TRANSPARENT BY DESIGN')
-  await page.getByRole('tab', { name: 'Motion', exact: true }).click()
+  await expect(page.getByLabel('Subtitle text', { exact: true })).toHaveValue(
+    'TRANSPARENT BY DESIGN',
+  )
+  await page.getByRole('tab', { name: 'Animate', exact: true }).click()
   await page.getByRole('button', { name: 'Reveal', exact: true }).click()
   await page.getByRole('button', { name: 'Replay animation' }).click()
   await expect(page.getByRole('button', { name: 'Pause animation' })).toBeVisible()
   await page.getByRole('button', { name: 'Pause animation' }).click()
   await page.getByRole('tab', { name: 'Design', exact: true }).click()
-  await expect(page.getByText('Saved on this device', { exact: true })).toBeVisible()
+  await expect(page.getByText('Saved on this device', { exact: true })).toBeAttached()
   await page.reload()
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('ALPHA\nSTUDIO')
   await page.getByRole('button', { name: 'Project menu', exact: true }).click()
@@ -102,8 +100,8 @@ test('editing, undo, persistence, project files and responsive layout', async ({
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true)
   await page.screenshot({ path: testInfo.outputPath('mobile.png'), animations: 'disabled' })
-  await page.getByRole('button', { name: 'Templates', exact: true }).click()
-  await page.getByRole('button', { name: /Acid house/ }).click()
+  // Styles restyle the chyron without touching its words.
+  await page.getByRole('button', { name: 'Apply Acid house style' }).click()
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('ALPHA\nSTUDIO')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()

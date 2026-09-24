@@ -1,3 +1,4 @@
+import { imageLayers } from '../studio/model'
 import { useEffect, useRef, useState } from 'react'
 import {
   Check,
@@ -249,6 +250,15 @@ export function ExportDialog({
             sequences support larger exports.
           </p>
         )}
+        {(format === 'webm' || format === 'mov') &&
+          !progress &&
+          imageLayers(project).some((l) => l.visible) && (
+            <p className="export-footnote">
+              Photos make lossless video slower to encode in the browser, often several minutes for
+              a few seconds of 720p. ProRes is about twice as fast as WebM; a PNG sequence is
+              fastest.
+            </p>
+          )}
         {(error || unavailable) && (
           <div className="error-banner" role="alert">
             {error || unavailable}

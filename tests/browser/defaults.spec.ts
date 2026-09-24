@@ -16,7 +16,7 @@ test('live preview is the default but never exported; subtitle toggle hides its 
   await page.screenshot({ path: testInfo.outputPath('studio-blue.png') })
   await page.getByRole('button', { name: /^Typography/ }).click()
   await expect(page.getByLabel('Typeface', { exact: true })).toHaveValue('Fredoka')
-  await expect(page.getByLabel('Tile size value', { exact: true })).toHaveValue('128')
+  await expect(page.getByLabel('Size value', { exact: true })).toHaveValue('128')
   await page.getByRole('button', { name: /^Shape & spacing/ }).click()
   for (const [label, value] of [
     ['Corner radius', '24'],
@@ -56,24 +56,24 @@ test('live preview is the default but never exported; subtitle toggle hides its 
   )
   expect(pixels[3]).toBe(0)
   expect(pixels.some((value, index) => index % 4 === 3 && value === 255)).toBe(true)
-  const toggle = page.getByRole('checkbox', { name: /Subtitle pill/ })
+  const toggle = page.getByRole('checkbox', { name: 'Subtitle', exact: true })
   await toggle.uncheck()
   await expect(page.getByLabel('Subtitle size value', { exact: true })).toBeHidden()
   await expect(canvas).not.toHaveAttribute('aria-label', /PUZZLE PAPI/)
   const hiddenSvg = (await download('SVG vector')).toString()
   // A disabled subtitle contributes no paths or spacing to the shared export scene.
-  await page.getByLabel('Subtitle', { exact: true }).fill('')
   await toggle.check()
+  await page.getByLabel('Subtitle text', { exact: true }).fill('')
   const emptySvg = (await download('SVG vector')).toString()
   expect(hiddenSvg).toBe(emptySvg)
-  await page.getByLabel('Subtitle', { exact: true }).fill('PUZZLE PAPI')
+  await page.getByLabel('Subtitle text', { exact: true }).fill('PUZZLE PAPI')
   await expect(canvas).toHaveAttribute('aria-label', /PUZZLE PAPI/)
   const enabledSvg = (await download('SVG vector')).toString()
   expect(enabledSvg).not.toBe(emptySvg)
-  await page.getByRole('tab', { name: 'Canvas', exact: true }).click()
-  await expect(page.getByLabel('Canvas size', { exact: true })).toHaveValue('720x1280')
-  await page.getByRole('button', { name: /^Preview background/ }).click()
-  await expect(page.getByRole('button', { name: 'Preview on live background' })).toHaveAttribute(
+  await page.getByRole('button', { name: /Canvas settings/ }).click()
+  await expect(page.getByLabel('Size', { exact: true })).toHaveValue('720x1280')
+  await page.getByLabel('Preview options').click()
+  await expect(page.getByRole('button', { name: 'Live photo' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )

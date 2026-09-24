@@ -33,6 +33,7 @@ import {
 import { useStreamImages } from './renderer'
 import { StreamCanvas } from './StreamCanvas'
 import { useStreamProject } from './useStreamProject'
+import { ThemeToggle } from '../components/ThemeToggle'
 import './StreamWorkspace.css'
 
 function ImageThumbnail({ image }: { image: HTMLImageElement | null | undefined }) {
@@ -155,17 +156,19 @@ export default function StreamWorkspace({
         Skip to image settings
       </a>
       <header className="app-header">
-        <h1 className="brand" aria-label="Chyron Studio">
-          <span className="brand-symbol" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-          <strong>
-            chyron<span>studio</span>
-          </strong>
-          <span className="version-pill">2.4</span>
-        </h1>
+        <div className="header-start">
+          <h1 className="brand" aria-label="Chyron Studio">
+            <span className="brand-symbol" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            <strong>
+              chyron<span>studio</span>
+            </strong>
+          </h1>
+          <WorkspaceNav current="stream" onChange={onWorkspaceChange} />
+        </div>
         <div className="project-header">
           <span className="header-divider" />
           <input
@@ -195,6 +198,7 @@ export default function StreamWorkspace({
             >
               <Redo2 size={18} />
             </button>
+            <ThemeToggle />
           </div>
           <button
             className="button primary export-trigger"
@@ -209,7 +213,6 @@ export default function StreamWorkspace({
           </button>
         </div>
       </header>
-      <WorkspaceNav current="stream" onChange={onWorkspaceChange} />
       <div className="si-workspace">
         <main className="si-main" aria-label="Stream image previews">
           <div className="si-preview-toolbar">
@@ -242,7 +245,9 @@ export default function StreamWorkspace({
               <button
                 className={`icon-button ${showControls ? 'selected' : ''}`}
                 aria-label="Show image controls"
-                title={showControls ? 'Hide frame controls' : 'Show frame controls (or click host image)'}
+                title={
+                  showControls ? 'Hide frame controls' : 'Show frame controls (or click host image)'
+                }
                 aria-pressed={showControls}
                 disabled={disabled || !doc.host}
                 onClick={() => setShowControls(!showControls)}
@@ -626,7 +631,9 @@ export default function StreamWorkspace({
               summary="Shadow, fade & preview guides"
               open={open.finish}
               onToggle={() => toggle('finish')}
-              onReset={() => patch({ shadow: 0, fade: 0, bottomShadow: selected === 'hero' ? 65 : 0 })}
+              onReset={() =>
+                patch({ shadow: 0, fade: 0, bottomShadow: selected === 'hero' ? 65 : 0 })
+              }
             >
               <Range
                 label="Bottom shadow"
