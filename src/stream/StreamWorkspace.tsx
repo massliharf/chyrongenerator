@@ -143,6 +143,29 @@ export default function StreamWorkspace({
       pending.current = false
     }
   }
+
+  const uploadRef = useRef(upload)
+  uploadRef.current = upload
+
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const custom = e as CustomEvent<{ item: GalleryItem; target?: 'host' | 'background' }>
+      if (!custom.detail?.item) return
+      const isBg =
+        custom.detail.target === 'background' ||
+        custom.detail.item.category === 'Backgrounds'
+      try {
+        setBusy(isBg ? 'Opening background…' : 'Preparing your host…')
+        const file = await fetchGalleryFile(custom.detail.item)
+        await uploadRef.current(file, isBg)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not load gallery asset.')
+        setBusy('')
+      }
+    }
+    window.addEventListener('stream:import-gallery-item', handler)
+    return () => window.removeEventListener('stream:import-gallery-item', handler)
+  }, [])
   const download = async (all: boolean) => {
     if (!canExport || pending.current || !images) return
     pending.current = true
