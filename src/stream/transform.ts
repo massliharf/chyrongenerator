@@ -72,4 +72,3 @@ export function isPointInHost(
   const py = ((clientPoint.y - canvasRect.top) / canvasRect.height) * format.height
   return isFormatPointInHost({ x: px, y: py }, format, layout, bounds)
 }
-

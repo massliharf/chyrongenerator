@@ -117,7 +117,7 @@ export function ExportDialog({
   return (
     <dialog
       ref={dialog}
-      className="export-dialog"
+      className="dialog dialog-lg export-dialog"
       aria-labelledby="export-title"
       onCancel={(e) => {
         e.preventDefault()
@@ -127,16 +127,16 @@ export function ExportDialog({
         if (e.target === e.currentTarget) close()
       }}
     >
-      <div className="dialog-heading">
+      <div className="dialog-header">
         <div>
-          <span className="eyebrow">READY FOR THE SPOTLIGHT</span>
-          <h2 id="export-title">Take it with you.</h2>
+          <h2 id="export-title">Export</h2>
+          <p>Every format keeps the transparent background.</p>
         </div>
         <button className="icon-button" aria-label="Close export" onClick={close}>
           <X size={19} />
         </button>
       </div>
-      <div className="export-content">
+      <div className="dialog-body export-content">
         <div className="export-layout">
           <div className="export-preview">
             <div
@@ -153,13 +153,6 @@ export function ExportDialog({
             <div className="export-preview-caption">
               <span>{project.name}</span>
               <span>{exportDescription(project)}</span>
-            </div>
-            <div className="alpha-note">
-              <CheckCheck size={18} />
-              <div>
-                <strong>Transparency, built in.</strong>
-                <p>Your background stays transparent in every format. No keying required.</p>
-              </div>
             </div>
             <div className="export-specs">
               <span>
@@ -260,7 +253,7 @@ export function ExportDialog({
             </p>
           )}
         {(error || unavailable) && (
-          <div className="error-banner" role="alert">
+          <div className="alert alert-danger" role="alert">
             {error || unavailable}
           </div>
         )}
@@ -274,7 +267,7 @@ export function ExportDialog({
           </div>
         )}
         {done && (
-          <div className="success-banner" role="status">
+          <div className="alert alert-success" role="status">
             <CheckCheck size={18} />
             <span>
               Your export is ready. <strong>{(done.blob.size / 1024 / 1024).toFixed(1)} MB</strong>
@@ -283,13 +276,12 @@ export function ExportDialog({
         )}
       </div>
       <div className="dialog-footer">
-        <span>
-          {progress
-            ? 'You can cancel at any time.'
-            : 'Rendered on your device. Your work stays yours.'}
+        <span className="dialog-footer-note">
+          {progress ? 'You can cancel at any time.' : 'Rendered on your device.'}
         </span>
+        <span className="dialog-footer-spacer" />
         {progress ? (
-          <button className="button" onClick={() => controller.current?.abort()}>
+          <button className="button outline" onClick={() => controller.current?.abort()}>
             <X size={14} /> Cancel export
           </button>
         ) : done ? (

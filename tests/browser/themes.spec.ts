@@ -35,7 +35,7 @@ for (const scheme of ['light', 'dark'] as const) {
       found.push(...(await scan(page, 'Export')))
       await page.getByRole('button', { name: 'Close export' }).click()
       await page
-        .getByRole('button', { name: /Stream Images/ })
+        .getByRole('button', { name: /Stream images/ })
         .first()
         .click()
       found.push(...(await scan(page, 'Stream')))
@@ -48,16 +48,14 @@ test('theme toggle switches, persists and follows the system until chosen', asyn
   const page = await browser.newPage({ colorScheme: 'dark' })
   await page.goto('./')
   const bg = () =>
-    page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--panel').trim(),
-    )
-  expect(await bg()).toBe('#111111')
+    page.evaluate(() => getComputedStyle(document.querySelector('.topbar')!).backgroundColor)
+  expect(await bg()).toBe('rgb(17, 17, 22)')
   await page.emulateMedia({ colorScheme: 'light' })
-  expect(await bg()).toBe('#ffffff')
+  expect(await bg()).toBe('rgb(255, 255, 255)')
   await page.getByRole('button', { name: 'Switch to dark mode' }).first().click()
-  expect(await bg()).toBe('#111111')
+  expect(await bg()).toBe('rgb(17, 17, 22)')
   await page.reload()
-  expect(await bg()).toBe('#111111')
+  expect(await bg()).toBe('rgb(17, 17, 22)')
   await expect(page.getByRole('button', { name: 'Switch to light mode' }).first()).toBeVisible()
   await page.close()
 })

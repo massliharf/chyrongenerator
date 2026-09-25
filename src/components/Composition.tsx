@@ -432,7 +432,7 @@ export const Composition = memo(function Composition({
       {!thumbnail && error && (
         <div className="canvas-message">
           <span>{error}</span>
-          <button className="button" onClick={() => setAttempt((n) => n + 1)}>
+          <button className="button outline sm" onClick={() => setAttempt((n) => n + 1)}>
             <RotateCcw size={14} /> Retry
           </button>
         </div>

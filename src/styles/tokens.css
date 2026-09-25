@@ -1,0 +1,354 @@
+/*
+ * Magnific Design System — tokens (v1.0)
+ * Primitive → Semantic → Component. Components reference semantic or component
+ * tokens only; primitives are never used directly outside this file.
+ * Brand: Chyron Studio keeps its blue brand, so the Magnific "Blue" family fills
+ * the action role. Swap the four --brand-* lines to re-brand (e.g. to Iris).
+ */
+:root {
+  /* ---------- Primitive palette ---------- */
+  --blue-50: #eff8ff;
+  --blue-100: #d1e9ff;
+  --blue-200: #b2ddff;
+  --blue-300: #84caff;
+  --blue-400: #53b1fd;
+  --blue-500: #2e90fa;
+  --blue-600: #1570ef;
+  --blue-700: #175cd3;
+  --blue-800: #1849a9;
+  --blue-900: #194185;
+  --blue-950: #102a56;
+
+  --neutral-0: #ffffff;
+  --neutral-50: #fafafb;
+  --neutral-100: #f4f4f6;
+  --neutral-200: #e8e8ec;
+  --neutral-300: #d4d4db;
+  --neutral-400: #a8a8b3;
+  --neutral-500: #7b7b88;
+  --neutral-600: #5c5c69;
+  --neutral-700: #474753;
+  --neutral-800: #2f2f39;
+  --neutral-900: #1c1c24;
+  --neutral-950: #111116;
+  --neutral-1000: #0b0b0f;
+
+  --green-50: #effcf4;
+  --green-200: #b4edcb;
+  --green-300: #7fdda8;
+  --green-600: #16874e;
+  --green-700: #146b41;
+  --green-800: #145536;
+  --green-950: #052718;
+  --amber-50: #fffaeb;
+  --amber-200: #fedf89;
+  --amber-300: #fec84b;
+  --amber-500: #f79009;
+  --amber-800: #93370d;
+  --amber-950: #4e1d09;
+  --red-50: #fef3f2;
+  --red-200: #fecdca;
+  --red-300: #fda29b;
+  --red-600: #d92d20;
+  --red-700: #b42318;
+  --red-800: #912018;
+  --red-950: #55160c;
+  --teal-100: #ccfbf1;
+  --teal-300: #5eead4;
+  --teal-800: #115e59;
+  --teal-900: #134e4a;
+  --violet-100: #e9e5ff;
+  --violet-300: #b6a8ff;
+  --violet-800: #4816ad;
+  --violet-900: #3c158d;
+  --cyan-400: #47dfff;
+
+  /* Brand mapping */
+  --brand-600: var(--blue-600);
+  --brand-700: var(--blue-700);
+  --brand-800: var(--blue-800);
+  --brand-50: var(--blue-50);
+
+  /* ---------- Typography ---------- */
+  --font-sans: 'Inter', 'SF Pro Text', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  /* Roles: weight size/line-height family */
+  --text-heading-lg: 600 1.5rem/2rem var(--font-sans);
+  --text-heading-md: 600 1.25rem/1.75rem var(--font-sans);
+  --text-heading-sm: 600 1.125rem/1.625rem var(--font-sans);
+  --text-heading-xs: 600 1rem/1.5rem var(--font-sans);
+  --text-body-md: 400 1rem/1.5rem var(--font-sans);
+  --text-body-sm: 400 0.875rem/1.25rem var(--font-sans);
+  --text-label-lg: 500 1rem/1.5rem var(--font-sans);
+  --text-label-md: 500 0.875rem/1.25rem var(--font-sans);
+  --text-label-sm: 500 0.75rem/1rem var(--font-sans);
+  --text-caption: 400 0.75rem/1rem var(--font-sans);
+  --text-overline: 600 0.6875rem/1rem var(--font-sans);
+  --text-code: 400 0.8125rem/1.25rem var(--font-mono);
+
+  /* ---------- Spacing (4pt) ---------- */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---------- Radius ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ---------- Border ---------- */
+  --border-width-thin: 1px;
+  --border-width-medium: 1.5px;
+  --border-width-thick: 2px;
+
+  /* ---------- Z-index ---------- */
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-header: 200;
+  --z-dropdown: 1000;
+  --z-overlay: 1100;
+  --z-modal: 1300;
+  --z-toast: 1500;
+  --z-tooltip: 1600;
+
+  /* ---------- Motion ---------- */
+  --duration-instant: 50ms;
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---------- Control sizes ---------- */
+  --control-xs: 28px;
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;
+  --touch-target-min: 44px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+
+  /* ---------- Layout ---------- */
+  --rail-width: 84px;
+  --topbar-height: 60px;
+  --bottom-nav-height: 64px;
+  --inspector-width: 360px;
+
+  color-scheme: light;
+  /* ---------- Semantic — light ---------- */
+  --color-bg-canvas: var(--neutral-100);
+  --color-bg-surface: var(--neutral-0);
+  --color-bg-surface-raised: var(--neutral-0);
+  --color-bg-surface-sunken: var(--neutral-100);
+  --color-bg-subtle: var(--neutral-100);
+  --color-bg-muted: var(--neutral-200);
+  --color-bg-inverse: var(--neutral-900);
+  --color-bg-overlay: rgb(17 17 22 / 0.48);
+  --color-bg-selected: var(--brand-50);
+  --color-text-primary: var(--neutral-900);
+  --color-text-secondary: var(--neutral-700);
+  --color-text-tertiary: var(--neutral-600);
+  --color-text-disabled: var(--neutral-400);
+  --color-text-inverse: var(--neutral-0);
+  --color-text-link: var(--brand-700);
+  --color-text-on-action: var(--neutral-0);
+  --color-text-brand: var(--brand-700);
+  --color-border-default: var(--neutral-200);
+  --color-border-strong: var(--neutral-300);
+  --color-border-subtle: var(--neutral-100);
+  --color-border-focus: var(--blue-500);
+  --color-border-selected: var(--blue-300);
+  --color-action-primary-bg: var(--brand-700);
+  --color-action-primary-bg-hover: var(--brand-800);
+  --color-action-primary-bg-active: var(--blue-900);
+  --color-action-secondary-bg: var(--brand-50);
+  --color-action-secondary-bg-hover: var(--blue-100);
+  --color-action-secondary-text: var(--brand-700);
+  --color-state-hover: rgb(17 17 22 / 0.05);
+  --color-state-pressed: rgb(17 17 22 / 0.1);
+  --color-success-bg: var(--green-50);
+  --color-success-text: var(--green-700);
+  --color-success-border: var(--green-200);
+  --color-success-solid: var(--green-600);
+  --color-warning-bg: var(--amber-50);
+  --color-warning-text: var(--amber-800);
+  --color-warning-border: var(--amber-200);
+  --color-warning-solid: var(--amber-500);
+  --color-danger-bg: var(--red-50);
+  --color-danger-text: var(--red-700);
+  --color-danger-border: var(--red-200);
+  --color-danger-solid: var(--red-600);
+  --color-info-bg: var(--blue-50);
+  --color-info-text: var(--blue-700);
+  --color-info-border: var(--blue-200);
+
+  --shadow-xs: 0 1px 2px rgb(17 17 22 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(17 17 22 / 0.08), 0 1px 2px rgb(17 17 22 / 0.04);
+  --shadow-md: 0 4px 8px -2px rgb(17 17 22 / 0.08), 0 2px 4px -2px rgb(17 17 22 / 0.04);
+  --shadow-lg: 0 12px 16px -4px rgb(17 17 22 / 0.08), 0 4px 6px -2px rgb(17 17 22 / 0.03);
+  --shadow-xl: 0 20px 24px -4px rgb(17 17 22 / 0.1), 0 8px 8px -4px rgb(17 17 22 / 0.04);
+
+  /* ---------- Component tokens ---------- */
+  --stage-bg: var(--neutral-200);
+  --stage-dot: rgb(17 17 22 / 0.08);
+  --checker-a: var(--neutral-200);
+  --checker-b: var(--neutral-50);
+  --track-title-bg: var(--blue-100);
+  --track-title-fg: var(--blue-900);
+  --track-title-line: var(--blue-300);
+  --track-image-bg: var(--teal-100);
+  --track-image-fg: var(--teal-900);
+  --track-image-line: var(--teal-300);
+  --track-stripe: rgb(17 17 22 / 0.06);
+  --transform-line: var(--blue-300);
+  --transform-handle: var(--blue-50);
+  --transform-handle-hover: var(--blue-300);
+  --transform-ink: var(--blue-950);
+  --snap-line: var(--cyan-400);
+  --scrollbar: var(--neutral-300);
+}
+
+/* ---------- Semantic — dark ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-bg-canvas: var(--neutral-1000);
+    --color-bg-surface: var(--neutral-950);
+    --color-bg-surface-raised: var(--neutral-900);
+    --color-bg-surface-sunken: var(--neutral-1000);
+    --color-bg-subtle: var(--neutral-900);
+    --color-bg-muted: var(--neutral-800);
+    --color-bg-inverse: var(--neutral-50);
+    --color-bg-overlay: rgb(0 0 0 / 0.64);
+    --color-bg-selected: var(--blue-950);
+    --color-text-primary: var(--neutral-50);
+    --color-text-secondary: var(--neutral-300);
+    --color-text-tertiary: var(--neutral-400);
+    --color-text-disabled: var(--neutral-600);
+    --color-text-inverse: var(--neutral-900);
+    --color-text-link: var(--blue-300);
+    --color-text-brand: var(--blue-300);
+    --color-border-default: var(--neutral-800);
+    --color-border-strong: var(--neutral-700);
+    --color-border-subtle: var(--neutral-900);
+    --color-border-focus: var(--blue-400);
+    --color-border-selected: var(--blue-700);
+    --color-action-primary-bg: var(--blue-700);
+    --color-action-primary-bg-hover: var(--blue-800);
+    --color-action-primary-bg-active: var(--blue-900);
+    --color-action-secondary-bg: var(--blue-950);
+    --color-action-secondary-bg-hover: var(--blue-900);
+    --color-action-secondary-text: var(--blue-200);
+    --color-state-hover: rgb(255 255 255 / 0.06);
+    --color-state-pressed: rgb(255 255 255 / 0.1);
+    --color-success-bg: var(--green-950);
+    --color-success-text: var(--green-300);
+    --color-success-border: var(--green-800);
+    --color-warning-bg: var(--amber-950);
+    --color-warning-text: var(--amber-300);
+    --color-warning-border: var(--amber-800);
+    --color-danger-bg: var(--red-950);
+    --color-danger-text: var(--red-300);
+    --color-danger-border: var(--red-800);
+    --color-info-bg: var(--blue-950);
+    --color-info-text: var(--blue-300);
+    --color-info-border: var(--blue-800);
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5);
+    --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 12px 16px -4px rgb(0 0 0 / 0.55);
+    --shadow-xl: 0 20px 24px -4px rgb(0 0 0 / 0.6);
+    --stage-bg: var(--neutral-1000);
+    --stage-dot: rgb(255 255 255 / 0.06);
+    --checker-a: var(--neutral-800);
+    --checker-b: var(--neutral-900);
+    --track-title-bg: var(--blue-950);
+    --track-title-fg: var(--blue-100);
+    --track-title-line: var(--blue-700);
+    --track-image-bg: var(--teal-900);
+    --track-image-fg: var(--teal-100);
+    --track-image-line: var(--teal-800);
+    --track-stripe: rgb(255 255 255 / 0.07);
+    --scrollbar: var(--neutral-700);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg-canvas: var(--neutral-1000);
+  --color-bg-surface: var(--neutral-950);
+  --color-bg-surface-raised: var(--neutral-900);
+  --color-bg-surface-sunken: var(--neutral-1000);
+  --color-bg-subtle: var(--neutral-900);
+  --color-bg-muted: var(--neutral-800);
+  --color-bg-inverse: var(--neutral-50);
+  --color-bg-overlay: rgb(0 0 0 / 0.64);
+  --color-bg-selected: var(--blue-950);
+  --color-text-primary: var(--neutral-50);
+  --color-text-secondary: var(--neutral-300);
+  --color-text-tertiary: var(--neutral-400);
+  --color-text-disabled: var(--neutral-600);
+  --color-text-inverse: var(--neutral-900);
+  --color-text-link: var(--blue-300);
+  --color-text-brand: var(--blue-300);
+  --color-border-default: var(--neutral-800);
+  --color-border-strong: var(--neutral-700);
+  --color-border-subtle: var(--neutral-900);
+  --color-border-focus: var(--blue-400);
+  --color-border-selected: var(--blue-700);
+  --color-action-primary-bg: var(--blue-700);
+  --color-action-primary-bg-hover: var(--blue-800);
+  --color-action-primary-bg-active: var(--blue-900);
+  --color-action-secondary-bg: var(--blue-950);
+  --color-action-secondary-bg-hover: var(--blue-900);
+  --color-action-secondary-text: var(--blue-200);
+  --color-state-hover: rgb(255 255 255 / 0.06);
+  --color-state-pressed: rgb(255 255 255 / 0.1);
+  --color-success-bg: var(--green-950);
+  --color-success-text: var(--green-300);
+  --color-success-border: var(--green-800);
+  --color-warning-bg: var(--amber-950);
+  --color-warning-text: var(--amber-300);
+  --color-warning-border: var(--amber-800);
+  --color-danger-bg: var(--red-950);
+  --color-danger-text: var(--red-300);
+  --color-danger-border: var(--red-800);
+  --color-info-bg: var(--blue-950);
+  --color-info-text: var(--blue-300);
+  --color-info-border: var(--blue-800);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 12px 16px -4px rgb(0 0 0 / 0.55);
+  --shadow-xl: 0 20px 24px -4px rgb(0 0 0 / 0.6);
+  --stage-bg: var(--neutral-1000);
+  --stage-dot: rgb(255 255 255 / 0.06);
+  --checker-a: var(--neutral-800);
+  --checker-b: var(--neutral-900);
+  --track-title-bg: var(--blue-950);
+  --track-title-fg: var(--blue-100);
+  --track-title-line: var(--blue-700);
+  --track-image-bg: var(--teal-900);
+  --track-image-fg: var(--teal-100);
+  --track-image-line: var(--teal-800);
+  --track-stripe: rgb(255 255 255 / 0.07);
+  --scrollbar: var(--neutral-700);
+}

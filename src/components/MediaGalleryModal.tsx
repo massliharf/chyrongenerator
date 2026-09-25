@@ -1,11 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { X, Search, Image as ImageIcon, Upload, Check, Download } from 'lucide-react'
+import { X, Search, Image as ImageIcon, Upload } from 'lucide-react'
 import {
   GALLERY_CATEGORIES,
   GALLERY_ITEMS,
   getGalleryItemUrl,
   getGalleryItemThumbUrl,
-  downloadGalleryItem,
   type GalleryItem,
 } from '../studio/galleryData'
 
@@ -27,7 +26,6 @@ export function MediaGalleryModal({
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'All')
   const [prevCategory, setPrevCategory] = useState(initialCategory)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   if (initialCategory !== prevCategory) {
@@ -47,8 +45,7 @@ export function MediaGalleryModal({
 
   const filteredItems = useMemo(() => {
     return GALLERY_ITEMS.filter((item) => {
-      const matchesCategory =
-        selectedCategory === 'All' || item.category === selectedCategory
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
       const query = searchQuery.trim().toLowerCase()
       const matchesSearch =
         !query ||
@@ -64,182 +61,119 @@ export function MediaGalleryModal({
   return (
     <dialog
       ref={dialogRef}
-      className="media-gallery-dialog"
-      aria-label="Media Gallery"
+      className="dialog dialog-xl picker-dialog"
+      aria-labelledby="picker-title"
       onClose={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
-      <div className="media-gallery-container">
-        <header className="media-gallery-header">
-          <div className="media-gallery-title-wrap">
-            <div className="media-gallery-icon">
-              <ImageIcon size={20} />
-            </div>
-            <div>
-              <h2 className="media-gallery-title">Media Gallery</h2>
-              <p className="media-gallery-subtitle">
-                Select from {GALLERY_ITEMS.length} built-in assets or upload your own
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="icon-button close-button"
-            aria-label="Close gallery"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </header>
-
-        <div className="media-gallery-toolbar">
-          <div className="media-gallery-search">
-            <Search size={16} className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search assets by name or tag…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search assets"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="clear-search"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {onUploadClick && (
+      <header className="dialog-header">
+        <div>
+          <h2 id="picker-title">Choose from Media gallery</h2>
+          <p>{GALLERY_ITEMS.length} built-in assets</p>
+        </div>
+        <button type="button" className="icon-button" aria-label="Close gallery" onClick={onClose}>
+          <X size={20} />
+        </button>
+      </header>
+      <div className="picker-toolbar">
+        <div className="search-field">
+          <Search size={18} className="search-field-icon" aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Search assets"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search assets"
+          />
+          {searchQuery && (
             <button
               type="button"
-              className="button subtle upload-shortcut"
-              onClick={() => {
-                onClose()
-                onUploadClick()
-              }}
+              className="icon-button sm"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
             >
-              <Upload size={16} />
-              <span>Upload from device</span>
+              <X size={16} />
             </button>
           )}
         </div>
-
-        <nav className="media-gallery-categories" aria-label="Asset categories">
+        <div className="chip-row" role="group" aria-label="Asset categories">
+          {['All', ...GALLERY_CATEGORIES].map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              className="filter-chip"
+              aria-pressed={selectedCategory === cat}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              {cat}
+              <span className="count">
+                {cat === 'All'
+                  ? GALLERY_ITEMS.length
+                  : GALLERY_ITEMS.filter((i) => i.category === cat).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="dialog-body">
+        {filteredItems.length === 0 ? (
+          <div className="empty-state">
+            <ImageIcon size={40} aria-hidden="true" />
+            <strong>No assets match</strong>
+            <span>Try another search term or category.</span>
+          </div>
+        ) : (
+          <div className="picker-grid">
+            {filteredItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="picker-card"
+                aria-label={`Use ${item.name} (${item.category})`}
+                onClick={() => onSelect(item)}
+              >
+                <span className="picker-card-thumb checker">
+                  <img
+                    src={getGalleryItemThumbUrl(item)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      const fullUrl = getGalleryItemUrl(item)
+                      if (target.src !== fullUrl) target.src = fullUrl
+                    }}
+                  />
+                </span>
+                <span className="picker-card-name">{item.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <footer className="dialog-footer">
+        <span className="dialog-footer-note">
+          {filteredItems.length} of {GALLERY_ITEMS.length} assets
+        </span>
+        <span className="dialog-footer-spacer" />
+        <button type="button" className="button outline" onClick={onClose}>
+          Cancel
+        </button>
+        {onUploadClick && (
           <button
             type="button"
-            className={`category-pill ${selectedCategory === 'All' ? 'active' : ''}`}
-            onClick={() => setSelectedCategory('All')}
+            className="button secondary"
+            onClick={() => {
+              onClose()
+              onUploadClick()
+            }}
           >
-            All <span className="category-count">{GALLERY_ITEMS.length}</span>
+            <Upload size={16} aria-hidden="true" /> Upload from device
           </button>
-          {GALLERY_CATEGORIES.map((cat) => {
-            const count = GALLERY_ITEMS.filter((i) => i.category === cat).length
-            return (
-              <button
-                key={cat}
-                type="button"
-                className={`category-pill ${selectedCategory === cat ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(cat)}
-              >
-                {cat} <span className="category-count">{count}</span>
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="media-gallery-grid-wrap">
-          {filteredItems.length === 0 ? (
-            <div className="media-gallery-empty">
-              <ImageIcon size={40} />
-              <p>No matching assets found</p>
-              <span>Try a different search keyword or category</span>
-            </div>
-          ) : (
-            <div className="media-gallery-grid">
-              {filteredItems.map((item) => {
-                const isSelected = selectedItem?.id === item.id
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`gallery-card ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                      setSelectedItem(item)
-                      onSelect(item)
-                    }}
-                    title={`${item.name} (${item.category})`}
-                  >
-                    <div className="gallery-thumbnail-wrap">
-                      <img
-                        src={getGalleryItemThumbUrl(item)}
-                        alt={item.name}
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          const target = e.currentTarget
-                          const fullUrl = getGalleryItemUrl(item)
-                          if (target.src !== fullUrl) {
-                            target.src = fullUrl
-                          }
-                        }}
-                        className="gallery-thumbnail"
-                      />
-                      <button
-                        type="button"
-                        className="gallery-item-download-btn"
-                        title={`Download ${item.filename}`}
-                        aria-label={`Download ${item.filename}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void downloadGalleryItem(item)
-                        }}
-                      >
-                        <Download size={14} />
-                      </button>
-                      {isSelected && (
-                        <div className="gallery-check">
-                          <Check size={16} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="gallery-card-info">
-                      <span className="gallery-card-name">{item.name}</span>
-                      <span className="gallery-card-category">{item.category}</span>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        <footer className="media-gallery-footer">
-          <span className="media-gallery-info">
-            Showing {filteredItems.length} of {GALLERY_ITEMS.length} assets
-          </span>
-          <div className="media-gallery-actions">
-            <button type="button" className="button subtle" onClick={onClose}>
-              Cancel
-            </button>
-            {onUploadClick && (
-              <button
-                type="button"
-                className="button primary"
-                onClick={() => {
-                  onClose()
-                  onUploadClick()
-                }}
-              >
-                <Upload size={16} /> Upload image
-              </button>
-            )}
-          </div>
-        </footer>
-      </div>
+        )}
+      </footer>
     </dialog>
   )
 }

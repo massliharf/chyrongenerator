@@ -1,4 +1,10 @@
-import { CORNERS, isFormatPointInHost, isPointInHost, resizeHost, rotateHost } from '../src/stream/transform'
+import {
+  CORNERS,
+  isFormatPointInHost,
+  isPointInHost,
+  resizeHost,
+  rotateHost,
+} from '../src/stream/transform'
 import { describe, expect, it } from 'vitest'
 import { coverRect, defaultLayout, FORMATS, hostRect, newStreamDocument } from '../src/stream/model'
 
@@ -83,14 +89,22 @@ describe('host hit testing for framing controls', () => {
 
   it('detects hits inside unrotated host image', () => {
     expect(isFormatPointInHost({ x: rect.x, y: rect.y }, format, layout, bounds)).toBe(true)
-    expect(isFormatPointInHost({ x: rect.x + rect.width * 0.45, y: rect.y }, format, layout, bounds)).toBe(true)
-    expect(isFormatPointInHost({ x: rect.x, y: rect.y + rect.height * 0.45 }, format, layout, bounds)).toBe(true)
+    expect(
+      isFormatPointInHost({ x: rect.x + rect.width * 0.45, y: rect.y }, format, layout, bounds),
+    ).toBe(true)
+    expect(
+      isFormatPointInHost({ x: rect.x, y: rect.y + rect.height * 0.45 }, format, layout, bounds),
+    ).toBe(true)
   })
 
   it('rejects points outside host image boundaries', () => {
     expect(isFormatPointInHost({ x: 50, y: 50 }, format, layout, bounds)).toBe(false)
-    expect(isFormatPointInHost({ x: rect.x + rect.width * 0.6, y: rect.y }, format, layout, bounds)).toBe(false)
-    expect(isFormatPointInHost({ x: rect.x, y: rect.y + rect.height * 0.6 }, format, layout, bounds)).toBe(false)
+    expect(
+      isFormatPointInHost({ x: rect.x + rect.width * 0.6, y: rect.y }, format, layout, bounds),
+    ).toBe(false)
+    expect(
+      isFormatPointInHost({ x: rect.x, y: rect.y + rect.height * 0.6 }, format, layout, bounds),
+    ).toBe(false)
   })
 
   it('correctly handles rotated host hit testing', () => {
@@ -98,7 +112,9 @@ describe('host hit testing for framing controls', () => {
     // When rotated 90 degrees, width and height visual axes swap
     expect(isFormatPointInHost({ x: rect.x, y: rect.y }, format, rotated, bounds)).toBe(true)
     // A point along the Y axis of original (height = 800) is now along the X axis
-    expect(isFormatPointInHost({ x: rect.x + rect.height * 0.45, y: rect.y }, format, rotated, bounds)).toBe(true)
+    expect(
+      isFormatPointInHost({ x: rect.x + rect.height * 0.45, y: rect.y }, format, rotated, bounds),
+    ).toBe(true)
   })
 
   it('converts client viewport coordinates through canvas DOMRect', () => {
@@ -108,4 +124,3 @@ describe('host hit testing for framing controls', () => {
     expect(isPointInHost({ x: 105, y: 205 }, canvasRect, format, layout, bounds)).toBe(false)
   })
 })
-

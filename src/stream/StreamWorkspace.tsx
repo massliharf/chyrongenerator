@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Check,
+  ChevronDown,
+  Copy,
   Download,
+  FileImage,
   FlipHorizontal2,
   Image as ImageIcon,
   LoaderCircle,
-  Move,
+  Plus,
   Redo2,
-  RotateCcw,
+  RefreshCw,
   ScanLine,
   SquareDashed,
   Trash2,
@@ -16,8 +18,9 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
-import { Color, Field, Range, Section, Toggle } from '../components/Controls'
-import { WorkspaceNav, type Workspace } from '../components/WorkspaceNav'
+import { Color, NumberField, Section } from '../components/Controls'
+import { MenuButton } from '../components/Menu'
+import { SaveStatus, TopBar } from '../components/TopBar'
 import { saveBlob } from '../studio/export'
 import { importImage } from './assets'
 import { exportStreamPng, exportStreamSet } from './export'
@@ -35,8 +38,6 @@ import {
 import { useStreamImages } from './renderer'
 import { StreamCanvas } from './StreamCanvas'
 import { useStreamProject } from './useStreamProject'
-import { ThemeToggle } from '../components/ThemeToggle'
-import './StreamWorkspace.css'
 
 function ImageThumbnail({ image }: { image: HTMLImageElement | null | undefined }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -53,13 +54,7 @@ function ImageThumbnail({ image }: { image: HTMLImageElement | null | undefined 
   return <canvas ref={canvas} width={120} height={90} aria-hidden="true" />
 }
 
-export default function StreamWorkspace({
-  active,
-  onWorkspaceChange,
-}: {
-  active: boolean
-  onWorkspaceChange: (workspace: Workspace) => void
-}) {
+export default function StreamWorkspace({ active }: { active: boolean }) {
   const editor = useStreamProject()
   const doc = editor.document
   const [selected, setSelected] = useState<FormatId>('hero')
@@ -130,7 +125,11 @@ export default function StreamWorkspace({
     try {
       const asset = await importImage(file, !background)
       if (background) editor.addBackground(asset, selected)
-      else editor.setHost(asset)
+      else {
+        editor.setHost(asset)
+        // A new host is what people frame next: show its handles right away.
+        setShowControls(true)
+      }
       setNotice(
         background
           ? 'Background added to this image.'
@@ -152,8 +151,7 @@ export default function StreamWorkspace({
       const custom = e as CustomEvent<{ item: GalleryItem; target?: 'host' | 'background' }>
       if (!custom.detail?.item) return
       const isBg =
-        custom.detail.target === 'background' ||
-        custom.detail.item.category === 'Backgrounds'
+        custom.detail.target === 'background' || custom.detail.item.category === 'Backgrounds'
       try {
         setBusy(isBg ? 'Opening background…' : 'Preparing your host…')
         const file = await fetchGalleryFile(custom.detail.item)
@@ -189,29 +187,107 @@ export default function StreamWorkspace({
     }
   }
 
+  const hostMenu = (label: string, className: string, content: React.ReactNode) => (
+    <MenuButton
+      label={label}
+      className={className}
+      disabled={disabled}
+      items={[
+        {
+          label: 'Choose from Media gallery',
+          Icon: ImageIcon,
+          onSelect: () => setGalleryTarget('host'),
+        },
+        {
+          label: 'Upload from device',
+          Icon: Upload,
+          hint: 'PNG, JPEG or WebP · up to 20 MB',
+          onSelect: () => hostInput.current?.click(),
+        },
+      ]}
+    >
+      {content}
+    </MenuButton>
+  )
+  const backgroundKind = imageBackground ? 'image' : layout.background
+  const backgroundName =
+    BACKGROUNDS.find((b) => b.id === layout.background)?.name ??
+    doc.backgrounds.find((b) => b.id === layout.background)?.name ??
+    (layout.background === 'gradient'
+      ? 'Gradient'
+      : layout.background === 'solid'
+        ? 'Solid color'
+        : 'Transparent')
+  const selectBackground = (id: string) =>
+    patch({ background: id, backgroundX: 50, backgroundY: 50, backgroundZoom: 100 })
+
   return (
-    <div className="studio-shell stream-shell">
+    <div className="workspace-root stream-root">
       <a className="skip-link" href="#stream-controls">
         Skip to image settings
       </a>
-      <header className="app-header">
-        <div className="header-start">
-          <h1 className="brand" aria-label="Chyron Studio">
-            <span className="brand-symbol" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-            <strong>
-              chyron<span>studio</span>
-            </strong>
-          </h1>
-          <WorkspaceNav current="stream" onChange={onWorkspaceChange} />
-        </div>
-        <div className="project-header">
-          <span className="header-divider" />
+      <TopBar
+        actions={
+          <>
+            <div className="history-actions">
+              <button
+                className="icon-button"
+                aria-label="Undo image edit"
+                title="Undo (⌘/Ctrl Z)"
+                disabled={disabled || !editor.canUndo}
+                onClick={editor.undo}
+              >
+                <Undo2 size={20} />
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Redo image edit"
+                title="Redo (⌘/Ctrl Shift Z)"
+                disabled={disabled || !editor.canRedo}
+                onClick={editor.redo}
+              >
+                <Redo2 size={20} />
+              </button>
+            </div>
+            <div className="split-button">
+              <button
+                className="button primary topbar-primary"
+                aria-label="Download all images as ZIP"
+                title="Three full-resolution PNGs in one ZIP"
+                disabled={!canExport}
+                onClick={() => void download(true)}
+              >
+                {busy ? (
+                  <LoaderCircle size={18} className="spin" aria-hidden="true" />
+                ) : (
+                  <Download size={18} aria-hidden="true" />
+                )}{' '}
+                <span className="label">Download set</span>
+              </button>
+              <MenuButton
+                label="More download options"
+                className="button primary split-button-toggle"
+                align="end"
+                disabled={!canExport}
+                items={[
+                  {
+                    label: `Download ${format.name} only`,
+                    Icon: FileImage,
+                    hint: `PNG · ${format.width} × ${format.height}`,
+                    onSelect: () => void download(false),
+                  },
+                ]}
+              >
+                <ChevronDown size={18} />
+              </MenuButton>
+            </div>
+          </>
+        }
+      >
+        <h1 className="sr-only">Stream images</h1>
+        <div className="document-title">
           <input
-            className="project-name"
+            className="document-name"
             aria-label="Stream set name"
             value={doc.name}
             maxLength={80}
@@ -219,60 +295,20 @@ export default function StreamWorkspace({
             onChange={(e) => editor.rename(e.target.value)}
           />
         </div>
-        <div className="header-actions">
-          <div className="history-actions">
-            <button
-              className="icon-button"
-              aria-label="Undo image edit"
-              disabled={disabled || !editor.canUndo}
-              onClick={editor.undo}
-            >
-              <Undo2 size={18} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Redo image edit"
-              disabled={disabled || !editor.canRedo}
-              onClick={editor.redo}
-            >
-              <Redo2 size={18} />
-            </button>
-            <ThemeToggle />
-          </div>
-          <button
-            className="button primary export-trigger"
-            aria-label="Download all images as ZIP"
-            disabled={!canExport}
-            onClick={() => void download(true)}
-          >
-            {busy ? <LoaderCircle size={20} className="spin" /> : <Download size={20} />}{' '}
-            <span>
-              Download set <span className="si-count">3</span>
-            </span>
-          </button>
-        </div>
-      </header>
-      <div className="si-workspace">
-        <main className="si-main" aria-label="Stream image previews">
-          <div className="si-preview-toolbar">
-            <div>
+        <SaveStatus status={editor.saveStatus} error={editor.storageError} />
+      </TopBar>
+      <div className="workspace-body">
+        <main className="editor-main" aria-label="Stream image previews">
+          <div className="canvas-toolbar">
+            <div className="canvas-title">
               <strong>{format.name}</strong>
-              <span>
-                {format.width} × {format.height} <span aria-hidden="true">·</span> {format.ratio}
+              <span className="badge">
+                {format.width} × {format.height} · {format.ratio}
               </span>
             </div>
-            <div className="si-canvas-tools" role="group" aria-label="Canvas tools">
+            <div className="canvas-tools" role="group" aria-label="Canvas tools">
               <button
-                className="icon-button"
-                aria-label="Fit host to canvas"
-                title="Fit host to canvas"
-                disabled={disabled || !doc.host}
-                onClick={() => patch(DEFAULT_FRAMING)}
-              >
-                <RotateCcw size={20} />
-              </button>
-              <button
-                className="icon-button"
+                className={`icon-button ${layout.flip ? 'selected' : ''}`}
                 aria-label="Flip host horizontally"
                 title="Flip host horizontally"
                 aria-pressed={layout.flip}
@@ -285,7 +321,7 @@ export default function StreamWorkspace({
                 className={`icon-button ${showControls ? 'selected' : ''}`}
                 aria-label="Show image controls"
                 title={
-                  showControls ? 'Hide frame controls' : 'Show frame controls (or click host image)'
+                  showControls ? 'Hide frame handles' : 'Show frame handles (or click the host)'
                 }
                 aria-pressed={showControls}
                 disabled={disabled || !doc.host}
@@ -298,14 +334,14 @@ export default function StreamWorkspace({
                 aria-label="Show image safe area"
                 aria-pressed={guides}
                 onClick={() => setGuides(!guides)}
-                title="Safe area guides"
+                title="Safe area guides (preview only)"
               >
                 <ScanLine size={20} />
               </button>
             </div>
           </div>
           <div
-            className={`si-stage ${dragging ? 'is-dragging' : ''}`}
+            className={`stage si-stage ${dragging ? 'is-dragging' : ''}`}
             onDragOver={(e) => {
               e.preventDefault()
               if (!disabled) setDragging(true)
@@ -344,52 +380,30 @@ export default function StreamWorkspace({
               />
               {guides && (
                 <div className="si-guides" aria-hidden="true">
-                  <span>SAFE AREA</span>
+                  <span>Safe area</span>
                 </div>
               )}
               {!doc.host && (
                 <div className="si-placeholder">
-                  <UserRound size={48} strokeWidth={1.25} />
-                  <strong>Your host goes here</strong>
-                  <span>Drop a transparent PNG or select from the gallery.</span>
-                  <div className="si-placeholder-buttons">
-                    <button
-                      className="button primary"
-                      disabled={disabled}
-                      onClick={() => setGalleryTarget('host')}
-                    >
-                      <ImageIcon size={18} /> Choose from gallery
-                    </button>
-                    <button
-                      className="button subtle"
-                      disabled={disabled}
-                      onClick={() => hostInput.current?.click()}
-                    >
-                      <Upload size={18} /> Upload host
-                    </button>
-                  </div>
+                  <UserRound size={40} strokeWidth={1.5} aria-hidden="true" />
+                  <strong>Add your host</strong>
+                  <span>Drop a transparent PNG here. It fills all three images.</span>
+                  {hostMenu(
+                    'Add host image',
+                    'button primary',
+                    <>
+                      <Plus size={18} aria-hidden="true" /> Add host image
+                    </>,
+                  )}
                 </div>
               )}
             </div>
             {dragging && (
-              <div className="si-drop-overlay">
-                <Upload size={32} />
+              <div className="drop-overlay">
+                <Upload size={28} aria-hidden="true" />
                 Drop your host image
               </div>
             )}
-          </div>
-          <div className="si-preview-actions">
-            <span>
-              <Move size={16} />{' '}
-              {doc.host
-                ? showControls
-                  ? 'Drag to move · Corners to resize · Top handle to rotate'
-                  : 'Click host image to frame · Move, resize & rotate'
-                : 'Your PNG cutout is placed over the background.'}
-            </span>
-            <button className="button" disabled={!canExport} onClick={() => void download(false)}>
-              <Download size={18} /> Download PNG
-            </button>
           </div>
           <div className="si-formats" role="group" aria-label="Output images">
             {FORMATS.map((f) => (
@@ -415,93 +429,69 @@ export default function StreamWorkspace({
                     {f.width} × {f.height}
                   </span>
                 </div>
-                {selected === f.id && <Check size={18} className="si-selected-check" />}
               </button>
             ))}
           </div>
         </main>
         <aside
-          className="si-inspector"
+          className="inspector"
           aria-label="Stream image settings"
           id="stream-controls"
           tabIndex={-1}
         >
-          <div className="si-panel-heading">
-            <h2>Make it yours</h2>
-            <span>Editing {format.name.toLowerCase()}</span>
-          </div>
-          <fieldset className="si-controls" disabled={disabled}>
+          <header className="inspector-head">
+            <span className="inspector-icon" aria-hidden="true">
+              <ImageIcon size={18} />
+            </span>
+            <div className="inspector-heading">
+              <h2>{format.name}</h2>
+              <span>Framing and background apply to this image</span>
+            </div>
+          </header>
+          <fieldset className="inspector-body" disabled={disabled}>
             <legend className="sr-only">Image customization</legend>
-            <div className="si-host-upload">
-              <div className="si-section-label">
-                <h3>Host image</h3>
-                <span>Shared across all 3</span>
-              </div>
+            <section className="panel-block" aria-labelledby="host-heading">
+              <h3 id="host-heading" className="panel-block-title">
+                Host image
+              </h3>
               {doc.host ? (
-                <div className="si-file-card">
-                  <div className="si-file-thumb">
+                <div className="file-card">
+                  <div className="file-card-thumb">
                     <ImageThumbnail image={images?.host} />
                   </div>
-                  <div>
+                  <div className="file-card-text">
                     <strong title={doc.host.name}>{doc.host.name}</strong>
                     <span>
-                      {doc.host.width} × {doc.host.height}
+                      {doc.host.width} × {doc.host.height} · all 3 images
                     </span>
                   </div>
+                  {hostMenu('Replace host image', 'icon-button', <RefreshCw size={18} />)}
                   <button
                     className="icon-button"
                     aria-label="Remove host image"
+                    title="Remove host image"
                     onClick={() => editor.setHost(null)}
                   >
                     <Trash2 size={18} />
                   </button>
                 </div>
               ) : (
-                <p>Upload once to fill every format.</p>
+                <p className="field-hint">
+                  No host yet. Add one from the canvas or drop a file on it. A transparent PNG works
+                  best; photo backgrounds are kept.
+                </p>
               )}
-              <div className="si-quick-actions" style={{ flexDirection: 'column', gap: '8px' }}>
-                <button
-                  className="button primary full"
-                  disabled={disabled}
-                  onClick={() => setGalleryTarget('host')}
-                >
-                  <ImageIcon size={16} /> Choose from gallery
-                </button>
-                <button
-                  className={`button ${doc.host ? '' : 'subtle'} full`}
-                  disabled={disabled}
-                  onClick={() => hostInput.current?.click()}
-                >
-                  <Upload size={16} /> {doc.host ? 'Upload host image' : 'Upload host'}
-                </button>
-              </div>
-              <p className="field-hint">
-                PNG, JPEG or WebP · up to 20 MB. Use a transparent PNG for a cutout; photo
-                backgrounds are kept.
-              </p>
-            </div>
+            </section>
             <Section
-              title="Host framing"
-              summary={`${Math.round(layout.zoom)}% size · ${layout.rotation}° rotation`}
+              title="Framing"
+              summary={`${Math.round(layout.zoom)}% · ${layout.rotation}°`}
               open={open.framing}
               onToggle={() => toggle('framing')}
               onReset={() => patch(DEFAULT_FRAMING)}
             >
-              <fieldset className="si-framing" disabled={!doc.host}>
+              <fieldset className="form-grid" disabled={!doc.host}>
                 <legend className="sr-only">Host position</legend>
-                <div className="si-quick-actions">
-                  <button className="button" onClick={() => patch(DEFAULT_FRAMING)}>
-                    <RotateCcw size={16} /> Auto fit
-                  </button>
-                  <button
-                    className={`button ${layout.flip ? 'selected' : ''}`}
-                    aria-pressed={layout.flip}
-                    onClick={() => patch({ flip: !layout.flip })}
-                  >
-                    <FlipHorizontal2 size={16} /> Flip
-                  </button>
-                </div>
-                <Range
+                <NumberField
                   label="Host size"
                   value={layout.zoom}
                   min={20}
@@ -509,25 +499,7 @@ export default function StreamWorkspace({
                   unit="%"
                   onChange={(zoom) => patch({ zoom })}
                 />
-                <Range
-                  label="Horizontal position"
-                  value={layout.x}
-                  min={-50}
-                  max={150}
-                  step={0.25}
-                  unit="%"
-                  onChange={(x) => patch({ x })}
-                />
-                <Range
-                  label="Vertical position"
-                  value={layout.y}
-                  min={-50}
-                  max={150}
-                  step={0.25}
-                  unit="%"
-                  onChange={(y) => patch({ y })}
-                />
-                <Range
+                <NumberField
                   label="Host rotation"
                   value={layout.rotation}
                   min={-180}
@@ -535,103 +507,151 @@ export default function StreamWorkspace({
                   unit="°"
                   onChange={(rotation) => patch({ rotation })}
                 />
+                <NumberField
+                  label="Host horizontal"
+                  value={layout.x}
+                  min={-50}
+                  max={150}
+                  step={0.25}
+                  unit="%"
+                  onChange={(x) => patch({ x })}
+                />
+                <NumberField
+                  label="Host vertical"
+                  value={layout.y}
+                  min={-50}
+                  max={150}
+                  step={0.25}
+                  unit="%"
+                  onChange={(y) => patch({ y })}
+                />
+                {!doc.host && <p className="field-hint">Add a host image to frame it.</p>}
               </fieldset>
             </Section>
             <Section
               title="Background"
-              summary={
-                BACKGROUNDS.find((b) => b.id === layout.background)?.name ??
-                doc.backgrounds.find((b) => b.id === layout.background)?.name ??
-                (layout.background === 'gradient'
-                  ? 'Color gradient'
-                  : layout.background === 'solid'
-                    ? 'Solid color'
-                    : 'Transparent')
-              }
+              summary={backgroundName}
               open={open.background}
               onToggle={() => toggle('background')}
             >
-              <div className="si-background-grid">
-                {BACKGROUNDS.map((bg) => (
-                  <button
-                    key={bg.id}
-                    aria-label={`Use ${bg.name} background`}
-                    aria-pressed={layout.background === bg.id}
-                    onClick={() =>
-                      patch({
-                        background: bg.id,
-                        backgroundX: 50,
-                        backgroundY: 50,
-                        backgroundZoom: 100,
-                      })
-                    }
-                  >
-                    <img src={assetUrl(bg.file)} alt="" />
-                    <span>{bg.name}</span>
-                  </button>
-                ))}
-                {doc.backgrounds.map((bg) => (
-                  <button
-                    key={bg.id}
-                    aria-label={`Use ${bg.name} background`}
-                    aria-pressed={layout.background === bg.id}
-                    onClick={() =>
-                      patch({
-                        background: bg.id,
-                        backgroundX: 50,
-                        backgroundY: 50,
-                        backgroundZoom: 100,
-                      })
-                    }
-                  >
-                    <ImageThumbnail image={images?.backgrounds[bg.id]} />
-                    <span title={bg.name}>{bg.name}</span>
-                  </button>
-                ))}
+              <div className="field">
+                <span className="field-label" id="bg-kind-label">
+                  Background style
+                </span>
+                <div className="segmented" role="radiogroup" aria-labelledby="bg-kind-label">
+                  {(
+                    [
+                      ['image', 'Image'],
+                      ['gradient', 'Gradient'],
+                      ['solid', 'Solid'],
+                      ['transparent', 'None'],
+                    ] as const
+                  ).map(([id, name]) => (
+                    <button
+                      key={id}
+                      role="radio"
+                      aria-checked={backgroundKind === id}
+                      className={backgroundKind === id ? 'active' : ''}
+                      onClick={() => {
+                        if (id === 'image') {
+                          if (!imageBackground) selectBackground('grid')
+                        } else patch({ background: id })
+                      }}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="si-quick-actions">
-                <button
-                  className="button"
-                  disabled={disabled}
-                  onClick={() => setGalleryTarget('background')}
-                >
-                  <ImageIcon size={16} /> Choose from gallery
-                </button>
-                <button
-                  className="button"
-                  disabled={disabled}
-                  onClick={() => backgroundInput.current?.click()}
-                >
-                  <Upload size={16} /> Upload background
-                </button>
-              </div>
-              <Field label="Background style">
-                <select
-                  value={imageBackground ? 'image' : layout.background}
-                  onChange={(e) =>
-                    patch({ background: e.target.value === 'image' ? 'grid' : e.target.value })
-                  }
-                >
-                  <option value="image">Background image</option>
-                  <option value="gradient">Color gradient</option>
-                  <option value="solid">Solid color</option>
-                  <option value="transparent">Transparent</option>
-                </select>
-              </Field>
-              {doc.backgrounds.some((bg) => bg.id === layout.background) && (
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    editor.removeBackground(layout.background)
-                    setNotice('Background removed. Undo to restore it.')
-                  }}
-                >
-                  <Trash2 size={16} /> Remove custom background
-                </button>
+              {imageBackground && (
+                <>
+                  <div className="si-background-grid" role="group" aria-label="Background images">
+                    {BACKGROUNDS.map((bg) => (
+                      <button
+                        key={bg.id}
+                        aria-label={`Use ${bg.name} background`}
+                        aria-pressed={layout.background === bg.id}
+                        onClick={() => selectBackground(bg.id)}
+                      >
+                        <img src={assetUrl(bg.file)} alt="" />
+                        <span>{bg.name}</span>
+                      </button>
+                    ))}
+                    {doc.backgrounds.map((bg) => (
+                      <button
+                        key={bg.id}
+                        aria-label={`Use ${bg.name} background`}
+                        aria-pressed={layout.background === bg.id}
+                        onClick={() => selectBackground(bg.id)}
+                      >
+                        <ImageThumbnail image={images?.backgrounds[bg.id]} />
+                        <span title={bg.name}>{bg.name}</span>
+                      </button>
+                    ))}
+                    <MenuButton
+                      label="Add background"
+                      className="si-background-add"
+                      disabled={disabled}
+                      items={[
+                        {
+                          label: 'Choose from Media gallery',
+                          Icon: ImageIcon,
+                          onSelect: () => setGalleryTarget('background'),
+                        },
+                        {
+                          label: 'Upload from device',
+                          Icon: Upload,
+                          hint: 'Up to 8 custom backgrounds',
+                          onSelect: () => backgroundInput.current?.click(),
+                        },
+                      ]}
+                    >
+                      <Plus size={20} aria-hidden="true" />
+                      <span>Add</span>
+                    </MenuButton>
+                  </div>
+                  {doc.backgrounds.some((bg) => bg.id === layout.background) && (
+                    <button
+                      className="button ghost danger-text sm"
+                      onClick={() => {
+                        editor.removeBackground(layout.background)
+                        setNotice('Background removed. Undo to restore it.')
+                      }}
+                    >
+                      <Trash2 size={16} aria-hidden="true" /> Remove this background
+                    </button>
+                  )}
+                  <div className="form-grid">
+                    <NumberField
+                      label="Background horizontal"
+                      min={0}
+                      max={100}
+                      value={layout.backgroundX}
+                      unit="%"
+                      onChange={(backgroundX) => patch({ backgroundX })}
+                    />
+                    <NumberField
+                      label="Background vertical"
+                      min={0}
+                      max={100}
+                      value={layout.backgroundY}
+                      unit="%"
+                      onChange={(backgroundY) => patch({ backgroundY })}
+                    />
+                    <NumberField
+                      label="Background zoom"
+                      min={100}
+                      max={250}
+                      value={layout.backgroundZoom}
+                      unit="%"
+                      onChange={(backgroundZoom) => patch({ backgroundZoom })}
+                    />
+                  </div>
+                </>
               )}
               {(layout.background === 'gradient' || layout.background === 'solid') && (
                 <>
-                  <div className="si-palette" role="group" aria-label="Background color presets">
+                  <div className="swatch-row" role="group" aria-label="Background color presets">
                     {COLOR_STYLES.map((p) => (
                       <button
                         key={p.name}
@@ -642,77 +662,42 @@ export default function StreamWorkspace({
                       />
                     ))}
                   </div>
-                  <Color
-                    label="Background color"
-                    value={layout.color}
-                    onChange={(color) => patch({ color })}
-                  />
-                  {layout.background === 'gradient' && (
+                  <div className="color-grid">
                     <Color
-                      label="Gradient highlight"
-                      value={layout.color2}
-                      onChange={(color2) => patch({ color2 })}
+                      label="Background color"
+                      value={layout.color}
+                      onChange={(color) => patch({ color })}
                     />
-                  )}
+                    {layout.background === 'gradient' && (
+                      <Color
+                        label="Gradient highlight"
+                        value={layout.color2}
+                        onChange={(color2) => patch({ color2 })}
+                      />
+                    )}
+                  </div>
                 </>
               )}
-              {imageBackground && (
-                <details className="si-background-position">
-                  <summary>Adjust background crop</summary>
-                  <Range
-                    label="Background zoom"
-                    min={100}
-                    max={250}
-                    value={layout.backgroundZoom}
-                    unit="%"
-                    onChange={(backgroundZoom) => patch({ backgroundZoom })}
-                  />
-                  <Range
-                    label="Background horizontal"
-                    min={0}
-                    max={100}
-                    value={layout.backgroundX}
-                    unit="%"
-                    onChange={(backgroundX) => patch({ backgroundX })}
-                  />
-                  <Range
-                    label="Background vertical"
-                    min={0}
-                    max={100}
-                    value={layout.backgroundY}
-                    unit="%"
-                    onChange={(backgroundY) => patch({ backgroundY })}
-                  />
-                </details>
-              )}
               <button
-                className="text-button full"
+                className="button outline full"
                 onClick={() => {
                   editor.applyBackgroundToAll(selected)
                   setNotice('Background applied to all three images. Host framing is unchanged.')
                 }}
               >
-                Use this background for all 3
+                <Copy size={16} aria-hidden="true" /> Use this background for all 3
               </button>
             </Section>
             <Section
-              title="Finishing"
-              summary="Shadow, fade & preview guides"
+              title="Shadow & fade"
+              summary={`${layout.shadow}% host shadow`}
               open={open.finish}
               onToggle={() => toggle('finish')}
               onReset={() =>
                 patch({ shadow: 0, fade: 0, bottomShadow: selected === 'hero' ? 65 : 0 })
               }
             >
-              <Range
-                label="Bottom shadow"
-                min={0}
-                max={100}
-                value={layout.bottomShadow ?? (selected === 'hero' ? 65 : 0)}
-                unit="%"
-                onChange={(bottomShadow) => patch({ bottomShadow })}
-              />
-              <Range
+              <NumberField
                 label="Host shadow"
                 min={0}
                 max={100}
@@ -720,7 +705,15 @@ export default function StreamWorkspace({
                 unit="%"
                 onChange={(shadow) => patch({ shadow })}
               />
-              <Range
+              <NumberField
+                label="Bottom shadow"
+                min={0}
+                max={100}
+                value={layout.bottomShadow ?? (selected === 'hero' ? 65 : 0)}
+                unit="%"
+                onChange={(bottomShadow) => patch({ bottomShadow })}
+              />
+              <NumberField
                 label="Bottom fade"
                 min={0}
                 max={60}
@@ -728,18 +721,8 @@ export default function StreamWorkspace({
                 unit="%"
                 onChange={(fade) => patch({ fade })}
               />
-              <Toggle
-                label="Safe area guides"
-                hint="Preview only; excluded from downloads."
-                checked={guides}
-                onChange={setGuides}
-              />
             </Section>
           </fieldset>
-          <div className={`si-save-state ${editor.storageError ? 'is-error' : ''}`}>
-            <Check size={16} />
-            <span>{editor.saveStatus}</span>
-          </div>
         </aside>
       </div>
       <input
@@ -765,10 +748,10 @@ export default function StreamWorkspace({
         }}
       />
       {(error || imageError) && (
-        <div className="si-error" role="alert">
+        <div className="toast toast-danger" role="alert">
           <span>{error || imageError}</span>
           {imageError && (
-            <button className="text-button" onClick={() => setRetry((n) => n + 1)}>
+            <button className="button ghost sm" onClick={() => setRetry((n) => n + 1)}>
               Retry images
             </button>
           )}
