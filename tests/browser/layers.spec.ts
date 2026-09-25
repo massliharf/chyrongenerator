@@ -133,7 +133,7 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   // Portable project file carries its images.
   await page.getByRole('button', { name: 'Project menu' }).click()
   const saving = page.waitForEvent('download')
-  await page.getByRole('button', { name: /Save project file/ }).click()
+  await page.getByRole('menuitem', { name: /Save project file/ }).click()
   const projectPath = testInfo.outputPath('layers.chyron.json')
   await (await saving).saveAs(projectPath)
   const saved = JSON.parse(readFileSync(projectPath, 'utf8'))
@@ -145,7 +145,8 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   // Delete + undo restores the layer.
   await rows.nth(0).locator('.layer-name').click()
   await rows.nth(0).locator('.layer-name').click()
-  await page.getByRole('button', { name: 'Delete layer' }).click()
+  await page.getByRole('button', { name: 'Layer actions' }).click()
+  await page.getByRole('menuitem', { name: /Delete layer/ }).click()
   await expect(rows).toHaveCount(2)
   await page.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(rows).toHaveCount(3)
@@ -158,9 +159,9 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
 
   // New composition, then reopen the portable file.
   await page.getByRole('button', { name: 'Project menu' }).click()
-  await page.getByRole('button', { name: /New composition/ }).click()
+  await page.getByRole('menuitem', { name: /New composition/ }).click()
   await expect.poll(cornerAlpha).toBe(0)
-  await page.locator('header input[type=file]').setInputFiles(projectPath)
+  await page.locator('.topbar input[type=file]').setInputFiles(projectPath)
   await expect(page.getByText('Project opened.')).toBeVisible()
   await expect.poll(cornerAlpha).toBe(255)
 

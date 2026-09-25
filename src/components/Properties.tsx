@@ -27,7 +27,6 @@ import {
   Maximize,
   Minimize,
   MoveUp,
-  Play,
   Plus,
   RotateCw,
   ScanLine,
@@ -62,8 +61,10 @@ import {
   Droplets,
   Lock,
   LockOpen,
+  MoreHorizontal,
 } from 'lucide-react'
-import { Color, Field, NumberInput, Range, Section, Toggle } from './Controls'
+import { Color, Field, NumberField, NumberInput, Section, Toggle } from './Controls'
+import { MenuButton, type MenuEntry } from './Menu'
 import { Composition } from './Composition'
 import {
   DEFAULT_PROJECT,
@@ -204,19 +205,6 @@ function Segmented<T extends string>({
   )
 }
 
-function Preview({ onPreview }: { onPreview: (phase: 'intro' | 'outro') => void }) {
-  return (
-    <div className="pair-buttons">
-      <button className="button" onClick={() => onPreview('intro')}>
-        <Play size={16} /> Preview in
-      </button>
-      <button className="button" onClick={() => onPreview('outro')}>
-        <Play size={16} /> Preview out
-      </button>
-    </div>
-  )
-}
-
 /* ---------- Panel ---------- */
 
 export interface PropertiesProps {
@@ -244,10 +232,10 @@ export function Properties(props: PropertiesProps) {
     { id: 'animate', label: 'Animate' },
   ]
   return (
-    <aside className="inspector properties" aria-label="Properties">
-      <header className="props-head">
+    <aside className="inspector" aria-label="Properties">
+      <header className="inspector-head">
         <span
-          className={`props-icon ${layer?.kind === 'chyron' ? 'is-chyron' : ''}`}
+          className={`inspector-icon ${layer?.kind === 'chyron' ? 'is-chyron' : ''}`}
           aria-hidden="true"
         >
           {!layer ? (
@@ -260,69 +248,71 @@ export function Properties(props: PropertiesProps) {
         </span>
         {layer?.kind === 'image' ? (
           <input
-            className="props-title-input"
+            className="inspector-title-input"
             aria-label="Layer name"
             value={layer.name}
             maxLength={80}
             onChange={(e) => patch({ layers: updateLayer(p, layer.id, { name: e.target.value }) })}
           />
         ) : (
-          <h2 className="props-title">{layer ? 'Chyron' : 'Composition'}</h2>
+          <h2 className="inspector-title">{layer ? 'Chyron' : 'Composition'}</h2>
         )}
         {layer && (
-          <div className="props-actions">
-            <button
-              className="icon-button"
-              aria-label="Bring forward"
-              title="Bring forward"
-              disabled={index === p.layers.length - 1}
-              onClick={() => patch({ layers: moveLayer(p, layer.id, 1) })}
-            >
-              <ChevronUp size={18} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Send backward"
-              title="Send backward"
-              disabled={index === 0}
-              onClick={() => patch({ layers: moveLayer(p, layer.id, -1) })}
-            >
-              <ChevronDown size={18} />
-            </button>
-            {layer.kind === 'image' && (
-              <>
-                <button
-                  className="icon-button"
-                  aria-label="Duplicate layer"
-                  title="Duplicate"
-                  onClick={() => {
-                    const next = duplicateLayer(p, layer.id)
-                    if (next.id) {
-                      patch({ layers: next.layers })
-                      onSelect(next.id)
-                    }
-                  }}
-                >
-                  <Copy size={18} />
-                </button>
-                <button
-                  className="icon-button danger"
-                  aria-label="Delete layer"
-                  title="Delete (Del)"
-                  onClick={() => {
-                    patch({ layers: removeLayer(p, layer.id) })
-                    onSelect(null)
-                  }}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </>
-            )}
-          </div>
+          <MenuButton
+            label="Layer actions"
+            align="end"
+            items={
+              [
+                {
+                  label: 'Bring forward',
+                  Icon: ChevronUp,
+                  shortcut: ']',
+                  disabled: index === p.layers.length - 1,
+                  onSelect: () => patch({ layers: moveLayer(p, layer.id, 1) }),
+                },
+                {
+                  label: 'Send backward',
+                  Icon: ChevronDown,
+                  shortcut: '[',
+                  disabled: index === 0,
+                  onSelect: () => patch({ layers: moveLayer(p, layer.id, -1) }),
+                },
+                ...(layer.kind === 'image'
+                  ? ([
+                      {
+                        label: 'Duplicate layer',
+                        Icon: Copy,
+                        shortcut: '⌘ D',
+                        onSelect: () => {
+                          const next = duplicateLayer(p, layer.id)
+                          if (next.id) {
+                            patch({ layers: next.layers })
+                            onSelect(next.id)
+                          }
+                        },
+                      },
+                      'separator',
+                      {
+                        label: 'Delete layer',
+                        Icon: Trash2,
+                        shortcut: 'Del',
+                        danger: true,
+                        onSelect: () => {
+                          patch({ layers: removeLayer(p, layer.id) })
+                          onSelect(null)
+                        },
+                      },
+                    ] as MenuEntry[])
+                  : []),
+              ] as MenuEntry[]
+            }
+          >
+            <MoreHorizontal size={20} />
+          </MenuButton>
         )}
       </header>
       {layer && (
-        <div className="props-tabs" role="tablist" aria-label="Layer settings">
+        <div className="tabs" role="tablist" aria-label="Layer settings">
           {tabs.map((t, i) => (
             <button
               key={t.id}
@@ -348,7 +338,7 @@ export function Properties(props: PropertiesProps) {
         </div>
       )}
       <div
-        className="inspector-body props-body"
+        className="inspector-body"
         id="props-panel"
         role={layer ? 'tabpanel' : 'region'}
         aria-labelledby={layer ? `props-tab-${tab}` : undefined}
@@ -511,7 +501,7 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
         'Timing',
         `${total.toFixed(1)} s · ${frameCount(p)} frames`,
         <>
-          <Range
+          <NumberField
             label="Transition"
             value={p.animationDuration}
             min={0.2}
@@ -520,7 +510,7 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
             unit="s"
             onChange={(animationDuration) => patch({ animationDuration })}
           />
-          <Range
+          <NumberField
             label="Hold"
             value={p.hold}
             min={0}
@@ -582,7 +572,7 @@ function ChyronDesign({
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const r = (label: string, key: keyof Project, min: number, max: number, step = 1, unit = '') => (
-    <Range
+    <NumberField
       label={label}
       value={p[key] as number}
       onChange={(v) => patch({ [key]: v })}
@@ -662,7 +652,7 @@ function ChyronDesign({
               </button>
             </form>
           ) : (
-            <button className="button subtle full" onClick={() => setSaving(true)}>
+            <button className="button secondary full" onClick={() => setSaving(true)}>
               <Plus size={16} /> Save current style
             </button>
           )}
@@ -682,16 +672,6 @@ function ChyronDesign({
               onChange={(e) => patch({ text: e.target.value })}
             />
           </Field>
-        </>,
-        reset(['text']),
-      )}
-      {group(
-        'subtitle',
-        'Subtitle',
-        p.subtitlePill
-          ? `${p.subtitle ? `"${p.subtitle}" · ` : ''}${p.subtitlePosition === 'top' ? 'Above title' : 'Below title'}`
-          : 'Disabled',
-        <>
           <Toggle
             label="Subtitle"
             checked={p.subtitlePill}
@@ -716,39 +696,45 @@ function ChyronDesign({
                   { id: 'bottom', name: 'Below', Icon: ArrowDown },
                 ]}
               />
-              <div className="color-grid">
-                <Color
-                  label="Subtitle fill"
-                  value={p.accent}
-                  onChange={(accent) => patch({ accent })}
-                />
-                <Color
-                  label="Subtitle text"
-                  value={p.subtitleColor}
-                  onChange={(subtitleColor) => patch({ subtitleColor })}
-                />
-              </div>
-              {r('Subtitle size', 'subtitleSize', 12, 80, 1, 'px')}
-              {r('Subtitle gap', 'subtitleGap', 0, 100, 1, 'px')}
-              {r('Subtitle radius', 'subtitleRadius', 0, 50, 1, 'px')}
-              {r('Horizontal padding', 'subtitlePaddingX', 0, 80, 1, 'px')}
-              {r('Vertical padding', 'subtitlePaddingY', 0, 40, 1, 'px')}
             </>
           )}
         </>,
-        reset([
-          'subtitlePill',
-          'subtitle',
-          'subtitlePosition',
-          'accent',
-          'subtitleColor',
-          'subtitleSize',
-          'subtitleGap',
-          'subtitleRadius',
-          'subtitlePaddingX',
-          'subtitlePaddingY',
-        ]),
+        reset(['text', 'subtitlePill', 'subtitle', 'subtitlePosition']),
       )}
+      {p.subtitlePill &&
+        group(
+          'subtitle',
+          'Subtitle style',
+          `${p.subtitleSize}px · ${p.subtitleRadius}px corners`,
+          <>
+            <div className="color-grid">
+              <Color
+                label="Subtitle fill"
+                value={p.accent}
+                onChange={(accent) => patch({ accent })}
+              />
+              <Color
+                label="Subtitle text color"
+                value={p.subtitleColor}
+                onChange={(subtitleColor) => patch({ subtitleColor })}
+              />
+            </div>
+            {r('Subtitle size', 'subtitleSize', 12, 80, 1, 'px')}
+            {r('Subtitle gap', 'subtitleGap', 0, 100, 1, 'px')}
+            {r('Subtitle radius', 'subtitleRadius', 0, 50, 1, 'px')}
+            {r('Horizontal padding', 'subtitlePaddingX', 0, 80, 1, 'px')}
+            {r('Vertical padding', 'subtitlePaddingY', 0, 40, 1, 'px')}
+          </>,
+          reset([
+            'accent',
+            'subtitleColor',
+            'subtitleSize',
+            'subtitleGap',
+            'subtitleRadius',
+            'subtitlePaddingX',
+            'subtitlePaddingY',
+          ]),
+        )}
       {group(
         'type',
         'Typography',
@@ -1028,11 +1014,12 @@ function ChyronAnimate({
             />
           </div>
         ))}
-        <p className="block-note">The outro plays the intro in reverse.</p>
+        <p className="block-note">
+          Choosing a style plays it. The outro plays the intro in reverse.
+        </p>
       </div>
-      {p.motion !== 'none' && <Preview onPreview={previewPhase} />}
       <div className="block">
-        <Range
+        <NumberField
           label="Stagger"
           value={p.stagger}
           min={0}
@@ -1040,7 +1027,7 @@ function ChyronAnimate({
           step={0.05}
           onChange={(stagger) => patch({ stagger })}
         />
-        <Range
+        <NumberField
           label="Delay"
           value={Math.min(layer.delay, maxDelay)}
           min={0}
@@ -1124,7 +1111,7 @@ function ImageDesign({ l, p, patch }: { l: ImageLayer; p: Project; patch: Patch 
     step = 1,
     unit = '',
   ) => (
-    <Range
+    <NumberField
       label={label}
       value={Math.min(max, l[key] as number)}
       onChange={(v) => set({ [key]: v })}
@@ -1305,7 +1292,6 @@ function ImageAnimate({
           />
         )}
       </div>
-      <Preview onPreview={previewPhase} />
       <div className="block">
         <span className="block-label">While on screen</span>
         <Chips
@@ -1316,7 +1302,7 @@ function ImageAnimate({
         />
         {l.emphasis !== 'none' && (
           <>
-            <Range
+            <NumberField
               label="Strength"
               value={l.emphasisStrength}
               min={0}
@@ -1325,7 +1311,7 @@ function ImageAnimate({
               onChange={(emphasisStrength) => set({ emphasisStrength })}
             />
             {l.emphasis !== 'kenburns' && (
-              <Range
+              <NumberField
                 label="Cycle"
                 value={l.emphasisSpeed}
                 min={0.5}
@@ -1340,7 +1326,7 @@ function ImageAnimate({
       </div>
       {others > 0 && (
         <button
-          className="button subtle full"
+          className="button secondary full"
           title="Give every image this intro, outro, easing, length and on-screen effect"
           onClick={() =>
             patch({

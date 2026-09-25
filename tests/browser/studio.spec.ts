@@ -22,33 +22,36 @@ test('portrait 720p defaults and linked intro/outro previews', async ({ page }, 
   await page.getByRole('button', { name: /Canvas settings/ }).click()
   await expect(page.getByRole('heading', { name: 'Composition', exact: true })).toBeVisible()
   await expect(page.getByLabel('Size', { exact: true })).toHaveValue('720x1280')
-  await expect(page.getByLabel('Transition value', { exact: true })).toHaveValue('1')
+  await expect(page.getByLabel('Transition', { exact: true })).toHaveValue('1')
   await page.locator('.layer-name', { hasText: 'Chyron' }).click()
   await page.getByRole('tab', { name: 'Animate', exact: true }).click()
+  // Choosing a style previews its intro.
   await page.getByRole('button', { name: 'Flip', exact: true }).click()
-  await page.getByRole('button', { name: 'Preview in', exact: true }).click()
+  // The preview plays the intro, then returns to the rest frame.
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
-  await expect(page.locator('.timecode')).toHaveText('1.00 / 4.40 s')
+  await expect(page.locator('.timecode')).toHaveText('2.20 / 4.40 s')
   expect(await alphaVisible(canvas)).toBe(true)
   await page.screenshot({ path: testInfo.outputPath('motion-720p.png') })
   await page.keyboard.press('Escape')
-  await page.getByLabel('Transition value', { exact: true }).fill('1.5')
+  await page.getByLabel('Transition', { exact: true }).fill('1.5')
   await expect(page.locator('.clip-in')).toHaveAttribute('title', 'Intro · 1.5s')
   await expect(page.locator('.clip-out')).toHaveAttribute('title', 'Outro · 1.5s')
   await page.locator('.layer-name', { hasText: 'Chyron' }).click()
-  await page.getByRole('button', { name: 'Preview in', exact: true }).click()
+  await page.getByRole('tab', { name: 'Animate', exact: true }).click()
+  // Choosing the current style again replays it.
+  await page.getByRole('button', { name: 'Flip', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
-  await expect(page.locator('.timecode')).toHaveText('1.50 / 5.40 s')
+  await expect(page.locator('.timecode')).toHaveText(/ \/ 5\.40 s$/)
   // A phase preview plays once even when full-clip looping is enabled.
   await expect(page.getByRole('button', { name: 'Loop playback' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
-  await page.getByRole('button', { name: 'Preview out', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Go to end', exact: true }).click()
   await expect(page.locator('.timecode')).toHaveText('5.40 / 5.40 s')
   expect(await alphaVisible(canvas)).toBe(false)
-  await page.getByRole('button', { name: 'Replay animation', exact: true }).click()
+  await page.getByRole('button', { name: 'Go to start', exact: true }).click()
+  await page.getByRole('button', { name: 'Play animation', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Pause animation', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Pause animation', exact: true }).click()
   await expect(page.getByText('Saved on this device', { exact: true })).toBeAttached()
@@ -59,9 +62,12 @@ test('portrait 720p defaults and linked intro/outro previews', async ({ page }, 
     'true',
   )
   await page.getByRole('button', { name: 'Still', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Preview in', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Still', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
   await page.getByRole('button', { name: /Canvas settings/ }).click()
-  await expect(page.getByLabel('Transition value', { exact: true })).toHaveValue('1.5')
+  await expect(page.getByLabel('Transition', { exact: true })).toHaveValue('1.5')
 })
 
 test('editing, undo, persistence, project files and responsive layout', async ({
@@ -82,7 +88,8 @@ test('editing, undo, persistence, project files and responsive layout', async ({
   )
   await page.getByRole('tab', { name: 'Animate', exact: true }).click()
   await page.getByRole('button', { name: 'Reveal', exact: true }).click()
-  await page.getByRole('button', { name: 'Replay animation' }).click()
+  await page.getByRole('button', { name: 'Go to start' }).click()
+  await page.getByRole('button', { name: 'Play animation' }).click()
   await expect(page.getByRole('button', { name: 'Pause animation' })).toBeVisible()
   await page.getByRole('button', { name: 'Pause animation' }).click()
   await page.getByRole('tab', { name: 'Design', exact: true }).click()
@@ -91,7 +98,7 @@ test('editing, undo, persistence, project files and responsive layout', async ({
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('ALPHA\nSTUDIO')
   await page.getByRole('button', { name: 'Project menu', exact: true }).click()
   const projectDownload = page.waitForEvent('download')
-  await page.getByRole('button', { name: /Save project file/ }).click()
+  await page.getByRole('menuitem', { name: /Save project file/ }).click()
   const file = await projectDownload
   const project = JSON.parse(readFileSync((await file.path())!, 'utf8'))
   expect(project).toMatchObject({ version: 2, text: 'ALPHA\nSTUDIO', motion: 'wipe' })

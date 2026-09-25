@@ -1,0 +1,225 @@
+/* Stream images workspace. */
+.si-artboard {
+  position: relative;
+  flex: none;
+  width: min(100%, calc((100cqh - 8px) * var(--si-aspect)));
+  overflow: visible;
+  border-radius: var(--radius-sm);
+  box-shadow:
+    0 0 0 1px var(--color-border-default),
+    var(--shadow-lg);
+  background: repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-b) 0% 50%) 50% / 20px
+    20px;
+}
+.si-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.si-canvas.is-interactive {
+  cursor: default;
+  touch-action: none;
+}
+.si-canvas.is-interactive:is(.hovering-host, .has-controls) {
+  cursor: grab;
+}
+.si-canvas.is-interactive:is(.is-dragging, :active) {
+  cursor: grabbing;
+}
+.si-canvas:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-border-focus);
+  outline-offset: 4px;
+}
+.si-guides {
+  position: absolute;
+  inset: 5%;
+  border: 1px dashed rgb(255 255 255 / 0.6);
+  pointer-events: none;
+}
+.si-guides::before,
+.si-guides::after {
+  content: '';
+  position: absolute;
+  background: rgb(255 255 255 / 0.38);
+}
+.si-guides::before {
+  left: 50%;
+  width: 1px;
+  height: 100%;
+}
+.si-guides::after {
+  top: 50%;
+  width: 100%;
+  height: 1px;
+}
+.si-guides span {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+  padding: var(--space-0-5) var(--space-1-5);
+  font: var(--text-label-sm);
+  color: var(--neutral-0);
+  background: rgb(0 16 28 / 0.85);
+  border-radius: var(--radius-xs);
+}
+.si-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: center;
+  font: var(--text-body-sm);
+  color: rgb(255 255 255 / 0.85);
+}
+.si-placeholder strong {
+  font: var(--text-heading-sm);
+  color: var(--neutral-0);
+}
+.si-placeholder .menu-wrap {
+  margin-top: var(--space-2);
+}
+
+/* Format strip */
+.si-formats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-3);
+  background: var(--color-bg-surface);
+  border-top: var(--border-width-thin) solid var(--color-border-default);
+}
+.si-format {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2);
+  text-align: start;
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.si-format:hover {
+  border-color: var(--color-border-strong);
+}
+.si-format.selected {
+  background: var(--color-bg-selected);
+  border-color: var(--color-border-selected);
+}
+.si-format-preview {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+.si-format-preview canvas {
+  width: auto;
+  height: 100%;
+}
+.si-format-copy {
+  display: grid;
+  min-width: 0;
+}
+.si-format-copy strong {
+  font: var(--text-label-md);
+}
+.si-format.selected .si-format-copy strong {
+  color: var(--color-text-brand);
+}
+.si-format-copy span {
+  font: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-tertiary);
+}
+
+/* Background options */
+.si-background-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.si-background-grid > button,
+.si-background-grid .si-background-add {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-1);
+  font: var(--text-label-sm);
+  text-align: start;
+  color: var(--color-text-secondary);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+.si-background-grid > button:hover {
+  border-color: var(--color-border-strong);
+}
+.si-background-grid > button[aria-pressed='true'] {
+  color: var(--color-text-brand);
+  background: var(--color-bg-selected);
+  border-color: var(--color-border-selected);
+}
+.si-background-grid img,
+.si-background-grid canvas {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.si-background-grid > button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-inline: var(--space-0-5);
+}
+.si-background-grid .menu-wrap {
+  display: block;
+}
+.si-background-grid .si-background-add {
+  height: 100%;
+  min-height: 72px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  border-style: dashed;
+  border-color: var(--color-border-strong);
+}
+.si-background-grid .si-background-add:hover {
+  color: var(--color-text-brand);
+  border-color: var(--color-border-focus);
+}
+.swatch-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: var(--space-1-5);
+}
+.swatch-row > button {
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+.swatch-row > button:hover {
+  transform: scale(1.06);
+}
+
+@media (max-width: 767px) {
+  .si-formats {
+    padding: var(--space-2);
+  }
+  .si-format {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1-5);
+    padding: var(--space-1-5);
+  }
+  .si-format-preview {
+    width: 100%;
+    height: 56px;
+  }
+}

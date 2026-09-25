@@ -16,7 +16,7 @@ test('live preview is the default but never exported; subtitle toggle hides its 
   await page.screenshot({ path: testInfo.outputPath('studio-blue.png') })
   await page.getByRole('button', { name: /^Typography/ }).click()
   await expect(page.getByLabel('Typeface', { exact: true })).toHaveValue('Fredoka')
-  await expect(page.getByLabel('Size value', { exact: true })).toHaveValue('128')
+  await expect(page.getByLabel('Size', { exact: true })).toHaveValue('128')
   await page.getByRole('button', { name: /^Shape & spacing/ }).click()
   for (const [label, value] of [
     ['Corner radius', '24'],
@@ -25,7 +25,7 @@ test('live preview is the default but never exported; subtitle toggle hides its 
     ['Line spacing', '16'],
     ['Depth', '8'],
   ]) {
-    await expect(page.getByLabel(`${label} value`, { exact: true })).toHaveValue(value)
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue(value)
   }
   await page.getByRole('button', { name: /^Subtitle\s/ }).click()
   for (const [label, value] of [
@@ -35,7 +35,7 @@ test('live preview is the default but never exported; subtitle toggle hides its 
     ['Horizontal padding', '24'],
     ['Vertical padding', '32'],
   ]) {
-    await expect(page.getByLabel(`${label} value`, { exact: true })).toHaveValue(value)
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue(value)
   }
   const download = async (format: string) => {
     await page.getByRole('button', { name: 'Export', exact: true }).click()
@@ -58,7 +58,7 @@ test('live preview is the default but never exported; subtitle toggle hides its 
   expect(pixels.some((value, index) => index % 4 === 3 && value === 255)).toBe(true)
   const toggle = page.getByRole('checkbox', { name: 'Subtitle', exact: true })
   await toggle.uncheck()
-  await expect(page.getByLabel('Subtitle size value', { exact: true })).toBeHidden()
+  await expect(page.getByLabel('Subtitle size', { exact: true })).toBeHidden()
   await expect(canvas).not.toHaveAttribute('aria-label', /PUZZLE PAPI/)
   const hiddenSvg = (await download('SVG vector')).toString()
   // A disabled subtitle contributes no paths or spacing to the shared export scene.
@@ -72,9 +72,9 @@ test('live preview is the default but never exported; subtitle toggle hides its 
   expect(enabledSvg).not.toBe(emptySvg)
   await page.getByRole('button', { name: /Canvas settings/ }).click()
   await expect(page.getByLabel('Size', { exact: true })).toHaveValue('720x1280')
-  await page.getByLabel('Preview options').click()
-  await expect(page.getByRole('button', { name: 'Live photo' })).toHaveAttribute(
-    'aria-pressed',
+  await page.getByRole('button', { name: 'Preview options' }).click()
+  await expect(page.getByRole('menuitemradio', { name: /Live photo/ })).toHaveAttribute(
+    'aria-checked',
     'true',
   )
 })

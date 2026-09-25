@@ -44,8 +44,8 @@ test('section disclosure, keyboard tabs and dialog focus', async ({ page }) => {
   // Escape clears the selection and shows composition settings.
   await page.locator('.stage-surround').click({ position: { x: 8, y: 8 } })
   await expect(page.getByRole('heading', { name: 'Composition', exact: true })).toBeVisible()
-  await page.getByLabel('Transition value').fill('1.6')
-  await page.getByLabel('Transition value').press('Tab')
+  await page.getByLabel('Transition').fill('1.6')
+  await page.getByLabel('Transition').press('Tab')
   await selectChyron(page)
   await text.click()
   await page.reload()
@@ -54,7 +54,7 @@ test('section disclosure, keyboard tabs and dialog focus', async ({ page }) => {
     'false',
   )
   await page.getByRole('button', { name: /Canvas settings/ }).click()
-  await expect(page.getByLabel('Transition value')).toHaveValue('1.6')
+  await expect(page.getByLabel('Transition')).toHaveValue('1.6')
 })
 
 test('custom dimensions, hex colors, typography and translucent exports', async ({
@@ -66,7 +66,7 @@ test('custom dimensions, hex colors, typography and translucent exports', async 
   await page.getByRole('button', { name: 'Type', exact: true }).click()
   await page.getByLabel('Typeface', { exact: true }).selectOption('Inter')
   await page.getByLabel('Case', { exact: true }).selectOption('original')
-  await page.getByLabel('Letter spacing value').fill('12')
+  await page.getByLabel('Letter spacing').fill('12')
   await page.getByRole('button', { name: /^Colors/ }).click()
   const color = page.getByLabel('Lettering hex', { exact: true })
   await color.fill('oops')
@@ -76,9 +76,9 @@ test('custom dimensions, hex colors, typography and translucent exports', async 
   await color.press('Tab')
   await expect(color).toHaveValue('#AAFF00')
   await page.getByRole('checkbox', { name: 'Subtitle', exact: true }).uncheck()
-  await page.getByLabel('Rotation value', { exact: true }).fill('25')
-  await page.getByLabel('Opacity value', { exact: true }).fill('50')
-  await page.getByLabel('Opacity value', { exact: true }).press('Tab')
+  await page.getByLabel('Rotation', { exact: true }).fill('25')
+  await page.getByLabel('Opacity', { exact: true }).fill('50')
+  await page.getByLabel('Opacity', { exact: true }).press('Tab')
   await page.getByRole('button', { name: /Canvas settings/ }).click()
   const width = page.getByLabel('Width (px)', { exact: true })
   await width.fill('')
@@ -119,7 +119,7 @@ test('custom dimensions, hex colors, typography and translucent exports', async 
   await page.getByRole('button', { name: 'Close export' }).click()
   await page.getByRole('button', { name: 'Project menu', exact: true }).click()
   const projectDownload = page.waitForEvent('download')
-  await page.getByRole('button', { name: /Save project file/ }).click()
+  await page.getByRole('menuitem', { name: /Save project file/ }).click()
   const project = JSON.parse(readFileSync((await (await projectDownload).path())!, 'utf8'))
   expect(project).toMatchObject({
     width: 640,
@@ -133,9 +133,9 @@ test('custom dimensions, hex colors, typography and translucent exports', async 
   })
   await selectChyron(page)
   await page.getByRole('button', { name: 'Reset Position', exact: true }).click()
-  await expect(page.getByLabel('Opacity value', { exact: true })).toHaveValue('100')
+  await expect(page.getByLabel('Opacity', { exact: true })).toHaveValue('100')
   await page.getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect(page.getByLabel('Opacity value', { exact: true })).toHaveValue('50')
+  await expect(page.getByLabel('Opacity', { exact: true })).toHaveValue('50')
 })
 
 test('saved styles can be restored after removal', async ({ page }) => {

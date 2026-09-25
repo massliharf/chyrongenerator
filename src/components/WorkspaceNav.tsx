@@ -1,8 +1,19 @@
 import { Clapperboard, FolderOpen, Images } from 'lucide-react'
+import { ThemeToggle } from './ThemeToggle'
 
 export type Workspace = 'chyron' | 'stream' | 'gallery'
 
-export function WorkspaceNav({
+const WORKSPACES: { id: Workspace; label: string; Icon: typeof Clapperboard }[] = [
+  { id: 'chyron', label: 'Chyron', Icon: Clapperboard },
+  { id: 'stream', label: 'Stream images', Icon: Images },
+  { id: 'gallery', label: 'Media gallery', Icon: FolderOpen },
+]
+
+/**
+ * Magnific app navigation. One instance for the whole app:
+ * Navigation Rail from 768px, Bottom Navigation below it.
+ */
+export function AppNav({
   current,
   onChange,
 }: {
@@ -10,23 +21,34 @@ export function WorkspaceNav({
   onChange: (workspace: Workspace) => void
 }) {
   return (
-    <nav className="workspace-nav" aria-label="Studio tools">
-      <button aria-pressed={current === 'chyron'} onClick={() => onChange('chyron')}>
-        <Clapperboard size={16} aria-hidden="true" />
-        <span className="nav-label">Chyron</span>
-      </button>
-      <button aria-pressed={current === 'stream'} onClick={() => onChange('stream')}>
-        <Images size={16} aria-hidden="true" />
-        <span className="nav-label">
-          Stream<span className="nav-extra"> Images</span>
+    <nav className="app-nav" aria-label="Workspaces">
+      <span className="app-brand" aria-label="Chyron Studio" role="img">
+        <span className="brand-symbol" aria-hidden="true">
+          <i />
+          <i />
+          <i />
         </span>
-      </button>
-      <button aria-pressed={current === 'gallery'} onClick={() => onChange('gallery')}>
-        <FolderOpen size={16} aria-hidden="true" />
-        <span className="nav-label">
-          Media<span className="nav-extra"> Gallery</span>
-        </span>
-      </button>
+      </span>
+      <ul className="app-nav-list">
+        {WORKSPACES.map(({ id, label, Icon }) => (
+          <li key={id}>
+            <button
+              className="app-nav-item"
+              aria-current={current === id ? 'page' : undefined}
+              data-workspace-link={id}
+              onClick={() => onChange(id)}
+            >
+              <span className="app-nav-icon">
+                <Icon size={22} aria-hidden="true" />
+              </span>
+              <span className="app-nav-label">{label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="app-nav-footer">
+        <ThemeToggle />
+      </div>
     </nav>
   )
 }

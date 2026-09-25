@@ -2,7 +2,7 @@
   "name": "chyron-studio",
   "homepage": "https://massliharf.github.io/chyrongenerator/",
   "private": true,
-  "version": "2.5.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

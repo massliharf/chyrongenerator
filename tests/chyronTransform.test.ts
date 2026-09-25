@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROJECT } from '../src/studio/model'
-import {
-  isPointInChyron,
-  rotateChyron,
-  scaleChyron,
-  snapPosition,
-} from '../src/studio/transform'
+import { isPointInChyron, rotateChyron, scaleChyron, snapPosition } from '../src/studio/transform'
 
 describe('chyron canvas transform & snapping', () => {
   const p = { ...DEFAULT_PROJECT, width: 720, height: 1280, x: 50, y: 50 }

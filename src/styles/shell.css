@@ -1,0 +1,454 @@
+/* Magnific app shell: navigation rail / bottom nav, top bar, work area, inspector. */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--color-bg-canvas);
+}
+.app-content {
+  min-width: 0;
+  min-height: 0;
+}
+.workspace-slot {
+  height: 100%;
+}
+
+/* ---------- Navigation rail ---------- */
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0 var(--space-4);
+  background: var(--color-bg-surface);
+  border-inline-end: var(--border-width-thin) solid var(--color-border-default);
+  z-index: var(--z-header);
+}
+.app-brand {
+  display: grid;
+  place-items: center;
+  width: var(--control-lg);
+  height: var(--control-lg);
+}
+.brand-symbol {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  transform: skewX(-12deg);
+}
+.brand-symbol i {
+  display: block;
+  width: 6px;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-action-primary-bg);
+}
+.brand-symbol i:nth-child(2) {
+  height: 80%;
+  opacity: 0.8;
+}
+.brand-symbol i:nth-child(3) {
+  height: 60%;
+  opacity: 0.6;
+}
+.app-nav-list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  width: 100%;
+  padding: 0 var(--space-1-5);
+}
+.app-nav-item {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-1) 0 var(--space-1-5);
+  font: var(--text-label-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  border-radius: var(--radius-md);
+}
+.app-nav-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.app-nav-item:hover .app-nav-icon {
+  background: var(--color-state-hover);
+}
+.app-nav-item[aria-current='page'] {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+}
+.app-nav-item[aria-current='page'] .app-nav-icon {
+  color: var(--color-action-secondary-text);
+  background: var(--color-action-secondary-bg);
+}
+.app-nav-footer {
+  margin-top: auto;
+}
+
+/* ---------- Workspace frame ---------- */
+.workspace-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex: none;
+  min-height: var(--topbar-height);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  background: var(--color-bg-surface);
+  border-bottom: var(--border-width-thin) solid var(--color-border-default);
+}
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.topbar-title {
+  font: var(--text-heading-xs);
+  white-space: nowrap;
+}
+.topbar-search {
+  max-width: 420px;
+}
+.history-actions {
+  display: flex;
+  gap: var(--space-0-5);
+}
+.document-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.document-name {
+  width: auto;
+  field-sizing: content;
+  min-width: 8ch;
+  max-width: min(40vw, 360px);
+  min-height: var(--control-md);
+  padding: 0 var(--space-2);
+  font: var(--text-heading-xs);
+  text-overflow: ellipsis;
+  background: transparent;
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-md);
+}
+.document-name:hover:not(:focus) {
+  background: var(--color-state-hover);
+}
+.document-name:focus {
+  outline: none;
+  font: var(--text-heading-xs);
+}
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  font: var(--text-caption);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+.save-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success-solid);
+}
+.save-status.is-error {
+  color: var(--color-warning-text);
+}
+.save-status.is-error .save-status-dot {
+  background: var(--color-warning-solid);
+}
+
+.workspace-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--inspector-width);
+}
+.canvas-focused .workspace-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+.editor-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---------- Canvas toolbar & stage ---------- */
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex: none;
+  min-height: 52px;
+  padding: 0 var(--space-3);
+  background: var(--color-bg-surface);
+  border-bottom: var(--border-width-thin) solid var(--color-border-default);
+}
+.canvas-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+.canvas-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-inline-start: var(--space-1);
+  font: var(--text-label-md);
+}
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  overflow: hidden;
+  container-type: size;
+  background-color: var(--stage-bg);
+  background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.3px);
+  background-size: 20px 20px;
+  background-position: center;
+}
+.drop-overlay {
+  position: absolute;
+  inset: var(--space-3);
+  z-index: var(--z-raised);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  font: var(--text-heading-xs);
+  color: var(--color-text-brand);
+  background: color-mix(in srgb, var(--color-bg-surface) 90%, transparent);
+  border: var(--border-width-thick) dashed var(--color-border-focus);
+  border-radius: var(--radius-xl);
+  pointer-events: none;
+}
+
+/* ---------- Inspector ---------- */
+.inspector-slot,
+.workspace-body > .inspector {
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-bg-surface);
+  border-inline-start: var(--border-width-thin) solid var(--color-border-default);
+}
+.inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.inspector-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  min-height: 60px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+}
+.inspector-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+}
+.inspector-icon.is-chyron {
+  color: var(--color-action-secondary-text);
+  background: var(--color-action-secondary-bg);
+}
+.inspector-icon canvas {
+  width: 100%;
+  height: 100%;
+}
+.inspector-title,
+.inspector-heading h2 {
+  flex: 1;
+  min-width: 0;
+  font: var(--text-heading-xs);
+}
+.inspector-heading {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.inspector-heading span {
+  font: var(--text-caption);
+  color: var(--color-text-tertiary);
+}
+.inspector-title-input {
+  flex: 1;
+  font: var(--text-heading-xs);
+  border-color: transparent;
+  background: transparent;
+}
+.inspector-title-input:hover {
+  background: var(--color-state-hover);
+}
+.inspector-title-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  background: var(--color-bg-surface);
+}
+.inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0 0 var(--space-8);
+  border: 0;
+  border-top: var(--border-width-thin) solid var(--color-border-default);
+}
+.tabs + .inspector-body {
+  border-top: 0;
+}
+.panel-block {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: var(--border-width-thin) solid var(--color-border-default);
+}
+.panel-block-title {
+  font: var(--text-heading-xs);
+  font-size: 0.875rem;
+}
+
+/* ---------- Tablet (768–1279): narrower inspector ---------- */
+@media (max-width: 1279px) {
+  :root {
+    --inspector-width: 320px;
+  }
+  .canvas-size-meta {
+    display: none;
+  }
+}
+
+/* ---------- Tablet portrait (768–1023): inspector below canvas ---------- */
+@media (max-width: 1023px) {
+  .workspace-body {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .editor-main {
+    flex: none;
+    height: min(62dvh, 640px);
+  }
+  .inspector-slot,
+  .workspace-body > .inspector {
+    flex: none;
+    border-inline-start: 0;
+    border-top: var(--border-width-thin) solid var(--color-border-default);
+  }
+  .inspector,
+  .inspector-body {
+    height: auto;
+    overflow: visible;
+  }
+  .canvas-focused .editor-main {
+    flex: 1;
+    height: auto;
+  }
+}
+
+/* ---------- Phone (< 768): bottom navigation ---------- */
+@media (max-width: 767px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .app-content {
+    grid-row: 1;
+  }
+  .app-nav {
+    grid-row: 2;
+    flex-direction: row;
+    gap: 0;
+    height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+    padding: var(--space-1-5) var(--space-1) env(safe-area-inset-bottom);
+    border-inline-end: 0;
+    border-top: var(--border-width-thin) solid var(--color-border-default);
+  }
+  .app-brand,
+  .app-nav-footer {
+    display: none;
+  }
+  .app-nav-list {
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 0;
+    padding: 0;
+  }
+  .topbar {
+    gap: var(--space-1);
+    min-height: 56px;
+    padding: 0 var(--space-1) 0 var(--space-2);
+    padding-top: env(safe-area-inset-top);
+  }
+  .topbar-start {
+    gap: var(--space-1);
+  }
+  .topbar-actions {
+    gap: 0;
+  }
+  .topbar-primary .label,
+  .save-status > span[aria-hidden='true'],
+  .topbar-title {
+    display: none;
+  }
+  .topbar-primary {
+    padding: 0 var(--space-3);
+  }
+  .document-name {
+    width: 100%;
+    font: var(--text-label-lg);
+  }
+  .topbar-search {
+    max-width: none;
+  }
+  .editor-main {
+    height: min(56dvh, 560px);
+  }
+  .stage {
+    padding: var(--space-3);
+  }
+  .canvas-toolbar {
+    min-height: 48px;
+    padding: 0 var(--space-1) 0 var(--space-2);
+  }
+}

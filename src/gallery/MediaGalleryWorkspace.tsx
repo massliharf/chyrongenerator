@@ -4,17 +4,17 @@ import {
   Check,
   Clapperboard,
   Copy,
+  ChevronDown,
   Download,
-  FolderOpen,
   Image as ImageIcon,
   Images,
   LoaderCircle,
-  Maximize2,
   Search,
   X,
 } from 'lucide-react'
-import { WorkspaceNav, type Workspace } from '../components/WorkspaceNav'
-import { ThemeToggle } from '../components/ThemeToggle'
+import type { Workspace } from '../components/WorkspaceNav'
+import { MenuButton } from '../components/Menu'
+import { TopBar } from '../components/TopBar'
 import {
   GALLERY_CATEGORIES,
   GALLERY_ITEMS,
@@ -24,7 +24,6 @@ import {
   downloadGalleryZip,
   type GalleryItem,
 } from '../studio/galleryData'
-import './MediaGalleryWorkspace.css'
 
 interface MediaGalleryWorkspaceProps {
   active: boolean
@@ -37,7 +36,6 @@ export default function MediaGalleryWorkspace({
 }: MediaGalleryWorkspaceProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
   const [searchQuery, setSearchQuery] = useState('')
-  const [formatFilter, setFormatFilter] = useState<'all' | 'png' | 'svg' | 'jpg'>('all')
   const [previewItem, setPreviewItem] = useState<GalleryItem | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set())
@@ -53,13 +51,6 @@ export default function MediaGalleryWorkspace({
       if (selectedCategory !== 'All' && item.category !== selectedCategory) {
         return false
       }
-      // Format
-      if (formatFilter !== 'all') {
-        const ext = item.filename.split('.').pop()?.toLowerCase()
-        if (formatFilter === 'jpg' && ext !== 'jpg' && ext !== 'jpeg') return false
-        if (formatFilter === 'png' && ext !== 'png') return false
-        if (formatFilter === 'svg' && ext !== 'svg') return false
-      }
       // Search query
       const query = searchQuery.trim().toLowerCase()
       if (query) {
@@ -70,7 +61,7 @@ export default function MediaGalleryWorkspace({
       }
       return true
     })
-  }, [selectedCategory, formatFilter, searchQuery])
+  }, [selectedCategory, searchQuery])
 
   // Count by category
   const categoryCounts = useMemo(() => {
@@ -159,283 +150,150 @@ export default function MediaGalleryWorkspace({
     }
   }, [previewItem])
 
+  const categories = ['All', ...GALLERY_CATEGORIES]
+  const title = selectedCategory === 'All' ? 'All media' : selectedCategory
+  const resetFilters = () => {
+    setSelectedCategory('All')
+    setSearchQuery('')
+  }
+
   return (
-    <div className="studio-shell mg-shell" data-active={active}>
-      {/* App Header */}
-      <header className="app-header mg-header" role="banner">
-        <div className="header-start">
-          <h1 className="brand" aria-label="Chyron Studio">
-            <span className="brand-symbol" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-            <strong>
-              chyron<span>studio</span>
-            </strong>
-          </h1>
-          <WorkspaceNav current="gallery" onChange={onWorkspaceChange} />
-        </div>
-
-        <div className="project-header mg-search-header">
-          <span className="header-divider" />
-          <div className="mg-search-box">
-            <Search size={16} className="mg-search-icon" aria-hidden="true" />
-            <input
-              type="text"
-              className="mg-search-input"
-              placeholder="Search 102 assets by name or category…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search media assets"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="mg-search-clear"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="header-actions">
-          <ThemeToggle />
+    <div className="workspace-root gallery-root" data-active={active}>
+      <TopBar
+        actions={
           <button
             type="button"
-            className="button primary export-trigger mg-zip-btn"
+            className="button primary topbar-primary"
             disabled={downloadingZip || filteredItems.length === 0}
             onClick={handleDownloadZip}
+            aria-label={`Download ${filteredItems.length} assets as ZIP`}
             title={`Download ${filteredItems.length} assets as ZIP`}
           >
             {downloadingZip ? (
-              <LoaderCircle size={18} className="spin" />
+              <LoaderCircle size={18} className="spin" aria-hidden="true" />
             ) : (
-              <Archive size={18} />
+              <Archive size={18} aria-hidden="true" />
             )}
-            <span>
-              {downloadingZip ? (
-                `Zipping ${zipProgress}`
-              ) : (
-                <>
-                  Download ZIP <span className="si-count">{filteredItems.length}</span>
-                </>
-              )}
+            <span className="label">
+              {downloadingZip ? `Zipping ${zipProgress}` : 'Download ZIP'}
             </span>
+            {!downloadingZip && <span className="count-badge">{filteredItems.length}</span>}
           </button>
-        </div>
-      </header>
-
-      {/* Main Workspace */}
-      <div className="mg-workspace">
-        {/* Categories Sidebar */}
-        <aside className="mg-sidebar" aria-label="Categories">
-          <div className="mg-sidebar-header">
-            <span className="mg-sidebar-title">Categories</span>
-            <span className="mg-sidebar-total">{GALLERY_ITEMS.length} items</span>
-          </div>
-
-          <nav className="mg-category-nav">
+        }
+      >
+        <h1 className="topbar-title">Media gallery</h1>
+        <div className="search-field topbar-search">
+          <Search size={18} className="search-field-icon" aria-hidden="true" />
+          <input
+            type="search"
+            placeholder={`Search ${GALLERY_ITEMS.length} assets`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search media assets"
+          />
+          {searchQuery && (
             <button
               type="button"
-              className={`mg-category-item ${selectedCategory === 'All' ? 'active' : ''}`}
-              onClick={() => setSelectedCategory('All')}
+              className="icon-button sm"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
             >
-              <FolderOpen size={16} className="mg-cat-icon" />
-              <span className="mg-cat-label">All Media</span>
-              <span className="mg-cat-badge">{categoryCounts.All}</span>
+              <X size={16} />
             </button>
+          )}
+        </div>
+      </TopBar>
 
-            {GALLERY_CATEGORIES.map((cat) => {
-              const count = categoryCounts[cat] || 0
-              return (
+      <div className="workspace-body gallery-body">
+        <nav className="gallery-categories" aria-label="Categories">
+          <span className="gallery-categories-title" aria-hidden="true">
+            Categories
+          </span>
+          <ul>
+            {categories.map((cat) => (
+              <li key={cat}>
                 <button
-                  key={cat}
                   type="button"
-                  className={`mg-category-item ${selectedCategory === cat ? 'active' : ''}`}
+                  className="gallery-category"
+                  aria-current={selectedCategory === cat ? 'true' : undefined}
                   onClick={() => setSelectedCategory(cat)}
                 >
-                  <span className="mg-cat-dot" aria-hidden="true" />
-                  <span className="mg-cat-label">{cat}</span>
-                  <span className="mg-cat-badge">{count}</span>
+                  <span>{cat === 'All' ? 'All media' : cat}</span>
+                  <span className="count">{categoryCounts[cat] || 0}</span>
                 </button>
-              )
-            })}
-          </nav>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-          {/* Format filters */}
-          <div className="mg-format-section">
-            <span className="mg-format-title">Format</span>
-            <div className="mg-format-pills">
-              {(['all', 'png', 'svg', 'jpg'] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  type="button"
-                  className={`mg-format-pill ${formatFilter === fmt ? 'active' : ''}`}
-                  onClick={() => setFormatFilter(fmt)}
-                >
-                  {fmt.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* Assets Main Grid Area */}
-        <main className="mg-main">
-          {/* Status / Toolbar */}
-          <div className="mg-toolbar">
-            <div className="mg-toolbar-left">
-              <h2 className="mg-toolbar-title">
-                {selectedCategory === 'All' ? 'All Media Assets' : selectedCategory}
-              </h2>
-              <span className="mg-toolbar-count">
-                {filteredItems.length} {filteredItems.length === 1 ? 'asset' : 'assets'} available
-              </span>
-            </div>
-
-            <div className="mg-toolbar-right">
-              {filteredItems.length > 0 && (
-                <button
-                  type="button"
-                  className="button subtle mg-batch-download"
-                  disabled={downloadingZip}
-                  onClick={handleDownloadZip}
-                >
-                  <Download size={15} />
-                  <span>Download Category ZIP</span>
-                </button>
-              )}
-            </div>
+        <main className="gallery-main" aria-labelledby="gallery-title">
+          <div className="page-header">
+            <h2 id="gallery-title">{title}</h2>
+            <span role="status">
+              {filteredItems.length} {filteredItems.length === 1 ? 'asset' : 'assets'}
+              {searchQuery.trim() ? ` matching “${searchQuery.trim()}”` : ''}
+            </span>
           </div>
 
-          {/* Grid */}
           {filteredItems.length === 0 ? (
-            <div className="mg-empty-state">
-              <ImageIcon size={48} className="mg-empty-icon" />
-              <p className="mg-empty-text">No media assets match your filter</p>
-              <button
-                type="button"
-                className="button primary"
-                onClick={() => {
-                  setSelectedCategory('All')
-                  setSearchQuery('')
-                  setFormatFilter('all')
-                }}
-              >
-                Reset filters
+            <div className="empty-state">
+              <ImageIcon size={48} aria-hidden="true" />
+              <strong>No assets match</strong>
+              <span>Try another search term or show every category.</span>
+              <button type="button" className="button secondary" onClick={resetFilters}>
+                Clear filters
               </button>
             </div>
           ) : (
-            <div className="mg-grid">
+            <ul className="asset-grid">
               {filteredItems.map((item) => {
                 const isDownloading = downloadingIds.has(item.id)
-                const isCopied = copiedId === item.id
                 const ext = item.filename.split('.').pop()?.toUpperCase() || 'IMG'
-
                 return (
-                  <div key={item.id} className="mg-card" tabIndex={0}>
-                    {/* Thumbnail */}
-                    <div
-                      className="mg-card-thumb-wrap"
+                  <li key={item.id} className="asset-card">
+                    <button
+                      type="button"
+                      className="asset-card-main"
                       onClick={() => setPreviewItem(item)}
-                      role="button"
-                      tabIndex={-1}
-                      title={`Inspect ${item.name}`}
+                      aria-label={`Open ${item.name}, ${item.category}`}
                     >
-                      <img
-                        src={getGalleryItemThumbUrl(item)}
-                        alt={item.name}
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          const target = e.currentTarget
-                          const fullUrl = getGalleryItemUrl(item)
-                          if (target.src !== fullUrl) {
-                            target.src = fullUrl
-                          }
-                        }}
-                        className="mg-card-img"
-                      />
-                      <span className="mg-card-ext">{ext}</span>
-
-                      {/* Hover action overlay */}
-                      <div className="mg-card-overlay">
-                        <button
-                          type="button"
-                          className="mg-icon-btn"
-                          title="Preview full size"
-                          aria-label="Preview full size"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setPreviewItem(item)
+                      <span className="asset-card-thumb checker">
+                        <img
+                          src={getGalleryItemThumbUrl(item)}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            const target = e.currentTarget
+                            const fullUrl = getGalleryItemUrl(item)
+                            if (target.src !== fullUrl) target.src = fullUrl
                           }}
-                        >
-                          <Maximize2 size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          className="mg-icon-btn"
-                          title={isCopied ? 'Path copied!' : 'Copy relative path'}
-                          aria-label="Copy relative path"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleCopyPath(item)
-                          }}
-                        >
-                          {isCopied ? <Check size={15} /> : <Copy size={15} />}
-                        </button>
-                        <button
-                          type="button"
-                          className="mg-icon-btn mg-download-btn"
-                          title={`Download ${item.filename}`}
-                          aria-label={`Download ${item.filename}`}
-                          disabled={isDownloading}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void handleDownloadItem(item)
-                          }}
-                        >
-                          {isDownloading ? (
-                            <LoaderCircle size={15} className="spin" />
-                          ) : (
-                            <Download size={15} />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Card Footer Info */}
-                    <div className="mg-card-details">
-                      <div className="mg-card-text">
-                        <span className="mg-card-name" title={item.filename}>
-                          {item.name}
-                        </span>
-                        <span className="mg-card-cat">{item.category}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="mg-direct-download"
-                        title={`Download ${item.filename}`}
-                        aria-label={`Download ${item.filename}`}
-                        disabled={isDownloading}
-                        onClick={() => void handleDownloadItem(item)}
-                      >
-                        {isDownloading ? (
-                          <LoaderCircle size={15} className="spin" />
-                        ) : (
-                          <Download size={15} />
-                        )}
-                        <span>Download</span>
-                      </button>
-                    </div>
-                  </div>
+                        />
+                        {ext !== 'PNG' && <span className="badge asset-card-ext">{ext}</span>}
+                      </span>
+                      <span className="asset-card-text">
+                        <strong title={item.filename}>{item.name}</strong>
+                        <span>{item.category}</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button asset-card-download"
+                      title={`Download ${item.filename}`}
+                      aria-label={`Download ${item.filename}`}
+                      disabled={isDownloading}
+                      onClick={() => void handleDownloadItem(item)}
+                    >
+                      {isDownloading ? (
+                        <LoaderCircle size={18} className="spin" />
+                      ) : (
+                        <Download size={18} />
+                      )}
+                    </button>
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           )}
         </main>
       </div>
@@ -443,21 +301,23 @@ export default function MediaGalleryWorkspace({
       {/* Lightbox / Detail Inspection Dialog */}
       <dialog
         ref={previewDialogRef}
-        className="mg-dialog"
-        aria-label="Asset Details"
+        className="dialog dialog-lg asset-dialog"
+        aria-labelledby="asset-dialog-title"
         onClose={() => setPreviewItem(null)}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setPreviewItem(null)
+        }}
       >
         {previewItem && (
-          <div className="mg-dialog-content">
-            <header className="mg-dialog-header">
-              <div className="mg-dialog-title-wrap">
-                <ImageIcon size={18} />
-                <div>
-                  <h3 className="mg-dialog-title">{previewItem.name}</h3>
-                  <span className="mg-dialog-sub">
-                    {previewItem.category} &bull; {previewItem.filename}
-                  </span>
-                </div>
+          <>
+            <header className="dialog-header">
+              <div>
+                <h2 id="asset-dialog-title">{previewItem.name}</h2>
+                <p>
+                  {previewItem.category}
+                  {imageMeta ? ` · ${imageMeta.width} × ${imageMeta.height} px` : ''} ·{' '}
+                  {previewItem.filename}
+                </p>
               </div>
               <button
                 type="button"
@@ -465,88 +325,62 @@ export default function MediaGalleryWorkspace({
                 aria-label="Close preview"
                 onClick={() => setPreviewItem(null)}
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </header>
-
-            <div className="mg-dialog-preview-area">
+            <div className="dialog-body asset-dialog-preview checker">
               <img
                 src={getGalleryItemUrl(previewItem)}
                 alt={previewItem.name}
-                className="mg-dialog-img"
                 onLoad={(e) => {
                   const target = e.currentTarget
-                  setImageMeta({
-                    width: target.naturalWidth,
-                    height: target.naturalHeight,
-                  })
+                  setImageMeta({ width: target.naturalWidth, height: target.naturalHeight })
                 }}
               />
             </div>
-
-            <div className="mg-dialog-meta-strip">
-              <div className="mg-meta-item">
-                <span className="mg-meta-label">Category</span>
-                <span className="mg-meta-val">{previewItem.category}</span>
-              </div>
-              <div className="mg-meta-item">
-                <span className="mg-meta-label">Filename</span>
-                <span className="mg-meta-val">{previewItem.filename}</span>
-              </div>
-              {imageMeta && (
-                <div className="mg-meta-item">
-                  <span className="mg-meta-label">Dimensions</span>
-                  <span className="mg-meta-val">
-                    {imageMeta.width} &times; {imageMeta.height} px
-                  </span>
-                </div>
-              )}
-              <div className="mg-meta-item">
-                <span className="mg-meta-label">Path</span>
-                <span className="mg-meta-val mg-path-val">{previewItem.path}</span>
-              </div>
-            </div>
-
-            <footer className="mg-dialog-footer">
-              <div className="mg-dialog-quick-use">
-                <button
-                  type="button"
-                  className="button subtle"
-                  onClick={() => handleUseInChyron(previewItem)}
-                >
-                  <Clapperboard size={16} />
-                  <span>Use in Chyron</span>
-                </button>
-                <button
-                  type="button"
-                  className="button subtle"
-                  onClick={() => handleUseInStream(previewItem)}
-                >
-                  <Images size={16} />
-                  <span>Use in Stream Images</span>
-                </button>
-                <button
-                  type="button"
-                  className="button subtle"
-                  onClick={() => handleCopyPath(previewItem)}
-                >
-                  {copiedId === previewItem.id ? <Check size={16} /> : <Copy size={16} />}
-                  <span>{copiedId === previewItem.id ? 'Copied' : 'Copy Path'}</span>
-                </button>
-              </div>
-
-              <div className="mg-dialog-primary-actions">
-                <button
-                  type="button"
-                  className="button primary"
-                  onClick={() => void handleDownloadItem(previewItem)}
-                >
-                  <Download size={16} />
-                  <span>Download Image</span>
-                </button>
-              </div>
+            <footer className="dialog-footer">
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => handleCopyPath(previewItem)}
+              >
+                {copiedId === previewItem.id ? <Check size={16} /> : <Copy size={16} />}
+                <span>{copiedId === previewItem.id ? 'Path copied' : 'Copy path'}</span>
+              </button>
+              <span className="dialog-footer-spacer" />
+              <MenuButton
+                label="Use in…"
+                className="button outline"
+                placement="top"
+                align="end"
+                items={[
+                  {
+                    label: 'Add to Chyron',
+                    hint: 'As an image layer',
+                    Icon: Clapperboard,
+                    onSelect: () => handleUseInChyron(previewItem),
+                  },
+                  {
+                    label: 'Use in Stream images',
+                    hint: previewItem.category === 'Backgrounds' ? 'As background' : 'As host',
+                    Icon: Images,
+                    onSelect: () => handleUseInStream(previewItem),
+                  },
+                ]}
+              >
+                <span>Use in…</span>
+                <ChevronDown size={16} aria-hidden="true" />
+              </MenuButton>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => void handleDownloadItem(previewItem)}
+              >
+                <Download size={16} aria-hidden="true" />
+                <span>Download</span>
+              </button>
             </footer>
-          </div>
+          </>
         )}
       </dialog>
     </div>

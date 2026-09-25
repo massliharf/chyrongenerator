@@ -1,4 +1,4 @@
-import { cloneElement, useId, useState } from 'react'
+import { cloneElement, useId, useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
 
@@ -30,7 +30,10 @@ export function Field({
   )
 }
 
-/** Preserve incomplete input while typing; clamp only on commit. */
+/**
+ * Magnific Number Input. Preserves incomplete input while typing and clamps on
+ * commit. ↑/↓ step the value (Shift ×10), Enter commits, Escape reverts.
+ */
 export function NumberInput({
   value,
   onChange,
@@ -53,9 +56,11 @@ export function NumberInput({
   'aria-describedby'?: string
 }) {
   const [draft, setDraft] = useState<string | null>(null)
+  const clamp = (n: number) => Math.max(min, Math.min(max, n))
+  const round = (n: number) => Number((Math.round(n / step) * step).toFixed(4))
   const commit = () => {
     if (draft !== null && draft.trim() && Number.isFinite(Number(draft))) {
-      onChange(Math.max(min, Math.min(max, Number(draft))))
+      onChange(clamp(Number(draft)))
     }
     setDraft(null)
   }
@@ -79,6 +84,13 @@ export function NumberInput({
       }}
       onBlur={commit}
       onKeyDown={(e) => {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault()
+          const base = draft !== null && Number.isFinite(Number(draft)) ? Number(draft) : value
+          const delta = (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1)
+          setDraft(null)
+          onChange(clamp(round(base + delta)))
+        }
         if (e.key === 'Enter') e.currentTarget.blur()
         if (e.key === 'Escape') {
           e.preventDefault()
@@ -89,7 +101,12 @@ export function NumberInput({
   )
 }
 
-export function Range({
+/**
+ * Magnific Number Field — replaces slider + number pairs. The label doubles as a
+ * scrub handle (drag left/right, Shift for ×10) for quick coarse changes; the
+ * input takes exact values.
+ */
+export function NumberField({
   label,
   value,
   onChange,
@@ -97,6 +114,7 @@ export function Range({
   max,
   step = 1,
   unit = '',
+  hint,
 }: {
   label: string
   value: number
@@ -105,30 +123,64 @@ export function Range({
   max: number
   step?: number
   unit?: string
+  hint?: string
 }) {
   const id = useId()
+  const scrub = useRef<{ x: number; value: number; moved: boolean } | null>(null)
+  const scrubbed = useRef(false)
   return (
-    <div className="range-field">
-      <div className="range-label">
-        <label htmlFor={id}>{label}</label>
-        <span className="number-wrap">
-          <NumberInput label={`${label} value`} {...{ value, onChange, min, max, step }} />
-          {unit && <span aria-hidden="true">{unit}</span>}
-        </span>
+    <div className="number-field">
+      <label
+        className="number-field-label"
+        htmlFor={id}
+        title="Drag to adjust · Shift for bigger steps"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          e.currentTarget.setPointerCapture(e.pointerId)
+          scrub.current = { x: e.clientX, value, moved: false }
+        }}
+        onPointerMove={(e) => {
+          const s = scrub.current
+          if (!s) return
+          const dx = e.clientX - s.x
+          if (!s.moved && Math.abs(dx) < 3) return
+          s.moved = true
+          const steps = Math.round(dx / 2) * (e.shiftKey ? 10 : 1)
+          const next = Math.max(min, Math.min(max, s.value + steps * step))
+          onChange(Number(next.toFixed(4)))
+        }}
+        onPointerUp={() => {
+          scrubbed.current = !!scrub.current?.moved
+          scrub.current = null
+        }}
+        onPointerCancel={() => {
+          scrub.current = null
+        }}
+        onClick={(e) => {
+          // A scrub is not a click: keep focus where it was.
+          if (scrubbed.current) e.preventDefault()
+          scrubbed.current = false
+        }}
+      >
+        {label}
+      </label>
+      <div className="number-field-control">
+        <NumberInput
+          id={id}
+          aria-describedby={hint ? `${id}-hint` : undefined}
+          {...{ value, onChange, min, max, step }}
+        />
+        {unit && (
+          <span className="number-field-unit" aria-hidden="true">
+            {unit}
+          </span>
+        )}
       </div>
-      <input
-        id={id}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-valuetext={`${Number(value.toFixed(2))}${unit ? ` ${unit}` : ''}`}
-        onChange={(e) => onChange(Number(e.target.value))}
-        style={
-          { '--range-progress': `${((value - min) / (max - min)) * 100}%` } as React.CSSProperties
-        }
-      />
+      {hint && (
+        <span id={`${id}-hint`} className="field-hint">
+          {hint}
+        </span>
+      )}
     </div>
   )
 }

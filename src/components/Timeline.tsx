@@ -10,13 +10,13 @@ import {
   Pause,
   Play,
   Repeat2,
-  RotateCcw,
   Type,
   Upload,
 } from 'lucide-react'
 import { chyronLayer, duration, type Layer, type Project } from '../studio/model'
 import { imageTiming } from '../studio/motion'
 import type { usePlayback } from '../studio/usePlayback'
+import { MenuButton } from './Menu'
 
 const KEY = 'chyron-studio:timeline'
 
@@ -46,7 +46,6 @@ export function Timeline({
 }) {
   const [dragged, setDragged] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
-  const [addImageMenuOpen, setAddImageMenuOpen] = useState(false)
   const drag = useRef<{
     id: string
     mode: 'delay' | 'length'
@@ -138,7 +137,7 @@ export function Timeline({
           title={expanded ? 'Hide layers' : 'Show layers'}
           onClick={toggleExpanded}
         >
-          <ChevronDown size={18} />
+          <ChevronDown size={20} />
         </button>
         <div className="transport">
           <button
@@ -183,63 +182,41 @@ export function Timeline({
           >
             <Repeat2 size={18} />
           </button>
-          <button
-            className="icon-button"
-            aria-label="Replay animation"
-            title="Replay"
-            onClick={() => playback.play(true)}
-          >
-            <RotateCcw size={18} />
-          </button>
-          <div className="add-layer-wrap">
+          {onOpenGallery ? (
+            <MenuButton
+              label="Add image"
+              className="button outline add-layer"
+              align="end"
+              placement="top"
+              title="Add a logo, photo or graphic"
+              items={[
+                {
+                  label: 'Choose from Media gallery',
+                  Icon: Images,
+                  onSelect: onOpenGallery,
+                },
+                {
+                  label: 'Upload from device',
+                  Icon: Upload,
+                  hint: 'PNG, JPEG, WebP or GIF',
+                  onSelect: () => input.current?.click(),
+                },
+              ]}
+            >
+              <ImagePlus size={18} aria-hidden="true" />
+              <span className="label">Add image</span>
+            </MenuButton>
+          ) : (
             <button
-              className="button add-layer"
+              className="button outline add-layer"
               aria-label="Add image"
               title="Add a logo, photo or graphic"
-              aria-expanded={addImageMenuOpen}
-              onClick={() => {
-                if (onOpenGallery) setAddImageMenuOpen((o) => !o)
-                else input.current?.click()
-              }}
+              onClick={() => input.current?.click()}
             >
-              <ImagePlus size={16} />
-              <span>Image</span>
+              <ImagePlus size={18} aria-hidden="true" />
+              <span className="label">Add image</span>
             </button>
-            {addImageMenuOpen && (
-              <>
-                <button
-                  type="button"
-                  className="menu-dismiss"
-                  aria-label="Close add image menu"
-                  onClick={() => setAddImageMenuOpen(false)}
-                />
-                <div className="add-image-menu" role="menu" aria-label="Add image options">
-                  <button
-                    type="button"
-                    className="add-image-menu-item"
-                    onClick={() => {
-                      setAddImageMenuOpen(false)
-                      onOpenGallery?.()
-                    }}
-                  >
-                    <Images size={16} />
-                    <span>Select from Media Gallery</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="add-image-menu-item"
-                    onClick={() => {
-                      setAddImageMenuOpen(false)
-                      input.current?.click()
-                    }}
-                  >
-                    <Upload size={16} />
-                    <span>Upload from device</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          )}
           <input
             ref={input}
             type="file"

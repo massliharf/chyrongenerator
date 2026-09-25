@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
-  Check,
   ChevronDown,
   Download,
   Expand,
+  Film,
   HelpCircle,
   ImagePlus,
   MoreHorizontal,
@@ -23,8 +23,9 @@ import { Composition } from './components/Composition'
 import { Properties, type PropertiesTab } from './components/Properties'
 import { Timeline } from './components/Timeline'
 import { ExportDialog } from './components/ExportDialog'
-import { ThemeToggle } from './components/ThemeToggle'
-import { WorkspaceNav, type Workspace } from './components/WorkspaceNav'
+import { AppNav, type Workspace } from './components/WorkspaceNav'
+import { MenuButton } from './components/Menu'
+import { SaveStatus, TopBar } from './components/TopBar'
 import StreamWorkspace from './stream/StreamWorkspace'
 import MediaGalleryWorkspace from './gallery/MediaGalleryWorkspace'
 import {
@@ -61,26 +62,22 @@ import { saveBlob } from './studio/export'
 import { generateId } from './utils/id'
 import { MediaGalleryModal } from './components/MediaGalleryModal'
 import { fetchGalleryFile, type GalleryItem } from './studio/galleryData'
-import './App.css'
-import './StudioLayout.css'
-import './Shell.css'
 
-function ChyronEditor({
-  active,
-  onWorkspaceChange,
-}: {
-  active: boolean
-  onWorkspaceChange: (workspace: Workspace) => void
-}) {
+function ChyronEditor({ active }: { active: boolean }) {
   const editor = useProject()
   const { project, patch, replace } = editor
   const playback = usePlayback(project)
+  const pauseRef = useRef(playback.pause)
+  pauseRef.current = playback.pause
+  useEffect(() => {
+    // Leaving the workspace stops playback.
+    if (!active) pauseRef.current()
+  }, [active])
   const [tab, setTab] = useState<PropertiesTab>('design')
   // The chyron starts selected so its text is one click away.
   const [selection, setSelection] = useState<string | null>('chyron')
   const [dropping, setDropping] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [guides, setGuides] = useState(false)
   const [focusCanvas, setFocusCanvas] = useState(false)
   const [compactViewport, setCompactViewport] = useState(
@@ -95,9 +92,6 @@ function ChyronEditor({
   const importInput = useRef<HTMLInputElement>(null)
   const stage = useRef<HTMLDivElement>(null)
   const helpDialog = useRef<HTMLDialogElement>(null)
-  const projectMenu = useRef<HTMLDivElement>(null)
-  const projectMenuButton = useRef<HTMLButtonElement>(null)
-  const viewMenu = useRef<HTMLDetailsElement>(null)
   // A layer removed by undo or a new composition can no longer stay selected.
   const selected = project.layers.some((l) => l.id === selection) ? selection : null
   const selectedImage = project.layers.find(
@@ -109,16 +103,9 @@ function ChyronEditor({
     (detailOverride ?? (compactViewport && project.previewBackground !== 'live'))
   const changeLayer = (id: string, values: Partial<ImageLayer>) =>
     patch({ layers: updateLayer(project, id, values) })
-  const closeProjectMenu = () => {
-    setMenuOpen(false)
-    projectMenuButton.current?.focus()
-  }
   const closeHelp = () => {
     helpDialog.current?.close()
     setHelp(false)
-  }
-  const closeView = () => {
-    if (viewMenu.current) viewMenu.current.open = false
   }
   const addImages = async (files: File[]) => {
     let next: Project = project
@@ -180,16 +167,6 @@ function ChyronEditor({
     return () => media.removeEventListener('change', update)
   }, [])
   useEffect(() => {
-    if (menuOpen) projectMenu.current?.querySelector('button')?.focus()
-  }, [menuOpen])
-  useEffect(() => {
-    const dismiss = (event: PointerEvent) => {
-      if (viewMenu.current && !viewMenu.current.contains(event.target as Node)) closeView()
-    }
-    document.addEventListener('pointerdown', dismiss)
-    return () => document.removeEventListener('pointerdown', dismiss)
-  }, [])
-  useEffect(() => {
     if (!notice) return
     const timeout = setTimeout(() => setNotice(''), deletedPreset ? 12000 : 6000)
     return () => clearTimeout(timeout)
@@ -225,10 +202,6 @@ function ChyronEditor({
       const typing =
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable
       if (exportOpen || help) return
-      if (event.key === 'Escape' && menuOpen) {
-        closeProjectMenu()
-        return
-      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
         void saveProject()
@@ -279,7 +252,7 @@ function ChyronEditor({
         setSelection(null)
         return
       }
-      if (element.closest('button, a, summary, [role=tab]')) return
+      if (element.closest('button, a, summary, [role=tab], [role=menu]')) return
       if (event.code === 'Space') {
         event.preventDefault()
         playback.toggle()
@@ -337,161 +310,93 @@ function ChyronEditor({
     replace(next)
     playback.seek(restTime(next))
   }
-  const saveLabel =
-    editor.saveStatus === 'Saved on this device'
-      ? 'Saved'
-      : editor.saveStatus === 'Saving…'
-        ? 'Saving…'
-        : 'Not saved'
   return (
-    <div className={`studio-shell ${focusCanvas ? 'canvas-focused' : ''}`}>
+    <div className={`workspace-root chyron-root ${focusCanvas ? 'canvas-focused' : ''}`}>
       <a className="skip-link" href="#props-panel" onClick={() => setFocusCanvas(false)}>
         Skip to properties
       </a>
-      <header className="app-header">
-        <div className="header-start">
-          <h1 className="brand" aria-label="Chyron Studio">
-            <span className="brand-symbol" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-            <strong>
-              chyron<span>studio</span>
-            </strong>
-          </h1>
-          <WorkspaceNav
-            current="chyron"
-            onChange={(workspace) => {
-              playback.pause()
-              onWorkspaceChange(workspace)
-            }}
-          />
-        </div>
-        <div className="project-header">
-          <span className="header-divider" />
+      <TopBar
+        actions={
+          <>
+            <div className="history-actions">
+              <button
+                className="icon-button"
+                aria-label="Undo"
+                title="Undo (⌘/Ctrl Z)"
+                disabled={!editor.canUndo}
+                onClick={editor.undo}
+              >
+                <Undo2 size={20} />
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Redo"
+                title="Redo (⌘/Ctrl Shift Z)"
+                disabled={!editor.canRedo}
+                onClick={editor.redo}
+              >
+                <Redo2 size={20} />
+              </button>
+            </div>
+            <button
+              className="button primary topbar-primary"
+              aria-label="Export"
+              onClick={() => {
+                playback.pause()
+                setExportOpen(true)
+              }}
+            >
+              <Download size={18} aria-hidden="true" /> <span className="label">Export</span>
+            </button>
+          </>
+        }
+      >
+        <h1 className="sr-only">Chyron editor</h1>
+        <div className="document-title">
           <input
             aria-label="Project name"
-            className="project-name"
+            className="document-name"
             value={project.name}
             maxLength={80}
             onChange={(e) => patch({ name: e.target.value })}
           />
-          <div className="project-menu-wrap">
-            <button
-              className="icon-button"
-              ref={projectMenuButton}
-              aria-label="Project menu"
-              aria-controls="project-actions"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              <ChevronDown size={16} />
-            </button>
-            {menuOpen && (
-              <>
-                <button
-                  className="menu-dismiss"
-                  aria-label="Close project menu"
-                  onClick={closeProjectMenu}
-                />
-                <div
-                  className="project-menu"
-                  id="project-actions"
-                  ref={projectMenu}
-                  role="group"
-                  aria-label="Project actions"
-                  onKeyDown={(e) => {
-                    const buttons = Array.from(e.currentTarget.querySelectorAll('button'))
-                    const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
-                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      buttons[
-                        (index + (e.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length
-                      ]?.focus()
-                    }
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      void saveProject()
-                      closeProjectMenu()
-                    }}
-                  >
-                    <ArrowDownToLine size={16} /> Save project file <kbd>⌘ S</kbd>
-                  </button>
-                  <button
-                    onClick={() => {
-                      importInput.current?.click()
-                      closeProjectMenu()
-                    }}
-                  >
-                    <ArrowUpFromLine size={16} /> Open project file
-                  </button>
-                  <button
-                    onClick={() => {
-                      replace({ ...DEFAULT_PROJECT })
-                      playback.seek(restTime(DEFAULT_PROJECT))
-                      setSelection('chyron')
-                      closeProjectMenu()
-                      setNotice('New composition. Undo to return to your previous work.')
-                    }}
-                  >
-                    <Plus size={16} /> New composition
-                  </button>
-                  <hr />
-                  <button
-                    onClick={() => {
-                      closeProjectMenu()
-                      setHelp(true)
-                    }}
-                  >
-                    <HelpCircle size={16} /> Guide & shortcuts <kbd>?</kbd>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          <span className="save-state" role="status" title={editor.saveStatus}>
-            {saveLabel === 'Saved' && <Check size={14} aria-hidden="true" />}
-            <span className="sr-only">{editor.saveStatus}</span>
-            <span aria-hidden="true">{saveLabel}</span>
-          </span>
-        </div>
-        <div className="header-actions">
-          <div className="history-actions">
-            <button
-              className="icon-button"
-              aria-label="Undo"
-              title="Undo (⌘/Ctrl Z)"
-              disabled={!editor.canUndo}
-              onClick={editor.undo}
-            >
-              <Undo2 size={18} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Redo"
-              title="Redo (⌘/Ctrl Shift Z)"
-              disabled={!editor.canRedo}
-              onClick={editor.redo}
-            >
-              <Redo2 size={18} />
-            </button>
-            <ThemeToggle />
-          </div>
-          <button
-            className="button primary export-trigger"
-            aria-label="Export"
-            onClick={() => {
-              playback.pause()
-              setExportOpen(true)
-            }}
+          <MenuButton
+            label="Project menu"
+            items={[
+              {
+                label: 'Save project file',
+                Icon: ArrowDownToLine,
+                shortcut: '⌘ S',
+                onSelect: () => void saveProject(),
+              },
+              {
+                label: 'Open project file',
+                Icon: ArrowUpFromLine,
+                onSelect: () => importInput.current?.click(),
+              },
+              {
+                label: 'New composition',
+                Icon: Plus,
+                onSelect: () => {
+                  replace({ ...DEFAULT_PROJECT })
+                  playback.seek(restTime(DEFAULT_PROJECT))
+                  setSelection('chyron')
+                  setNotice('New composition. Undo to return to your previous work.')
+                },
+              },
+              'separator',
+              {
+                label: 'Guide & shortcuts',
+                Icon: HelpCircle,
+                shortcut: '?',
+                onSelect: () => setHelp(true),
+              },
+            ]}
           >
-            <Download size={18} /> <span>Export</span>
-          </button>
+            <ChevronDown size={18} />
+          </MenuButton>
         </div>
+        <SaveStatus status={editor.saveStatus} error={editor.saveStatus.startsWith('Save a')} />
         <input
           type="file"
           ref={importInput}
@@ -518,22 +423,25 @@ function ChyronEditor({
             input.value = ''
           }}
         />
-      </header>
-      <div className="workspace">
-        <main className="main-workspace" aria-label="Canvas and timeline">
+      </TopBar>
+      <div className="workspace-body">
+        <main className="editor-main" aria-label="Canvas and timeline">
           <h2 className="sr-only">Canvas</h2>
           <div className="canvas-toolbar">
             <button
               className="canvas-size"
               aria-label={`Canvas settings: ${project.width} by ${project.height}`}
               aria-pressed={selected === null}
-              title="Canvas, timing and frame rate"
+              title="Canvas size, timing and frame rate"
               onClick={() => {
                 setFocusCanvas(false)
                 setSelection(null)
               }}
             >
-              {project.width} × {project.height}
+              <Film size={16} aria-hidden="true" />
+              <span>
+                {project.width} × {project.height}
+              </span>
               <span className="canvas-size-meta">
                 {project.fps} fps · {duration(project).toFixed(1)} s
               </span>
@@ -547,75 +455,59 @@ function ChyronEditor({
                 disabled={selected === null || focusCanvas}
                 onClick={() => setDetailOverride(!artworkDetail)}
               >
-                {artworkDetail ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
+                {artworkDetail ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
               </button>
-              <details
-                className="view-menu"
-                ref={viewMenu}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    closeView()
-                    e.currentTarget.querySelector('summary')?.focus()
-                    e.stopPropagation()
-                  }
-                }}
-              >
-                <summary aria-label="Preview options" title="Preview options">
-                  <MoreHorizontal size={20} />
-                </summary>
-                <div className="view-menu-content">
-                  <span className="menu-label">Preview background</span>
-                  {(['live', 'checker', 'dark', 'light'] as const).map((bg) => (
-                    <button
-                      key={bg}
-                      aria-pressed={project.previewBackground === bg}
-                      onClick={() => {
-                        patch({ previewBackground: bg })
-                        closeView()
-                      }}
-                    >
-                      <span className={`menu-swatch ${bg}`} />
-                      {bg === 'live'
-                        ? 'Live photo'
+              <MenuButton
+                label="Preview options"
+                align="end"
+                items={[
+                  ...(['live', 'checker', 'dark', 'light'] as const).map((bg) => ({
+                    label:
+                      bg === 'live'
+                        ? 'Live photo background'
                         : bg === 'checker'
-                          ? 'Transparency'
+                          ? 'Transparency grid'
                           : bg === 'dark'
-                            ? 'Dark'
-                            : 'Light'}
-                    </button>
-                  ))}
-                  <hr />
-                  <button aria-pressed={guides} onClick={() => setGuides(!guides)}>
-                    <ScanLine size={18} /> Safe area
-                  </button>
-                  <button
-                    onClick={() => {
-                      closeView()
+                            ? 'Dark background'
+                            : 'Light background',
+                    checked: project.previewBackground === bg,
+                    onSelect: () => patch({ previewBackground: bg }),
+                  })),
+                  'separator' as const,
+                  {
+                    label: guides ? 'Hide safe area' : 'Show safe area',
+                    Icon: ScanLine,
+                    onSelect: () => setGuides(!guides),
+                  },
+                  {
+                    label: 'Fullscreen preview',
+                    Icon: Expand,
+                    onSelect: () => {
                       if (document.fullscreenElement) void document.exitFullscreen()
                       else if (stage.current?.requestFullscreen)
                         void stage.current
                           .requestFullscreen()
                           .catch(() => setNotice('Fullscreen is unavailable in this browser.'))
                       else setNotice('Fullscreen is unavailable in this browser.')
-                    }}
-                  >
-                    <Expand size={18} /> Fullscreen
-                  </button>
-                </div>
-              </details>
+                    },
+                  },
+                ]}
+              >
+                <MoreHorizontal size={20} />
+              </MenuButton>
               <button
-                className={`icon-button ${focusCanvas ? 'selected' : ''}`}
+                className={`icon-button focus-toggle ${focusCanvas ? 'selected' : ''}`}
                 aria-label={focusCanvas ? 'Show properties' : 'Focus canvas'}
                 aria-pressed={focusCanvas}
                 title={focusCanvas ? 'Show properties' : 'Hide properties'}
                 onClick={() => setFocusCanvas(!focusCanvas)}
               >
-                {focusCanvas ? <PanelRightOpen size={18} /> : <PanelRightClose size={18} />}
+                {focusCanvas ? <PanelRightOpen size={20} /> : <PanelRightClose size={20} />}
               </button>
             </div>
           </div>
           <div
-            className={`stage-surround ${artworkDetail ? 'artwork-detail' : ''} ${dropping ? 'is-dropping' : ''}`}
+            className={`stage stage-surround ${artworkDetail ? 'artwork-detail' : ''} ${dropping ? 'is-dropping' : ''}`}
             ref={stage}
             onPointerDown={(e) => {
               // Clicking empty space around the artwork clears the selection.
@@ -716,7 +608,7 @@ function ChyronEditor({
             }}
           />
         </main>
-        <div className="inspector-wrap" hidden={focusCanvas}>
+        <div className="inspector-slot" hidden={focusCanvas}>
           <Properties
             project={project}
             patch={patch}
@@ -754,7 +646,7 @@ function ChyronEditor({
         <div className="toast" role="status">
           <span>{notice}</span>
           {deletedPreset && (
-            <button className="text-button" onClick={restorePreset}>
+            <button className="button ghost sm" onClick={restorePreset}>
               Undo
             </button>
           )}
@@ -769,7 +661,7 @@ function ChyronEditor({
       )}
       {help && (
         <dialog
-          className="help-dialog"
+          className="dialog dialog-md help-dialog"
           ref={helpDialog}
           onCancel={(event) => {
             event.preventDefault()
@@ -777,52 +669,57 @@ function ChyronEditor({
           }}
           aria-labelledby="help-title"
         >
-          <div className="dialog-heading">
-            <h2 id="help-title">How it works</h2>
+          <div className="dialog-header">
+            <h2 id="help-title">Guide & shortcuts</h2>
             <button className="icon-button" aria-label="Close tour" onClick={closeHelp}>
               <X size={18} />
             </button>
           </div>
-          <ol>
-            <li>
-              <strong>Select, then edit.</strong> Click anything on the canvas or in the timeline;
-              its settings open on the right.
-            </li>
-            <li>
-              <strong>Shape time in the timeline.</strong> Drag a bar to delay it, drag its edge to
-              lengthen the transition, drag a name to reorder.
-            </li>
-            <li>
-              <strong>Pick a style to see it.</strong> Every animation plays as soon as you choose
-              it.
-            </li>
-          </ol>
-          <h3 className="shortcut-title">Shortcuts</h3>
-          <dl className="shortcuts">
-            {[
-              ['Space', 'Play / pause'],
-              ['← →', 'Step one frame'],
-              ['Esc', 'Composition settings'],
-              ['⌘/Ctrl D', 'Duplicate image'],
-              ['[ ]', 'Send backward / bring forward'],
-              ['H', 'Hide / show layer'],
-              ['Del', 'Delete image'],
-              ['⌘/Ctrl Z', 'Undo (⇧ to redo)'],
-              ['⌘/Ctrl S', 'Save project file'],
-              ['Arrows on canvas', 'Nudge (⇧ for 4×)'],
-              ['?', 'This guide'],
-            ].map(([keys, action]) => (
-              <div key={keys}>
-                <dt>
-                  <kbd>{keys}</kbd>
-                </dt>
-                <dd>{action}</dd>
-              </div>
-            ))}
-          </dl>
-          <button className="button primary full" onClick={closeHelp}>
-            Got it
-          </button>
+          <div className="dialog-body">
+            <ol className="help-steps">
+              <li>
+                <strong>Select, then edit.</strong> Click anything on the canvas or in the timeline;
+                its settings open on the right.
+              </li>
+              <li>
+                <strong>Shape time in the timeline.</strong> Drag a bar to delay it, drag its edge
+                to lengthen the transition, drag a name to reorder.
+              </li>
+              <li>
+                <strong>Pick a style to see it.</strong> Every animation plays as soon as you choose
+                it; pick it again to replay.
+              </li>
+            </ol>
+            <h3 className="shortcut-title">Shortcuts</h3>
+            <dl className="shortcuts">
+              {[
+                ['Space', 'Play / pause'],
+                ['← →', 'Step one frame'],
+                ['Esc', 'Composition settings'],
+                ['⌘/Ctrl D', 'Duplicate image'],
+                ['[ ]', 'Send backward / bring forward'],
+                ['H', 'Hide / show layer'],
+                ['Del', 'Delete image'],
+                ['⌘/Ctrl Z', 'Undo (⇧ to redo)'],
+                ['⌘/Ctrl S', 'Save project file'],
+                ['Arrows on canvas', 'Nudge (⇧ for 4×)'],
+                ['?', 'This guide'],
+              ].map(([keys, action]) => (
+                <div key={keys}>
+                  <dt>
+                    <kbd>{keys}</kbd>
+                  </dt>
+                  <dd>{action}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          <div className="dialog-footer">
+            <span className="dialog-footer-spacer" />
+            <button className="button primary" onClick={closeHelp}>
+              Done
+            </button>
+          </div>
         </dialog>
       )}
     </div>
@@ -845,13 +742,6 @@ function App() {
     if (next === 'stream') setStreamVisited(true)
     if (next === 'gallery') setGalleryVisited(true)
     setWorkspace(next)
-    requestAnimationFrame(() => {
-      document
-        .querySelector<HTMLButtonElement>(
-          `[data-workspace="${next}"] .workspace-nav button[aria-pressed="true"]`,
-        )
-        ?.focus()
-    })
     try {
       localStorage.setItem('chyron-studio:workspace', next)
     } catch {
@@ -859,24 +749,27 @@ function App() {
     }
   }
   return (
-    <>
-      <div data-workspace="chyron" hidden={workspace !== 'chyron'}>
-        <ChyronEditor active={workspace === 'chyron'} onWorkspaceChange={changeWorkspace} />
+    <div className="app-shell">
+      <AppNav current={workspace} onChange={changeWorkspace} />
+      <div className="app-content">
+        <div className="workspace-slot" data-workspace="chyron" hidden={workspace !== 'chyron'}>
+          <ChyronEditor active={workspace === 'chyron'} />
+        </div>
+        {streamVisited && (
+          <div className="workspace-slot" data-workspace="stream" hidden={workspace !== 'stream'}>
+            <StreamWorkspace active={workspace === 'stream'} />
+          </div>
+        )}
+        {galleryVisited && (
+          <div className="workspace-slot" data-workspace="gallery" hidden={workspace !== 'gallery'}>
+            <MediaGalleryWorkspace
+              active={workspace === 'gallery'}
+              onWorkspaceChange={changeWorkspace}
+            />
+          </div>
+        )}
       </div>
-      {streamVisited && (
-        <div data-workspace="stream" hidden={workspace !== 'stream'}>
-          <StreamWorkspace active={workspace === 'stream'} onWorkspaceChange={changeWorkspace} />
-        </div>
-      )}
-      {galleryVisited && (
-        <div data-workspace="gallery" hidden={workspace !== 'gallery'}>
-          <MediaGalleryWorkspace
-            active={workspace === 'gallery'}
-            onWorkspaceChange={changeWorkspace}
-          />
-        </div>
-      )}
-    </>
+    </div>
   )
 }
 export default App
