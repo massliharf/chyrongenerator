@@ -187,11 +187,17 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
     }
   }
 
-  const hostMenu = (label: string, className: string, content: React.ReactNode) => (
+  const hostMenu = (
+    label: string,
+    className: string,
+    content: React.ReactNode,
+    align: 'start' | 'end' = 'start',
+  ) => (
     <MenuButton
       label={label}
       className={className}
       disabled={disabled}
+      align={align}
       items={[
         {
           label: 'Choose from Media gallery',
@@ -475,7 +481,7 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
                       {doc.host.width} × {doc.host.height} · all 3 images
                     </span>
                   </div>
-                  {hostMenu('Replace host image', 'icon-button', <RefreshCw size={18} />)}
+                  {hostMenu('Replace host image', 'icon-button', <RefreshCw size={18} />, 'end')}
                   <button
                     className="icon-button"
                     aria-label="Remove host image"
@@ -609,6 +615,7 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
                     <MenuButton
                       label="Add background"
                       className="si-background-add"
+                      align="end"
                       disabled={disabled}
                       items={[
                         {

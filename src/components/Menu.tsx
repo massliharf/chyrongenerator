@@ -42,6 +42,7 @@ export function MenuButton({
   disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [autoAlign, setAutoAlign] = useState<'start' | 'end'>(align)
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const id = useId()
@@ -49,11 +50,31 @@ export function MenuButton({
     setOpen(false)
     if (refocus) trigger.current?.focus()
   }
+
+  const toggle = () => {
+    if (!open && trigger.current) {
+      const rect = trigger.current.getBoundingClientRect()
+      if (align === 'start' && rect.left + 240 > window.innerWidth - 8) {
+        setAutoAlign('end')
+      } else if (align === 'end' && rect.right - 240 < 8) {
+        setAutoAlign('start')
+      } else {
+        setAutoAlign(align)
+      }
+    } else {
+      setAutoAlign(align)
+    }
+    setOpen((prev) => !prev)
+  }
+
   useEffect(() => {
     if (open) list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
   }, [open])
+
+  const effectiveAlign = open ? autoAlign : align
+
   return (
-    <div className={`menu-wrap align-${align} placement-${placement}`}>
+    <div className={`menu-wrap align-${effectiveAlign} placement-${placement}`}>
       <button
         ref={trigger}
         className={className}
@@ -63,7 +84,7 @@ export function MenuButton({
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         disabled={disabled}
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
       >
         {children}
       </button>
