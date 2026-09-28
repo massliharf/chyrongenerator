@@ -615,7 +615,6 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
                     <MenuButton
                       label="Add background"
                       className="si-background-add"
-                      align="end"
                       disabled={disabled}
                       items={[
                         {

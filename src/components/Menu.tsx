@@ -53,13 +53,28 @@ export function MenuButton({
 
   const toggle = () => {
     if (!open && trigger.current) {
-      const rect = trigger.current.getBoundingClientRect()
-      if (align === 'start' && rect.left + 240 > window.innerWidth - 8) {
-        setAutoAlign('end')
-      } else if (align === 'end' && rect.right - 240 < 8) {
-        setAutoAlign('start')
+      const triggerRect = trigger.current.getBoundingClientRect()
+      const container = trigger.current.closest<HTMLElement>(
+        '.inspector, .dialog, aside, [data-menu-container]',
+      )
+      const containerRect = container?.getBoundingClientRect()
+      const minLeft = (containerRect ? Math.max(containerRect.left, 0) : 0) + 8
+      const maxRight =
+        (containerRect ? Math.min(containerRect.right, window.innerWidth) : window.innerWidth) - 8
+      const menuWidth = 240
+
+      if (align === 'start') {
+        if (triggerRect.left + menuWidth > maxRight && triggerRect.right - menuWidth >= minLeft) {
+          setAutoAlign('end')
+        } else {
+          setAutoAlign('start')
+        }
       } else {
-        setAutoAlign(align)
+        if (triggerRect.right - menuWidth < minLeft && triggerRect.left + menuWidth <= maxRight) {
+          setAutoAlign('start')
+        } else {
+          setAutoAlign('end')
+        }
       }
     } else {
       setAutoAlign(align)
