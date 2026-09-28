@@ -13,12 +13,19 @@ import {
   Type,
   Upload,
 } from 'lucide-react'
-import { chyronLayer, duration, type Layer, type Project } from '../studio/model'
-import { imageTiming } from '../studio/motion'
+import { duration, layerTiming, type Layer, type LayerTiming, type Project } from '../studio/model'
 import type { usePlayback } from '../studio/usePlayback'
 import { MenuButton } from './Menu'
 
 const KEY = 'chyron-studio:timeline'
+
+export interface TimingChange {
+  delay?: number
+  length?: number
+  outLength?: number
+  endDelay?: number
+}
+type DragMode = 'move' | 'start' | 'in' | 'out' | 'end'
 
 /** Playback, the time ruler and the layer stack in one place: each row is a layer. */
 export function Timeline({
@@ -39,8 +46,8 @@ export function Timeline({
   onToggleVisible: (id: string) => void
   onAddImages: (files: File[]) => void
   onOpenGallery?: () => void
-  /** Drag results: a new start delay, or a new transition length, in seconds. */
-  onTiming: (id: string, timing: { delay?: number; length?: number }) => void
+  /** Drag results, in seconds: where the layer starts/ends and how long its intro and outro last. */
+  onTiming: (id: string, timing: TimingChange) => void
   /** Move a layer to a new stack index (0 = back). */
   onReorder: (id: string, index: number) => void
 }) {
@@ -48,32 +55,53 @@ export function Timeline({
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const drag = useRef<{
     id: string
-    mode: 'delay' | 'length'
+    mode: DragMode
     x: number
     width: number
-    delay: number
-    length: number
+    t: LayerTiming
   } | null>(null)
   const snap = (seconds: number) => Math.round(seconds * p.fps) / p.fps
-  const beginDrag = (
-    e: React.PointerEvent<HTMLElement>,
-    l: Layer,
-    mode: 'delay' | 'length',
-    current: { delay: number; length: number },
-  ) => {
+  const beginDrag = (e: React.PointerEvent<HTMLElement>, l: Layer, mode: DragMode) => {
     if (e.button !== 0) return
     e.stopPropagation()
     const track = (e.currentTarget.closest('.tracks') as HTMLElement).getBoundingClientRect()
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { id: l.id, mode, x: e.clientX, width: track.width, ...current }
+    drag.current = { id: l.id, mode, x: e.clientX, width: track.width, t: layerTiming(l, p) }
     onSelect(l.id)
   }
   const moveDrag = (e: React.PointerEvent<HTMLElement>) => {
     const d = drag.current
     if (!d) return
-    const seconds = ((e.clientX - d.x) / d.width) * total
-    if (d.mode === 'delay') onTiming(d.id, { delay: Math.max(0, snap(d.delay + seconds)) })
-    else onTiming(d.id, { length: Math.max(0.2, snap(d.length + seconds)) })
+    const dt = ((e.clientX - d.x) / d.width) * total
+    const { t } = d
+    const room = (fixed: number) => Math.max(0, total - fixed)
+    if (d.mode === 'move') {
+      // Slide the whole clip: its intro, hold and outro keep their lengths.
+      const span = t.length + t.hold + t.outLength
+      const delay = Math.max(0, Math.min(room(span), snap(t.delay + dt)))
+      onTiming(d.id, { delay, endDelay: Math.max(0, snap(total - span - delay)) })
+    } else if (d.mode === 'start') {
+      const max = room(t.length + t.outLength + t.endDelay)
+      onTiming(d.id, {
+        delay: Math.max(0, Math.min(max, snap(t.delay + dt))),
+        endDelay: t.endDelay,
+      })
+    } else if (d.mode === 'end') {
+      const max = room(t.delay + t.length + t.outLength)
+      onTiming(d.id, {
+        endDelay: Math.max(0, Math.min(max, snap(t.endDelay - dt))),
+        delay: t.delay,
+      })
+    } else if (d.mode === 'in') {
+      const max = room(t.delay + t.outLength + t.endDelay)
+      onTiming(d.id, { length: Math.max(0.2, Math.min(max, snap(t.length + dt))) })
+    } else {
+      const max = room(t.delay + t.length + t.endDelay)
+      onTiming(d.id, {
+        outLength: Math.max(0.2, Math.min(max, snap(t.outLength - dt))),
+        endDelay: t.endDelay,
+      })
+    }
   }
   const endDrag = () => {
     drag.current = null
@@ -96,18 +124,7 @@ export function Timeline({
       /* Optional preference. */
     }
   }
-  const span = (l: Layer) => {
-    if (l.kind === 'image') {
-      const t = imageTiming(l, p)
-      return { start: t.delay, length: l.intro === 'none' ? 0 : t.length, end: total - t.delay }
-    }
-    const delay = Math.min(chyronLayer(p).delay, Math.max(0, total / 2 - p.animationDuration))
-    return {
-      start: delay,
-      length: p.motion === 'none' ? 0 : p.animationDuration,
-      end: total - delay,
-    }
-  }
+  const still = (l: Layer) => (l.kind === 'image' ? l.intro === 'none' : p.motion === 'none')
   const scrubber = (className: string) => (
     <input
       className={className}
@@ -295,9 +312,16 @@ export function Timeline({
         </ol>
         <div className="tracks">
           {layers.map((l) => {
-            const s = span(l)
-            const width = Math.max(0.001, s.end - s.start)
-            const edge = (s.length / width) * 100
+            const t = layerTiming(l, p)
+            const cut = still(l)
+            const width = Math.max(0.001, total - t.delay - t.endDelay)
+            const inPct = cut ? 0 : (t.length / width) * 100
+            const outPct = cut ? 0 : (t.outLength / width) * 100
+            const handlers = {
+              onPointerMove: moveDrag,
+              onPointerUp: endDrag,
+              onPointerCancel: endDrag,
+            }
             return (
               <div
                 key={l.id}
@@ -307,40 +331,53 @@ export function Timeline({
               >
                 <div
                   className={`clip ${l.kind === 'chyron' ? 'title-clip' : 'image-clip'} ${l.visible ? '' : 'is-hidden'}`}
-                  style={{ marginLeft: pct(s.start), width: pct(width) }}
-                  title="Drag to change when it starts"
-                  onPointerDown={(e) =>
-                    beginDrag(e, l, 'delay', { delay: s.start, length: s.length })
-                  }
-                  onPointerMove={moveDrag}
-                  onPointerUp={endDrag}
-                  onPointerCancel={endDrag}
+                  style={{ marginLeft: pct(t.delay), width: pct(width) }}
+                  title={`In ${t.length.toFixed(2)}s · Hold ${t.hold.toFixed(2)}s · Out ${t.outLength.toFixed(2)}s — drag to move`}
+                  onPointerDown={(e) => beginDrag(e, l, 'move')}
+                  {...handlers}
                 >
+                  <i
+                    className="clip-edge start"
+                    title="Drag to change when it starts"
+                    onPointerDown={(e) => beginDrag(e, l, 'start')}
+                    {...handlers}
+                  />
                   <span
                     className="clip-in"
-                    title={`Intro · ${s.length}s`}
-                    style={{ width: `${edge}%` }}
+                    title={`Intro · ${t.length}s`}
+                    style={{ width: `${inPct}%` }}
                   />
                   <span className="clip-hold">
                     {l.kind === 'chyron' ? p.text.replace(/\n/g, ' ') || 'Chyron' : l.name}
                   </span>
-                  {s.length > 0 && (
-                    <i
-                      className="clip-handle"
-                      title="Drag to change the transition length"
-                      style={{ left: `${edge}%` }}
-                      onPointerDown={(e) =>
-                        beginDrag(e, l, 'length', { delay: s.start, length: s.length })
-                      }
-                      onPointerMove={moveDrag}
-                      onPointerUp={endDrag}
-                      onPointerCancel={endDrag}
-                    />
-                  )}
                   <span
                     className="clip-out"
-                    title={`Outro · ${s.length}s`}
-                    style={{ width: `${edge}%` }}
+                    title={`Outro · ${t.outLength}s`}
+                    style={{ width: `${outPct}%` }}
+                  />
+                  {!cut && (
+                    <>
+                      <i
+                        className="clip-handle"
+                        title="Drag to change the intro length"
+                        style={{ left: `${inPct}%` }}
+                        onPointerDown={(e) => beginDrag(e, l, 'in')}
+                        {...handlers}
+                      />
+                      <i
+                        className="clip-handle"
+                        title="Drag to change the outro length"
+                        style={{ left: `${100 - outPct}%` }}
+                        onPointerDown={(e) => beginDrag(e, l, 'out')}
+                        {...handlers}
+                      />
+                    </>
+                  )}
+                  <i
+                    className="clip-edge end"
+                    title="Drag to change when it ends"
+                    onPointerDown={(e) => beginDrag(e, l, 'end')}
+                    {...handlers}
                   />
                 </div>
               </div>

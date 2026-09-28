@@ -27,35 +27,35 @@ const formats = [
     id: 'webm',
     title: 'WebM',
     badge: 'Alpha',
-    copy: 'Lightweight video for OBS & the web',
+    copy: 'Video for OBS and the web',
     Icon: Film,
   },
   {
     id: 'mov',
     title: 'ProRes 4444',
     badge: '.mov',
-    copy: 'High quality video for editing & compositing',
+    copy: 'For Premiere, After Effects, Final Cut',
     Icon: Film,
   },
   {
     id: 'sequence',
     title: 'PNG sequence',
     badge: '.zip',
-    copy: 'Lossless RGBA frames for any workflow',
+    copy: 'Lossless frames, fastest to export',
     Icon: Layers,
   },
   {
     id: 'png',
     title: 'PNG image',
     badge: '.png',
-    copy: 'A crisp still with a transparent background',
+    copy: 'A single still frame',
     Icon: Image,
   },
   {
     id: 'svg',
     title: 'SVG vector',
     badge: '.svg',
-    copy: 'Scalable artwork with outlined lettering',
+    copy: 'Scalable, outlined lettering',
     Icon: FileImage,
   },
 ] as const
@@ -130,7 +130,7 @@ export function ExportDialog({
       <div className="dialog-header">
         <div>
           <h2 id="export-title">Export</h2>
-          <p>Every format keeps the transparent background.</p>
+          <p>Transparent background in every format</p>
         </div>
         <button className="icon-button" aria-label="Close export" onClick={close}>
           <X size={19} />
@@ -152,21 +152,9 @@ export function ExportDialog({
             </div>
             <div className="export-preview-caption">
               <span>{project.name}</span>
-              <span>{exportDescription(project)}</span>
-            </div>
-            <div className="export-specs">
               <span>
-                Color channels<strong>RGB + Alpha</strong>
-              </span>
-              <span>
-                {still ? 'Render' : 'Total frames'}
-                <strong>
-                  {still
-                    ? useCurrentFrame
-                      ? 'Current frame'
-                      : 'Full composition'
-                    : frameCount(project)}
-                </strong>
+                {exportDescription(project)}
+                {still ? '' : ` · ${frameCount(project)} frames`}
               </span>
             </div>
           </div>
@@ -231,27 +219,15 @@ export function ExportDialog({
             Export the current playhead frame ({time.toFixed(2)} s)
           </label>
         )}
-        {format === 'mov' && !progress && (
+        {!progress && (format === 'webm' || format === 'mov') && (
           <p className="export-footnote">
-            The ProRes encoder loads on first use. Best for Premiere, After Effects and Final Cut.
-            Up to Full HD / 600 frames.
+            {format === 'mov' ? 'ProRes' : 'VP9'} encoder loads on first use · up to Full HD / 600
+            frames
+            {imageLayers(project).some((l) => l.visible)
+              ? ' · photos slow video exports; PNG sequence is fastest'
+              : ''}
           </p>
         )}
-        {format === 'webm' && !progress && (
-          <p className="export-footnote">
-            VP9 with alpha. The encoder loads on first use. Up to Full HD / 600 frames; PNG
-            sequences support larger exports.
-          </p>
-        )}
-        {(format === 'webm' || format === 'mov') &&
-          !progress &&
-          imageLayers(project).some((l) => l.visible) && (
-            <p className="export-footnote">
-              Photos make lossless video slower to encode in the browser, often several minutes for
-              a few seconds of 720p. ProRes is about twice as fast as WebM; a PNG sequence is
-              fastest.
-            </p>
-          )}
         {(error || unavailable) && (
           <div className="alert alert-danger" role="alert">
             {error || unavailable}

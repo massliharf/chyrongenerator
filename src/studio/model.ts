@@ -91,8 +91,12 @@ export interface ChyronLayer {
   kind: 'chyron'
   name: string
   visible: boolean
-  /** Seconds after the clip starts before the title's intro begins; the outro finishes this early. */
+  /** Seconds after the clip starts before the title's intro begins. */
   delay: number
+  /** Outro length in seconds. Unset: the outro mirrors the intro. */
+  outDuration?: number
+  /** Seconds before the clip ends that the outro finishes. Unset: same as `delay`. */
+  endDelay?: number
 }
 export interface ImageLayer {
   id: string
@@ -117,8 +121,14 @@ export interface ImageLayer {
   intro: ImageMotion
   outro: ImageMotion | 'mirror'
   easing: Easing
+  /** Intro length in seconds. */
   duration: number
+  /** Seconds after the clip starts before the intro begins. */
   delay: number
+  /** Outro length in seconds. Unset: same as the intro. */
+  outDuration?: number
+  /** Seconds before the clip ends that the outro finishes. Unset: same as `delay`. */
+  endDelay?: number
   emphasis: HoldEffect
   emphasisStrength: number
   /** Seconds per emphasis cycle. */
@@ -397,11 +407,18 @@ export function normalizeImageLayer(raw: Record<string, unknown>): ImageLayer | 
     easing: pick(raw.easing, EASINGS, d.easing),
     duration: num(raw.duration, d.duration, 0.2, 4),
     delay: num(raw.delay, d.delay, 0, 10),
+    ...optionalTiming(raw),
     emphasis: pick(raw.emphasis, HOLD_EFFECTS, d.emphasis),
     emphasisStrength: num(raw.emphasisStrength, d.emphasisStrength, 0, 100),
     emphasisSpeed: num(raw.emphasisSpeed, d.emphasisSpeed, 0.5, 8),
     burstColor: hex(raw.burstColor, d.burstColor),
   }
+}
+function optionalTiming(raw: Record<string, unknown>) {
+  const out: { outDuration?: number; endDelay?: number } = {}
+  if (typeof raw.outDuration === 'number') out.outDuration = num(raw.outDuration, 1, 0.05, 12)
+  if (typeof raw.endDelay === 'number') out.endDelay = num(raw.endDelay, 0, 0, 30)
+  return out
 }
 export function normalizeLayers(value: unknown): Layer[] {
   if (!Array.isArray(value)) return [{ ...CHYRON_LAYER }]
@@ -418,6 +435,7 @@ export function normalizeLayers(value: unknown): Layer[] {
         name: text(raw.name, CHYRON_LAYER.name),
         visible: typeof raw.visible === 'boolean' ? raw.visible : true,
         delay: num(raw.delay, 0, 0, 10),
+        ...optionalTiming(raw),
       }
       layers.push(chyron)
     } else if (raw.kind === 'image') {
@@ -438,11 +456,74 @@ export const imageLayers = (p: Pick<Project, 'layers'>) =>
 export const hasArtwork = (p: Project) =>
   (chyronLayer(p).visible && (!!p.text.trim() || (p.subtitlePill && !!p.subtitle.trim()))) ||
   imageLayers(p).some((l) => l.visible && l.opacity > 0)
-/** Longest intro among visible layers, in seconds, bounded by half the clip. */
+export interface LayerTiming {
+  total: number
+  /** Seconds before the intro starts. */
+  delay: number
+  /** Intro length. */
+  length: number
+  /** Time the layer spends settled between intro and outro. */
+  hold: number
+  /** Outro length. */
+  outLength: number
+  /** Seconds between the end of the outro and the end of the clip. */
+  endDelay: number
+  introEnd: number
+  outroStart: number
+}
+/**
+ * Where a layer sits in the clip: [delay][in][hold][out][endDelay] = total.
+ * Layers without their own outro settings stay symmetric, exactly as before.
+ */
+export function layerTiming(l: Layer, p: Project): LayerTiming {
+  const total = duration(p)
+  const half = total / 2
+  const inLen = l.kind === 'chyron' ? p.animationDuration : l.duration
+  let delay: number, length: number, outLength: number, endDelay: number
+  if (l.outDuration === undefined && l.endDelay === undefined) {
+    if (l.kind === 'chyron') {
+      delay = Math.min(l.delay, Math.max(0, half - inLen))
+      length = inLen
+    } else {
+      delay = Math.min(l.delay, Math.max(0, half - 0.2))
+      length = Math.max(0.05, Math.min(inLen, half - delay))
+    }
+    outLength = length
+    endDelay = delay
+  } else {
+    delay = Math.min(l.delay, Math.max(0, total - 0.2))
+    length = Math.max(0.05, Math.min(inLen, total - delay - 0.1))
+    const rest = total - delay - length
+    endDelay = Math.min(l.endDelay ?? l.delay, Math.max(0, rest - 0.05))
+    outLength = Math.max(0.05, Math.min(l.outDuration ?? inLen, rest - endDelay))
+  }
+  const introEnd = delay + length
+  const outroStart = Math.max(introEnd, total - endDelay - outLength)
+  return {
+    total,
+    delay,
+    length,
+    hold: Math.max(0, outroStart - introEnd),
+    outLength,
+    endDelay,
+    introEnd,
+    outroStart,
+  }
+}
+/** Longest intro or outro among visible layers, in seconds, bounded by half the clip. */
 export function introLength(p: Project) {
   const half = duration(p) / 2
-  let end = p.motion === 'none' ? 0 : p.animationDuration + chyronLayer(p).delay
-  for (const l of imageLayers(p)) if (l.visible) end = Math.max(end, l.delay + l.duration)
+  let end = 0
+  const chyron = chyronLayer(p)
+  if (p.motion !== 'none') {
+    const t = layerTiming(chyron, p)
+    end = Math.max(t.introEnd, t.endDelay + t.outLength)
+  }
+  for (const l of imageLayers(p))
+    if (l.visible) {
+      const t = layerTiming(l, p)
+      end = Math.max(end, t.introEnd, t.endDelay + t.outLength)
+    }
   return Math.min(half, Math.max(0.2, end))
 }
 export function parseProject(json: string): Project {

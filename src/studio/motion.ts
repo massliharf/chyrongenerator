@@ -2,6 +2,7 @@ import {
   chyronLayer,
   duration,
   frameCount,
+  layerTiming,
   type Easing,
   type ImageLayer,
   type ImageMotion,
@@ -44,10 +45,12 @@ export function poseAt(time: number, index: number, count: number, p: Project): 
   // Matching transparent margins guarantee clean first/last encoded frames,
   // including durations that don't divide evenly into the selected frame rate.
   const edge = total - (frameCount(p) - 1) / p.fps
-  // A layer delay starts the intro later and finishes the outro earlier by the same amount.
-  const delay = Math.min(chyronLayer(p).delay, Math.max(0, total / 2 - p.animationDuration))
-  const phaseTime = Math.min(time, total - time) - delay
-  const progress = clamp((phaseTime - edge) / (p.animationDuration - edge))
+  // Intro and outro each have their own start offset and length (symmetric by default).
+  const tm = layerTiming(chyronLayer(p), p)
+  const introSide = time <= (tm.introEnd + tm.outroStart) / 2
+  const phaseTime = introSide ? time - tm.delay : total - time - tm.endDelay
+  const phaseLength = introSide ? tm.length : tm.outLength
+  const progress = clamp((phaseTime - edge) / Math.max(1e-6, phaseLength - edge))
   const order = count <= 1 ? 0 : index / (count - 1)
   // Normalize stagger to the element count. Even 160 letters finish within the intro.
   const enter = clamp((progress - order * p.stagger) / (1 - p.stagger))
@@ -227,11 +230,7 @@ export const settledImagePose = (): ImagePose => ({
 
 /** Start and end of a layer's own intro, and start of its outro, in clip seconds. */
 export function imageTiming(l: ImageLayer, p: Project) {
-  const total = duration(p)
-  const half = total / 2
-  const delay = Math.min(l.delay, Math.max(0, half - 0.2))
-  const length = Math.max(0.05, Math.min(l.duration, half - delay))
-  return { total, delay, length, introEnd: delay + length, outroStart: total - delay - length }
+  return layerTiming(l, p)
 }
 
 function applyMotion(
@@ -439,10 +438,12 @@ function applyEmphasis(pose: ImagePose, l: ImageLayer, p: Project, time: number,
 /** Pure time-based pose for an image layer. Preview, scrubbing and export share it. */
 export function imagePoseAt(time: number, l: ImageLayer, p: Project): ImagePose {
   const pose = settledImagePose()
-  const { total, delay, length } = imageTiming(l, p)
+  const tm = imageTiming(l, p)
+  const { total } = tm
   const edge = total - (frameCount(p) - 1) / p.fps
-  const intro = time <= total / 2
-  const local = (intro ? time : total - time) - delay
+  const intro = time <= (tm.introEnd + tm.outroStart) / 2
+  const local = intro ? time - tm.delay : total - time - tm.endDelay
+  const length = intro ? tm.length : tm.outLength
   const frame = Math.round(time * p.fps)
   const motion = intro || l.outro === 'mirror' ? l.intro : l.outro
   if (local <= edge + 1e-7) {

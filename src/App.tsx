@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { Composition } from './components/Composition'
 import { Properties, type PropertiesTab } from './components/Properties'
-import { Timeline } from './components/Timeline'
+import { Timeline, type TimingChange } from './components/Timeline'
 import { ExportDialog } from './components/ExportDialog'
 import { AppNav, type Workspace } from './components/WorkspaceNav'
 import { MenuButton } from './components/Menu'
@@ -34,6 +34,7 @@ import {
   duration,
   fileStem,
   hasArtwork,
+  layerTiming,
   imageLayers,
   parseProject,
   restTime,
@@ -103,6 +104,31 @@ function ChyronEditor({ active }: { active: boolean }) {
     (detailOverride ?? (compactViewport && project.previewBackground !== 'live'))
   const changeLayer = (id: string, values: Partial<ImageLayer>) =>
     patch({ layers: updateLayer(project, id, values) })
+  /** Intro, hold and outro edits from the timeline or the Animate panel. */
+  const setLayerTiming = (id: string, change: TimingChange) => {
+    const layer = project.layers.find((l) => l.id === id)
+    if (!layer) return
+    const values: Record<string, number> = {}
+    if (change.delay !== undefined) values.delay = change.delay
+    if (change.endDelay !== undefined) values.endDelay = change.endDelay
+    if (change.outLength !== undefined) values.outDuration = Math.min(12, change.outLength)
+    if (change.length !== undefined && layer.kind === 'image')
+      values.duration = Math.min(4, change.length)
+    // Once an edge is set, keep the other one explicit so the clip stops mirroring.
+    if (values.endDelay === undefined && layer.endDelay === undefined && 'delay' in values)
+      values.endDelay = layer.delay
+    if (values.outDuration === undefined && layer.outDuration === undefined) {
+      const t = layerTiming(layer, project)
+      if (Object.keys(values).length) values.outDuration = t.outLength
+    }
+    const next: Partial<Project> = {
+      layers: updateLayer(project, id, values as Partial<ImageLayer>),
+    }
+    // The chyron's intro length is the composition's transition length.
+    if (change.length !== undefined && layer.kind === 'chyron')
+      next.animationDuration = Math.max(0.2, Math.min(4, change.length))
+    patch(next)
+  }
   const closeHelp = () => {
     helpDialog.current?.close()
     setHelp(false)
@@ -579,26 +605,7 @@ function ChyronEditor({ active }: { active: boolean }) {
             }}
             onAddImages={(files) => void addImages(files)}
             onOpenGallery={() => setGalleryOpen(true)}
-            onTiming={(id, { delay, length }) => {
-              const layer = project.layers.find((l) => l.id === id)
-              if (!layer) return
-              const half = duration(project) / 2
-              if (layer.kind === 'image') {
-                const values: Partial<ImageLayer> = {}
-                if (delay !== undefined) values.delay = Math.min(delay, Math.max(0, half - 0.2))
-                if (length !== undefined) values.duration = Math.min(4, length)
-                changeLayer(id, values)
-              } else if (delay !== undefined) {
-                patch({
-                  layers: updateLayer(project, id, {
-                    delay: Math.min(delay, Math.max(0, half - project.animationDuration)),
-                  }),
-                })
-              } else if (length !== undefined) {
-                // The chyron's transition sets the clip's transition length.
-                patch({ animationDuration: Math.min(4, length) })
-              }
-            }}
+            onTiming={(id, change) => setLayerTiming(id, change)}
             onReorder={(id, index) => {
               const layers = project.layers.filter((l) => l.id !== id)
               const layer = project.layers.find((l) => l.id === id)
@@ -630,6 +637,7 @@ function ChyronEditor({ active }: { active: boolean }) {
             }
             onSavePreset={savePreset}
             onRemovePreset={removePreset}
+            onTiming={setLayerTiming}
           />
         </div>
       </div>

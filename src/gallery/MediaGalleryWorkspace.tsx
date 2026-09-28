@@ -257,7 +257,7 @@ export default function MediaGalleryWorkspace({
                       onClick={() => setPreviewItem(item)}
                       aria-label={`Open ${item.name}, ${item.category}`}
                     >
-                      <span className="asset-card-thumb checker">
+                      <span className="asset-card-thumb">
                         <img
                           src={getGalleryItemThumbUrl(item)}
                           alt=""
@@ -328,7 +328,7 @@ export default function MediaGalleryWorkspace({
                 <X size={20} />
               </button>
             </header>
-            <div className="dialog-body asset-dialog-preview checker">
+            <div className="dialog-body asset-dialog-preview">
               <img
                 src={getGalleryItemUrl(previewItem)}
                 alt={previewItem.name}

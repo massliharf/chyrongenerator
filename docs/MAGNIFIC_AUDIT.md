@@ -83,13 +83,13 @@ Kurallar: ekran başına tek birincil aksiyon (top bar sağında); her aksiyon t
 
 ## 5. Doğrulama
 
-| Kontrol              | Sonuç            |
-| -------------------- | ---------------- |
-| `tsc -b`             | Hatasız          |
-| ESLint               | Hatasız          |
-| Vitest               | 134 / 134        |
+| Kontrol              | Sonuç                                                                                                                                                                                                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tsc -b`             | Hatasız                                                                                                                                                                                                                                                         |
+| ESLint               | Hatasız                                                                                                                                                                                                                                                         |
+| Vitest               | 134 / 134                                                                                                                                                                                                                                                       |
 | Playwright (21 test) | 20 geçti. Export testinde PNG, SVG ve PNG sekansı doğrulandı; WebM kodlaması bu sandbox'ta (yazılımsal GPU ile tek süreçli Chromium) tamamlanıyor ancak testin 150 sn sınırını aşıyor. Arayüz değişikliğiyle ilgisi yok; normal bir makinede yeniden koşulmalı. |
-| Üretim derlemesi     | Başarılı         |
+| Üretim derlemesi     | Başarılı                                                                                                                                                                                                                                                        |
 
 Test güncellemeleri: yeni etiketler (NumberField, Host horizontal/vertical), menü rolleri, split indirme, segmented arka plan, iç scroll alanı. Önceden kırık iki test düzeltildi: hero'nun varsayılan alt gölgesi piksel kontrolünü bozuyordu; döndürülmüş kenarlarda ±1 yuvarlama farkına tolerans eklendi.
 
@@ -99,3 +99,14 @@ Test güncellemeleri: yeni etiketler (NumberField, Host horizontal/vertical), me
 2. Katman listesinde klavyeyle sıralama için "Move up/down" alternatifinin timeline satırına da eklenmesi.
 3. Galeri için çoklu seçim + seçilenleri ZIP olarak indirme (toplu aksiyon barı).
 4. Magnific token'larının JSON (W3C) çıktısı ile Figma değişkenlerinin senkronu.
+
+## 7. v3.1.0 — magnific.com/app görünümü
+
+UX ve bilgi mimarisi aynı kaldı; yalnızca görsel katman, magnific.com/app'ten ölçülen değerlere göre güncellendi (bkz. `magnific-app-design.md`).
+
+- **Font:** Geist (UI), başlıklar için Klarheit → Geist yedeği.
+- **Renk:** nötr gri palet; birincil aksiyon siyah `#1A1A1A` (dark'ta beyaz); marka pembesi `#FF57AE` logoda; odak, switch ve playhead için `#3B6FE8`.
+- **Kabuk:** `#F5F5F5` zemin üstünde 8 px aralıklı, 16 px köşeli yüzen kartlar; etiketsiz ikon rail (ad tooltip'te).
+- **Kontroller:** 32 px yükseklik, 12 px/500 arayüz metni, kenarlıksız %5 gri dolgulu input'lar, pill sekmeler, gri raylı segmented, küçük BÜYÜK HARF bölüm etiketleri.
+- **Yüzeyler:** kartlarda gölge yok, ayrım tonla; gölge yalnızca menü ve diyaloglarda (Magnific'in çok katmanlı overlay gölgesi).
+- **Düzeltme:** Subtitle style bölümündeki renk alanlarının panelden taşması giderildi.

@@ -72,6 +72,7 @@ import {
   FONT_NAMES,
   TEMPLATES,
   applyTemplate,
+  layerTiming,
   duration,
   frameCount,
   restTime,
@@ -84,10 +85,10 @@ import {
   type Project,
   type Template,
 } from '../studio/model'
-import { imageTiming } from '../studio/motion'
 import { duplicateLayer, fitWidth, moveLayer, removeLayer, updateLayer } from '../studio/layers'
 import { useProjectImages } from '../studio/useImages'
 import type { SavedPreset } from '../studio/useProject'
+import type { TimingChange } from './Timeline'
 
 type Icon = typeof Sparkles
 export type PropertiesTab = 'design' | 'animate'
@@ -220,6 +221,7 @@ export interface PropertiesProps {
   onApplyPreset: (preset: SavedPreset) => void
   onSavePreset: (name: string) => boolean
   onRemovePreset: (id: string) => void
+  onTiming: (id: string, change: TimingChange) => void
 }
 
 export function Properties(props: PropertiesProps) {
@@ -354,13 +356,20 @@ export function Properties(props: PropertiesProps) {
               patch={patch}
               layer={layer}
               previewPhase={props.previewPhase}
+              onTiming={props.onTiming}
             />
           ))}
         {layer?.kind === 'image' &&
           (tab === 'design' ? (
             <ImageDesign l={layer} p={p} patch={patch} />
           ) : (
-            <ImageAnimate l={layer} p={p} patch={patch} previewPhase={props.previewPhase} />
+            <ImageAnimate
+              l={layer}
+              p={p}
+              patch={patch}
+              previewPhase={props.previewPhase}
+              onTiming={props.onTiming}
+            />
           ))}
       </div>
     </aside>
@@ -982,18 +991,84 @@ const CHYRON_GROUPS: { title: string; items: Project['motion'][] }[] = [
   { title: 'Reveal', items: ['wipe', 'typewriter', 'blink', 'glitch'] },
 ]
 
+/** In · Hold · Out for one layer. The same numbers the timeline clip shows. */
+function TimingFields({
+  layer,
+  project: p,
+  onTiming,
+}: {
+  layer: ChyronLayer | ImageLayer
+  project: Project
+  onTiming: (id: string, change: TimingChange) => void
+}) {
+  const t = layerTiming(layer, p)
+  const round = (n: number) => Math.round(n * 100) / 100
+  const free = (used: number) => round(Math.max(0, t.total - used))
+  return (
+    <div className="block">
+      <span className="block-label">Timing</span>
+      <NumberField
+        label="Starts at"
+        value={round(t.delay)}
+        min={0}
+        max={free(t.length + t.outLength + t.endDelay)}
+        step={0.1}
+        unit="s"
+        onChange={(delay) => onTiming(layer.id, { delay, endDelay: t.endDelay })}
+      />
+      <NumberField
+        label="In"
+        value={round(t.length)}
+        min={0.2}
+        max={Math.min(4, free(t.delay + t.outLength + t.endDelay))}
+        step={0.1}
+        unit="s"
+        onChange={(length) => onTiming(layer.id, { length })}
+      />
+      <NumberField
+        label="Hold"
+        value={round(t.hold)}
+        min={0}
+        max={free(t.delay + t.length + t.outLength)}
+        step={0.1}
+        unit="s"
+        onChange={(hold) =>
+          onTiming(layer.id, {
+            endDelay: round(Math.max(0, t.total - t.delay - t.length - hold - t.outLength)),
+            delay: t.delay,
+          })
+        }
+      />
+      <NumberField
+        label="Out"
+        value={round(t.outLength)}
+        min={0.2}
+        max={free(t.delay + t.length + t.endDelay)}
+        step={0.1}
+        unit="s"
+        onChange={(outLength) => onTiming(layer.id, { outLength, endDelay: t.endDelay })}
+      />
+      <p className="block-note">
+        Clip length {round(t.total)}s. To make every layer longer, change Hold under Composition ›
+        Timing.
+      </p>
+    </div>
+  )
+}
+
 function ChyronAnimate({
   project: p,
   patch,
   layer,
   previewPhase,
+  onTiming,
 }: {
   project: Project
   patch: Patch
   layer: ChyronLayer
   previewPhase: (phase: 'intro' | 'outro', returnToRest?: boolean) => void
+  onTiming: (id: string, change: TimingChange) => void
 }) {
-  const maxDelay = Math.max(0, Math.round((duration(p) / 2 - p.animationDuration) * 10) / 10)
   return (
     <div className="props-stack">
       <div className="block">
@@ -1015,7 +1090,8 @@ function ChyronAnimate({
           </div>
         ))}
         <p className="block-note">
-          Choosing a style plays it. The outro plays the intro in reverse.
+          Choosing a style plays it. The outro plays the intro in reverse; set its length under
+          Timing.
         </p>
       </div>
       <div className="block">
@@ -1027,16 +1103,8 @@ function ChyronAnimate({
           step={0.05}
           onChange={(stagger) => patch({ stagger })}
         />
-        <NumberField
-          label="Delay"
-          value={Math.min(layer.delay, maxDelay)}
-          min={0}
-          max={maxDelay}
-          step={0.1}
-          unit="s"
-          onChange={(delay) => patch({ layers: updateLayer(p, layer.id, { delay }) })}
-        />
       </div>
+      <TimingFields layer={layer} project={p} onTiming={onTiming} />
     </div>
   )
 }
@@ -1204,16 +1272,16 @@ function ImageAnimate({
   p,
   patch,
   previewPhase,
+  onTiming,
 }: {
   l: ImageLayer
   p: Project
   patch: Patch
   previewPhase: (phase: 'intro' | 'outro', returnToRest?: boolean) => void
+  onTiming: (id: string, change: TimingChange) => void
 }) {
   const set = (values: Partial<ImageLayer>) => patch({ layers: updateLayer(p, l.id, values) })
-  const timing = imageTiming(l, p)
   const others = p.layers.filter((layer) => layer.kind === 'image' && layer.id !== l.id).length
-  const maxDelay = Math.max(0, Math.round((duration(p) / 2 - 0.2) * 10) / 10)
   return (
     <div className="props-stack">
       <div className="block">
@@ -1259,31 +1327,6 @@ function ImageAnimate({
             </select>
           </Field>
         </div>
-        <div className="pair-fields">
-          <Field label="Length (s)">
-            <NumberInput
-              value={l.duration}
-              min={0.2}
-              max={4}
-              step={0.1}
-              onChange={(duration) => set({ duration })}
-            />
-          </Field>
-          <Field label="Delay (s)">
-            <NumberInput
-              value={Math.min(l.delay, maxDelay)}
-              min={0}
-              max={maxDelay}
-              step={0.1}
-              onChange={(delay) => set({ delay })}
-            />
-          </Field>
-        </div>
-        {timing.length < l.duration - 0.001 && (
-          <p className="block-note" role="status">
-            Shortened to {Math.round(timing.length * 100) / 100}s to fit the clip.
-          </p>
-        )}
         {(l.intro === 'burst' || l.outro === 'burst') && (
           <Color
             label="Burst sparks"
@@ -1292,6 +1335,7 @@ function ImageAnimate({
           />
         )}
       </div>
+      <TimingFields layer={l} project={p} onTiming={onTiming} />
       <div className="block">
         <span className="block-label">While on screen</span>
         <Chips

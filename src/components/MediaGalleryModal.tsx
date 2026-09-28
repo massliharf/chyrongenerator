@@ -134,7 +134,7 @@ export function MediaGalleryModal({
                 aria-label={`Use ${item.name} (${item.category})`}
                 onClick={() => onSelect(item)}
               >
-                <span className="picker-card-thumb checker">
+                <span className="picker-card-thumb">
                   <img
                     src={getGalleryItemThumbUrl(item)}
                     alt=""

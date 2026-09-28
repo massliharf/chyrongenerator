@@ -88,9 +88,8 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
   flex: none;
-  padding: var(--space-3);
+  padding: var(--space-2);
   background: var(--color-bg-surface);
-  border-top: var(--border-width-thin) solid var(--color-border-default);
 }
 .si-format {
   display: flex;
@@ -99,15 +98,16 @@
   min-width: 0;
   padding: var(--space-2);
   text-align: start;
-  border: var(--border-width-thin) solid var(--color-border-default);
+  background: var(--color-bg-control);
+  border: var(--border-width-thin) solid transparent;
   border-radius: var(--radius-lg);
-  transition: border-color var(--duration-fast) var(--ease-standard);
+  transition: background-color var(--duration-fast) var(--ease-standard);
 }
 .si-format:hover {
-  border-color: var(--color-border-strong);
+  background: var(--color-bg-control-hover);
 }
 .si-format.selected {
-  background: var(--color-bg-selected);
+  background: var(--color-bg-surface);
   border-color: var(--color-border-selected);
 }
 .si-format-preview {
@@ -154,15 +154,16 @@
   font: var(--text-label-sm);
   text-align: start;
   color: var(--color-text-secondary);
-  border: var(--border-width-thin) solid var(--color-border-default);
+  background: var(--color-bg-control);
+  border: var(--border-width-thin) solid transparent;
   border-radius: var(--radius-md);
 }
 .si-background-grid > button:hover {
-  border-color: var(--color-border-strong);
+  background: var(--color-bg-control-hover);
 }
 .si-background-grid > button[aria-pressed='true'] {
-  color: var(--color-text-brand);
-  background: var(--color-bg-selected);
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
   border-color: var(--color-border-selected);
 }
 .si-background-grid img,
@@ -188,7 +189,7 @@
   justify-items: center;
   text-align: center;
   border-style: dashed;
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-default);
 }
 .si-background-grid .si-background-add:hover {
   color: var(--color-text-brand);

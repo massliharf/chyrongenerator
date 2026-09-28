@@ -300,12 +300,22 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
       <div className="workspace-body">
         <main className="editor-main" aria-label="Stream image previews">
           <div className="canvas-toolbar">
-            <div className="canvas-title">
-              <strong>{format.name}</strong>
-              <span className="badge">
-                {format.width} × {format.height} · {format.ratio}
+            <button
+              type="button"
+              className="canvas-size"
+              aria-label={`Canvas settings: ${format.name}, ${format.width} by ${format.height}`}
+              title={`${format.name} · ${format.width} × ${format.height} · ${format.ratio}`}
+              onClick={() => {
+                const el = document.getElementById('stream-controls')
+                el?.focus()
+              }}
+            >
+              <ImageIcon size={16} aria-hidden="true" />
+              <span>
+                {format.width} × {format.height}
               </span>
-            </div>
+              <span className="canvas-size-meta">{format.ratio}</span>
+            </button>
             <div className="canvas-tools" role="group" aria-label="Canvas tools">
               <button
                 className={`icon-button ${layout.flip ? 'selected' : ''}`}
@@ -476,10 +486,18 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
                   </button>
                 </div>
               ) : (
-                <p className="field-hint">
-                  No host yet. Add one from the canvas or drop a file on it. A transparent PNG works
-                  best; photo backgrounds are kept.
-                </p>
+                <>
+                  {hostMenu(
+                    'Add host image',
+                    'button secondary full',
+                    <>
+                      <Plus size={16} aria-hidden="true" /> Add host image
+                    </>,
+                  )}
+                  <p className="field-hint">
+                    Shared by all three images. A transparent PNG works best.
+                  </p>
+                </>
               )}
             </section>
             <Section

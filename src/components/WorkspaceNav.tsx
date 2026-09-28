@@ -34,6 +34,7 @@ export function AppNav({
           <li key={id}>
             <button
               className="app-nav-item"
+              title={label}
               aria-current={current === id ? 'page' : undefined}
               data-workspace-link={id}
               onClick={() => onChange(id)}
