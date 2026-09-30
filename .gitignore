@@ -25,3 +25,11 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Scratch & local subprojects
+savvy-dashboard/
+savvy-dashboard*.html
+urun-donusum-promptu*.md
+magnific-design-system*.md
+*.tsbuildinfo
+

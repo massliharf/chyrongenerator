@@ -57,7 +57,8 @@ export default function MediaGalleryWorkspace({
         const matchName = item.name.toLowerCase().includes(query)
         const matchFile = item.filename.toLowerCase().includes(query)
         const matchCat = item.category.toLowerCase().includes(query)
-        if (!matchName && !matchFile && !matchCat) return false
+        const matchKeywords = item.keywords?.some((k) => k.toLowerCase().includes(query))
+        if (!matchName && !matchFile && !matchCat && !matchKeywords) return false
       }
       return true
     })

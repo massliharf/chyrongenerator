@@ -7,6 +7,7 @@ export interface GalleryItem {
   filename: string
   path: string
   thumbPath?: string
+  keywords?: string[]
 }
 
 export const GALLERY_ITEMS: GalleryItem[] = [
@@ -58,6 +59,15 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     name: 'savvy_subtext',
     filename: 'savvy_subtext.png',
     path: 'gallery/Game%20Modes/savvy_subtext.png',
+    keywords: ['game logos', 'game logo', 'subtext'],
+  },
+  {
+    id: 'Game_Modes_savvy_subtext_stream_compatible_png',
+    category: 'Game Modes',
+    name: 'savvy_subtext (stream compatible)',
+    filename: 'savvy_subtext_stream_compatible.png',
+    path: 'gallery/Game%20Modes/savvy_subtext_stream_compatible.png',
+    keywords: ['game logos', 'game logo', 'subtext', 'stream compatible'],
   },
   {
     id: 'Game_Modes_savvy_textchain_png',
@@ -65,6 +75,15 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     name: 'savvy_textchain',
     filename: 'savvy_textchain.png',
     path: 'gallery/Game%20Modes/savvy_textchain.png',
+    keywords: ['game logos', 'game logo', 'textchain'],
+  },
+  {
+    id: 'Game_Modes_savvy_textchain_stream_compatible_png',
+    category: 'Game Modes',
+    name: 'savvy_textchain (stream compatible)',
+    filename: 'savvy_textchain_stream_compatible.png',
+    path: 'gallery/Game%20Modes/savvy_textchain_stream_compatible.png',
+    keywords: ['game logos', 'game logo', 'textchain', 'stream compatible'],
   },
   {
     id: 'Game_Modes_subtex_336x156_png',
@@ -72,6 +91,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     name: 'subtex_336x156',
     filename: 'subtex_336x156.png',
     path: 'gallery/Game%20Modes/subtex_336x156.png',
+    keywords: ['game logos', 'game logo', 'subtext'],
   },
   {
     id: 'Game_Modes_textchain_336x156_png',
@@ -79,6 +99,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
     name: 'textchain_336x156',
     filename: 'textchain_336x156.png',
     path: 'gallery/Game%20Modes/textchain_336x156.png',
+    keywords: ['game logos', 'game logo', 'textchain'],
   },
   {
     id: 'Glasses_variations_overview_png',

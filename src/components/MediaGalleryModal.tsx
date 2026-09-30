@@ -47,11 +47,13 @@ export function MediaGalleryModal({
     return GALLERY_ITEMS.filter((item) => {
       const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
       const query = searchQuery.trim().toLowerCase()
+      const matchKeywords = item.keywords?.some((k) => k.toLowerCase().includes(query))
       const matchesSearch =
         !query ||
         item.name.toLowerCase().includes(query) ||
         item.filename.toLowerCase().includes(query) ||
-        item.category.toLowerCase().includes(query)
+        item.category.toLowerCase().includes(query) ||
+        Boolean(matchKeywords)
       return matchesCategory && matchesSearch
     })
   }, [selectedCategory, searchQuery])
