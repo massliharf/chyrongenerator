@@ -27,7 +27,6 @@ import { exportStreamPng, exportStreamSet } from './export'
 import { MediaGalleryModal } from '../components/MediaGalleryModal'
 import { fetchGalleryFile, type GalleryItem } from '../studio/galleryData'
 import {
-  assetUrl,
   BACKGROUNDS,
   COLOR_STYLES,
   DEFAULT_FRAMING,
@@ -82,6 +81,14 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
   const handleSelectGallery = async (item: GalleryItem) => {
     const isBg = galleryTarget === 'background'
     setGalleryTarget(null)
+    if (isBg) {
+      const preset = BACKGROUNDS.find((b) => b.id === item.id)
+      if (preset) {
+        selectBackground(preset.id)
+        setNotice(`Applied ${preset.name} background.`)
+        return
+      }
+    }
     try {
       setBusy(isBg ? 'Opening background…' : 'Preparing your host…')
       const file = await fetchGalleryFile(item)
@@ -152,6 +159,14 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
       if (!custom.detail?.item) return
       const isBg =
         custom.detail.target === 'background' || custom.detail.item.category === 'Backgrounds'
+      if (isBg) {
+        const preset = BACKGROUNDS.find((b) => b.id === custom.detail.item.id)
+        if (preset) {
+          selectBackground(preset.id)
+          setNotice(`Applied ${preset.name} background.`)
+          return
+        }
+      }
       try {
         setBusy(isBg ? 'Opening background…' : 'Preparing your host…')
         const file = await fetchGalleryFile(custom.detail.item)
@@ -597,7 +612,7 @@ export default function StreamWorkspace({ active }: { active: boolean }) {
                         aria-pressed={layout.background === bg.id}
                         onClick={() => selectBackground(bg.id)}
                       >
-                        <img src={assetUrl(bg.file)} alt="" />
+                        <img src={bg.thumbUrl || bg.url} alt="" loading="lazy" />
                         <span>{bg.name}</span>
                       </button>
                     ))}

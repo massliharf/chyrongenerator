@@ -1,3 +1,9 @@
+import {
+  GALLERY_ITEMS,
+  getGalleryItemUrl,
+  getGalleryItemThumbUrl,
+} from '../studio/galleryData'
+
 export const FORMATS = [
   {
     id: 'hero',
@@ -27,11 +33,47 @@ export const FORMATS = [
 export type FormatId = (typeof FORMATS)[number]['id']
 export type Format = (typeof FORMATS)[number]
 
-export const BACKGROUNDS = [
-  { id: 'grid', name: 'Blue grid', file: 'grid-blue.png' },
-  { id: 'savvy', name: 'Savvy', file: 'savvy-blue.png' },
-  { id: 'super', name: 'Super Savvy', file: 'super-savvy.png' },
-] as const
+export function assetUrl(file: string) {
+  return `${import.meta.env.BASE_URL}assets/stream/${file}`
+}
+
+export interface BackgroundPreset {
+  id: string
+  name: string
+  url: string
+  thumbUrl: string
+  file?: string
+}
+
+export const BACKGROUNDS: readonly BackgroundPreset[] = [
+  {
+    id: 'grid',
+    name: 'Blue grid',
+    file: 'grid-blue.png',
+    url: assetUrl('grid-blue.png'),
+    thumbUrl: assetUrl('grid-blue.png'),
+  },
+  {
+    id: 'savvy',
+    name: 'Savvy',
+    file: 'savvy-blue.png',
+    url: assetUrl('savvy-blue.png'),
+    thumbUrl: assetUrl('savvy-blue.png'),
+  },
+  {
+    id: 'super',
+    name: 'Super Savvy',
+    file: 'super-savvy.png',
+    url: assetUrl('super-savvy.png'),
+    thumbUrl: assetUrl('super-savvy.png'),
+  },
+  ...GALLERY_ITEMS.filter((item) => item.category === 'Backgrounds').map((item) => ({
+    id: item.id,
+    name: item.name,
+    url: getGalleryItemUrl(item),
+    thumbUrl: getGalleryItemThumbUrl(item),
+  })),
+]
 export const COLOR_STYLES = [
   { name: 'Electric blue', color: '#126BEE', color2: '#47DFFF' },
   { name: 'Lilac', color: '#7738D9', color2: '#F7BBFF' },
@@ -137,6 +179,4 @@ export function coverRect(width: number, height: number, format: Format, layout:
     height: h,
   }
 }
-export function assetUrl(file: string) {
-  return `${import.meta.env.BASE_URL}assets/stream/${file}`
-}
+

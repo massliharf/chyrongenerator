@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { imageFromBlob, loadImage } from './assets'
 import {
-  assetUrl,
   BACKGROUNDS,
   coverRect,
   hostRect,
@@ -36,13 +35,15 @@ async function prepareImages(
     ...BACKGROUNDS.map(async (bg) => {
       let promise = builtins.get(bg.id)
       if (!promise) {
-        promise = loadImage(assetUrl(bg.file)).catch((error) => {
+        promise = loadImage(bg.url).catch((error) => {
           builtins.delete(bg.id)
-          throw error
+          console.warn(`Could not load background ${bg.name}:`, error)
+          return null as unknown as HTMLImageElement
         })
         builtins.set(bg.id, promise)
       }
-      return [bg.id, await promise] as const
+      const img = await promise
+      return [bg.id, img] as const
     }),
     ...backgrounds.map(async (asset) => [asset.id, await uploadedImage(asset)] as const),
   ])
