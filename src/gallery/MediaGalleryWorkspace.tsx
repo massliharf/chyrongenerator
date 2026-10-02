@@ -9,10 +9,12 @@ import {
   Image as ImageIcon,
   Images,
   LoaderCircle,
+  PenTool,
   Search,
   X,
 } from 'lucide-react'
 import type { Workspace } from '../components/WorkspaceNav'
+import { sendToDesigner } from '../designer/inbox'
 import { MenuButton } from '../components/Menu'
 import { TopBar } from '../components/TopBar'
 import {
@@ -123,6 +125,13 @@ export default function MediaGalleryWorkspace({
     window.dispatchEvent(new CustomEvent('chyron:import-gallery-item', { detail: item }))
     setPreviewItem(null)
     onWorkspaceChange('chyron')
+  }
+
+  // Send to Designer
+  const handleUseInDesigner = (item: GalleryItem) => {
+    sendToDesigner(item)
+    setPreviewItem(null)
+    onWorkspaceChange('designer')
   }
 
   // Send to Stream Images
@@ -360,6 +369,12 @@ export default function MediaGalleryWorkspace({
                     hint: 'As an image layer',
                     Icon: Clapperboard,
                     onSelect: () => handleUseInChyron(previewItem),
+                  },
+                  {
+                    label: 'Add to Designer',
+                    hint: 'As a new layer',
+                    Icon: PenTool,
+                    onSelect: () => handleUseInDesigner(previewItem),
                   },
                   {
                     label: 'Use in Stream images',

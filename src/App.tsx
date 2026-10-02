@@ -28,6 +28,7 @@ import { MenuButton } from './components/Menu'
 import { SaveStatus, TopBar } from './components/TopBar'
 import StreamWorkspace from './stream/StreamWorkspace'
 import MediaGalleryWorkspace from './gallery/MediaGalleryWorkspace'
+import DesignerWorkspace from './designer/DesignerWorkspace'
 import {
   applyTemplate,
   DEFAULT_PROJECT,
@@ -737,7 +738,7 @@ function App() {
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     try {
       const stored = localStorage.getItem('chyron-studio:workspace')
-      if (stored === 'stream' || stored === 'gallery') return stored
+      if (stored === 'stream' || stored === 'gallery' || stored === 'designer') return stored
       return 'chyron'
     } catch {
       return 'chyron'
@@ -745,10 +746,12 @@ function App() {
   })
   const [streamVisited, setStreamVisited] = useState(workspace === 'stream')
   const [galleryVisited, setGalleryVisited] = useState(workspace === 'gallery')
+  const [designerVisited, setDesignerVisited] = useState(workspace === 'designer')
   const changeWorkspace = (next: Workspace) => {
     if (next === workspace) return
     if (next === 'stream') setStreamVisited(true)
     if (next === 'gallery') setGalleryVisited(true)
+    if (next === 'designer') setDesignerVisited(true)
     setWorkspace(next)
     try {
       localStorage.setItem('chyron-studio:workspace', next)
@@ -763,6 +766,15 @@ function App() {
         <div className="workspace-slot" data-workspace="chyron" hidden={workspace !== 'chyron'}>
           <ChyronEditor active={workspace === 'chyron'} />
         </div>
+        {designerVisited && (
+          <div
+            className="workspace-slot"
+            data-workspace="designer"
+            hidden={workspace !== 'designer'}
+          >
+            <DesignerWorkspace active={workspace === 'designer'} />
+          </div>
+        )}
         {streamVisited && (
           <div className="workspace-slot" data-workspace="stream" hidden={workspace !== 'stream'}>
             <StreamWorkspace active={workspace === 'stream'} />

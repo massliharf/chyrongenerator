@@ -22,6 +22,22 @@ npm run preview
 
 The application remains compatible with GitHub Pages at `/chyrongenerator/`. The deployment command is still `npm run deploy`. Set `base` in `vite.config.ts` if you host it at a different path.
 
+## What's new in 3.3 — Designer
+
+A new **Designer** workspace (pen icon in the rail) is a layered image editor built on the same Magnific design system as the rest of the studio.
+
+- **Layers.** Images, text, rectangles and ellipses stack bottom to top. Drag rows to reorder, hide (eye), lock, double-click to rename, multi-select with Shift / ⌘, right-click for every action.
+- **Add images** by uploading, dropping, pasting from the clipboard or from the Media gallery (also "Add to Designer" in the gallery). Replace an image and keep its frame and crop.
+- **Crop.** Double-click an image (or press C). Drag handles to frame, drag inside to move the picture, pick Free, Original, 1:1, 4:5, 3:2, 16:9 or 9:16. Enter applies, Esc cancels. Works on rotated and flipped images.
+- **Masks.** "Clip to layer below" (⌥⌘G) clips a layer to the one under it. "Mask with shape" adds an editable rounded-rectangle or ellipse mask in one step; "Use as mask only" hides the mask's own fill.
+- **Snapping & grid.** Edges and centres snap to the artboard and other layers with guides; optional grid with snap-to-grid. Hold Alt to move freely.
+- **Transform.** Move, resize from 8 handles (Shift keeps ratio, Alt from centre), rotate (Shift for 15°), marquee select, align and distribute, nudge with arrows.
+- **Style.** Opacity, 16 blend modes, drop shadow that follows transparent edges, image adjustments (brightness, contrast, saturation, grayscale, hue, blur), corner radius and borders, full text styling.
+- **Canvas.** Space-drag or the Hand tool to pan, ⌘ + wheel or pinch to zoom at the pointer, ⌘0 fit, ⌘1 100 %, ⌘2 zoom to selection.
+- **Saving & export.** Autosaves to IndexedDB on this device; ⌘S saves a `.design.json` with every image embedded. Export PNG, JPEG or WebP at 0.5×–3×, with or without transparency.
+
+Press **?** inside the Designer for the full shortcut list. Code lives in `src/designer/`, styles in `src/styles/designer.css`, tests in `tests/designer.test.ts`.
+
 ## What’s new in 2.5 — Image layers
 
 Chyron Studio now builds complete motion graphics: stack logos, photos and your chyron in one project, animate each one, and export the result with alpha. Graphics like the SHOWDOWN intermission bumper or an Affidavit card no longer need a separate editor.

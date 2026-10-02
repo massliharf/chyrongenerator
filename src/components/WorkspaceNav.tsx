@@ -1,10 +1,11 @@
-import { Clapperboard, FolderOpen, Images } from 'lucide-react'
+import { Clapperboard, FolderOpen, Images, PenTool } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 
-export type Workspace = 'chyron' | 'stream' | 'gallery'
+export type Workspace = 'chyron' | 'designer' | 'stream' | 'gallery'
 
 const WORKSPACES: { id: Workspace; label: string; Icon: typeof Clapperboard }[] = [
   { id: 'chyron', label: 'Chyron', Icon: Clapperboard },
+  { id: 'designer', label: 'Designer', Icon: PenTool },
   { id: 'stream', label: 'Stream images', Icon: Images },
   { id: 'gallery', label: 'Media gallery', Icon: FolderOpen },
 ]
