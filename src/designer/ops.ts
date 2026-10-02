@@ -19,19 +19,30 @@ export function updateLayers(
   const set = new Set(ids)
   return {
     ...doc,
-    layers: doc.layers.map((l) => {
-      if (!set.has(l.id)) return l
-      const next = { ...l, ...(typeof values === 'function' ? values(l) : values) } as Layer
-      // Text boxes grow with their content.
-      if (next.kind === 'text') next.h = textHeight(next)
-      return next
-    }),
+    layers: normalizeClips(
+      doc.layers.map((l) => {
+        if (!set.has(l.id)) return l
+        const next = { ...l, ...(typeof values === 'function' ? values(l) : values) } as Layer
+        // Text boxes grow with their content.
+        if (next.kind === 'text') next.h = textHeight(next)
+        return next
+      }),
+    ),
   }
 }
 
 /** A layer can't be clipped with nothing below it. */
 export function normalizeClips(layers: Layer[]): Layer[] {
-  return layers[0]?.clip ? [{ ...layers[0], clip: false } as Layer, ...layers.slice(1)] : layers
+  let out = layers[0]?.clip ? [{ ...layers[0], clip: false } as Layer, ...layers.slice(1)] : layers
+  // A shape that became a mask only because something was dropped into it
+  // shows itself again once it masks nothing.
+  if (out.some((l, i) => l.autoMask && !l.clip && !out[i + 1]?.clip))
+    out = out.map((l, i) =>
+      l.autoMask && !l.clip && !out[i + 1]?.clip
+        ? ({ ...l, maskOnly: false, autoMask: false } as Layer)
+        : l,
+    )
+  return out
 }
 
 /** Ids of a base layer and the clip layers stacked on it (just the id otherwise). */
@@ -270,7 +281,7 @@ export function dropLayer(
       // A layer becoming a mask for the first time lends only its shape.
       const fresh = groupIds(doc.layers, base.id).length === 1
       const next = putIntoMask(doc, dragId, base.id, false)
-      return fresh ? updateLayers(next, [base.id], { maskOnly: true }) : next
+      return fresh ? updateLayers(next, [base.id], { maskOnly: true, autoMask: true }) : next
     }
   }
   const moving = doc.layers.filter((l) => ids.includes(l.id))

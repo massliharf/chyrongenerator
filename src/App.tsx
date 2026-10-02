@@ -78,6 +78,7 @@ function ChyronEditor({ active }: { active: boolean }) {
   const [tab, setTab] = useState<PropertiesTab>('design')
   // The chyron starts selected so its text is one click away.
   const [selection, setSelection] = useState<string | null>('chyron')
+  const [cropId, setCropId] = useState<string | null>(null)
   const [dropping, setDropping] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [guides, setGuides] = useState(false)
@@ -96,6 +97,10 @@ function ChyronEditor({ active }: { active: boolean }) {
   const helpDialog = useRef<HTMLDialogElement>(null)
   // A layer removed by undo or a new composition can no longer stay selected.
   const selected = project.layers.some((l) => l.id === selection) ? selection : null
+  // Crop mode ends when its layer is no longer the selection.
+  useEffect(() => {
+    if (cropId && cropId !== selected) setCropId(null)
+  }, [cropId, selected])
   const selectedImage = project.layers.find(
     (l): l is ImageLayer => l.id === selected && l.kind === 'image',
   )
@@ -585,6 +590,8 @@ function ChyronEditor({ active }: { active: boolean }) {
                 onLayerChange={changeLayer}
                 selected={selected}
                 onSelect={setSelection}
+                cropping={cropId !== null && cropId === selected}
+                onCropChange={setCropId}
               />
               {guides && <div className="safe-guides" />}
               {!hasArtwork(project) && (
@@ -604,6 +611,10 @@ function ChyronEditor({ active }: { active: boolean }) {
               const layer = project.layers.find((l) => l.id === id)
               if (layer) patch({ layers: updateLayer(project, id, { visible: !layer.visible }) })
             }}
+            onToggleLock={(id) => {
+              const layer = project.layers.find((l) => l.id === id)
+              if (layer) patch({ layers: updateLayer(project, id, { locked: !layer.locked }) })
+            }}
             onAddImages={(files) => void addImages(files)}
             onOpenGallery={() => setGalleryOpen(true)}
             onTiming={(id, change) => setLayerTiming(id, change)}
@@ -620,6 +631,10 @@ function ChyronEditor({ active }: { active: boolean }) {
           <Properties
             project={project}
             patch={patch}
+            onCrop={(id) => {
+              setSelection(id)
+              setCropId(id)
+            }}
             selected={selected}
             onSelect={setSelection}
             tab={tab}

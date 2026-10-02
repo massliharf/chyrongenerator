@@ -188,6 +188,14 @@ describe('masks', () => {
     const out = dropLayer(grouped, photo.id, logo.id, 'above')
     expect(out.layers.at(-1)).toMatchObject({ name: 'photo', clip: false })
   })
+  it('a shape masked by dropping shows itself again when emptied', () => {
+    const d = three()
+    const [frame, photo] = d.layers
+    const masked = dropLayer(d, photo.id, frame.id, 'into')
+    expect(masked.layers[0]).toMatchObject({ maskOnly: true, autoMask: true })
+    const out = dropLayer(masked, photo.id, d.layers[2].id, 'above')
+    expect(out.layers.find((l) => l.id === frame.id)).toMatchObject({ maskOnly: false })
+  })
   it('deleting a mask releases its contents', () => {
     const d = three()
     const [frame, photo] = d.layers

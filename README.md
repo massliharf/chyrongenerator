@@ -22,6 +22,18 @@ npm run preview
 
 The application remains compatible with GitHub Pages at `/chyrongenerator/`. The deployment command is still `npm run deploy`. Set `base` in `vite.config.ts` if you host it at a different path.
 
+## What's new in 3.4 — Image shapes and crop in Chyron
+
+Image layers in the Chyron editor pick up the Designer's most useful tools, without new panels:
+
+- **Shapes.** "Shape & frame" opens with one row of shapes: rectangle, circle, arch, triangle, hexagon, star, heart. Borders follow the shape. Round shapes on a wide or tall picture crop it to a centred square first.
+- **Crop.** Double-click an image on the canvas (or press Crop). Drag the handles to frame, drag inside to move the picture; 1:1, 4:5, 16:9 and Full in the bar below. Round shapes keep their proportions while cropping; Shift keeps any crop's. Enter applies, Esc cancels.
+- **Snapping to layers.** Images snap to the edges and centres of other images and the chyron as well as the canvas, with a guide naming what they lined up with. Hold Alt to move freely.
+- **Adjustments.** Brightness, contrast and saturation in a collapsed section.
+- **Lock.** The lock in a timeline row makes the canvas ignore that layer, so you can work on what is beneath it.
+
+Every export (WebM, ProRes, PNG sequence, PNG, SVG) renders shapes, crops and adjustments. Older projects open unchanged.
+
 ## What's new in 3.3 — Designer
 
 A new **Designer** workspace (pen icon in the rail) is a layered image editor built on the same Magnific design system as the rest of the studio.

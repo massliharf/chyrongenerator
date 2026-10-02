@@ -137,9 +137,62 @@ export function scaleChyron(
   return Math.round(Math.min(150, Math.max(20, initialScale * factor)))
 }
 
+/** A line other layers can snap to, in canvas percent. */
+export interface SnapLine {
+  position: number
+  label: string
+}
+export interface SnapTargets {
+  x: SnapLine[]
+  y: SnapLine[]
+}
+
+/** Axis-aligned bounds of a (possibly rotated) box, in canvas percent. */
+export function boundsPercent(
+  b: { cx: number; cy: number; width: number; height: number; rotation: number },
+  canvas: { width: number; height: number },
+) {
+  const a = (b.rotation * Math.PI) / 180
+  const w = Math.abs(b.width * Math.cos(a)) + Math.abs(b.height * Math.sin(a))
+  const h = Math.abs(b.width * Math.sin(a)) + Math.abs(b.height * Math.cos(a))
+  return {
+    left: ((b.cx - w / 2) / canvas.width) * 100,
+    right: ((b.cx + w / 2) / canvas.width) * 100,
+    cx: (b.cx / canvas.width) * 100,
+    top: ((b.cy - h / 2) / canvas.height) * 100,
+    bottom: ((b.cy + h / 2) / canvas.height) * 100,
+    cy: (b.cy / canvas.height) * 100,
+    w: (w / canvas.width) * 100,
+    h: (h / canvas.height) * 100,
+  }
+}
+
+/** Edge and centre lines of other layers. */
+export function layerSnapTargets(
+  boxes: { name: string; box: ReturnType<typeof boundsPercent> }[],
+): SnapTargets {
+  const t: SnapTargets = { x: [], y: [] }
+  for (const { name, box } of boxes) {
+    t.x.push(
+      { position: box.left, label: `${name} left` },
+      { position: box.cx, label: `${name} center` },
+      { position: box.right, label: `${name} right` },
+    )
+    t.y.push(
+      { position: box.top, label: `${name} top` },
+      { position: box.cy, label: `${name} middle` },
+      { position: box.bottom, label: `${name} bottom` },
+    )
+  }
+  return t
+}
+
 /**
- * Snap an image layer's center to the canvas center, and its edges to the canvas edges,
- * so full-bleed backgrounds and edge-aligned logos land exactly. Values are percentages.
+ * Snap an image layer's center to the canvas center and edges, and its edges
+ * and centre to other layers', so full-bleed backgrounds, edge-aligned logos
+ * and side-by-side pictures land exactly. Values are percentages; the nearest
+ * line within the threshold wins. `widthPercent`/`heightPercent` are the
+ * layer's axis-aligned size.
  */
 export function snapImagePosition(
   rawX: number,
@@ -147,21 +200,39 @@ export function snapImagePosition(
   widthPercent: number,
   heightPercent: number,
   threshold = 1.5,
+  targets: SnapTargets = { x: [], y: [] },
 ): { x: number; y: number; snap: SnapState } {
   const snap: SnapState = { x: null, y: null }
-  const axis = (raw: number, size: number, labels: [string, string, string]) => {
+  const axis = (
+    raw: number,
+    size: number,
+    canvasLabels: [string, string, string],
+    lines: SnapLine[],
+  ) => {
     const half = size / 2
+    // [centre value that aligns, guide position, label]
     const candidates: [number, number, string][] = [
-      [50, 50, labels[0]],
-      [half, 0, labels[1]],
-      [100 - half, 100, labels[2]],
+      [50, 50, canvasLabels[0]],
+      [half, 0, canvasLabels[1]],
+      [100 - half, 100, canvasLabels[2]],
     ]
-    for (const [value, guide, label] of candidates)
-      if (Math.abs(raw - value) < threshold) return { value, guide: { position: guide, label } }
-    return { value: raw, guide: null }
+    for (const line of lines) {
+      candidates.push(
+        [line.position, line.position, line.label],
+        [line.position + half, line.position, line.label],
+        [line.position - half, line.position, line.label],
+      )
+    }
+    let best: { value: number; guide: SnapGuide; d: number } | null = null
+    for (const [value, guide, label] of candidates) {
+      const d = Math.abs(raw - value)
+      if (d < threshold && (!best || d < best.d - 1e-9))
+        best = { value, guide: { position: guide, label }, d }
+    }
+    return best ? { value: best.value, guide: best.guide } : { value: raw, guide: null }
   }
-  const x = axis(rawX, widthPercent, ['Center', 'Left edge', 'Right edge'])
-  const y = axis(rawY, heightPercent, ['Middle', 'Top edge', 'Bottom edge'])
+  const x = axis(rawX, widthPercent, ['Center', 'Left edge', 'Right edge'], targets.x)
+  const y = axis(rawY, heightPercent, ['Middle', 'Top edge', 'Bottom edge'], targets.y)
   snap.x = x.guide
   snap.y = y.guide
   const round = (v: number) => Math.round(Math.min(150, Math.max(-50, v)) * 10) / 10

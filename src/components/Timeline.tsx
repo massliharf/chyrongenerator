@@ -12,6 +12,8 @@ import {
   Repeat2,
   Type,
   Upload,
+  Lock,
+  LockOpen,
 } from 'lucide-react'
 import { duration, layerTiming, type Layer, type LayerTiming, type Project } from '../studio/model'
 import type { usePlayback } from '../studio/usePlayback'
@@ -34,6 +36,7 @@ export function Timeline({
   selected,
   onSelect,
   onToggleVisible,
+  onToggleLock,
   onAddImages,
   onOpenGallery,
   onTiming,
@@ -44,6 +47,8 @@ export function Timeline({
   selected: string | null
   onSelect: (id: string | null) => void
   onToggleVisible: (id: string) => void
+  /** Locked layers ignore clicks on the canvas. */
+  onToggleLock?: (id: string) => void
   onAddImages: (files: File[]) => void
   onOpenGallery?: () => void
   /** Drag results, in seconds: where the layer starts/ends and how long its intro and outro last. */
@@ -265,7 +270,7 @@ export function Timeline({
             return (
               <li
                 key={l.id}
-                className={`layer-label ${l.id === selected ? 'selected' : ''} ${l.visible ? '' : 'is-hidden'} ${dragged === l.id ? 'is-dragging' : ''} ${dropIndex === row && dragged && dragged !== l.id ? 'drop-target' : ''}`}
+                className={`layer-label ${l.id === selected ? 'selected' : ''} ${l.visible ? '' : 'is-hidden'} ${l.locked ? 'is-locked' : ''} ${dragged === l.id ? 'is-dragging' : ''} ${dropIndex === row && dragged && dragged !== l.id ? 'drop-target' : ''}`}
                 draggable
                 title="Drag to reorder"
                 onDragStart={(e) => {
@@ -306,6 +311,21 @@ export function Timeline({
                   {l.kind === 'chyron' && <Type size={14} aria-hidden="true" />}
                   <span>{name}</span>
                 </button>
+                {onToggleLock && (
+                  <button
+                    className={`eye lock ${l.locked ? 'is-on' : ''}`}
+                    aria-label={`${l.locked ? 'Unlock' : 'Lock'} ${name}`}
+                    aria-pressed={!!l.locked}
+                    title={
+                      l.locked
+                        ? 'Unlock: clicks on the canvas reach it again'
+                        : 'Lock: ignore clicks on the canvas'
+                    }
+                    onClick={() => onToggleLock(l.id)}
+                  >
+                    {l.locked ? <Lock size={14} /> : <LockOpen size={14} />}
+                  </button>
+                )}
               </li>
             )
           })}

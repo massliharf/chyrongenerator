@@ -1,7 +1,5 @@
 /* Chyron editor: canvas, transform handles, timeline, inspector content, export. */
 
-
-
 /* ---------- Stage & composition ---------- */
 .stage-canvas {
   position: relative;
@@ -935,4 +933,247 @@
 }
 .export-content > * + * {
   margin-top: var(--space-3);
+}
+
+/* ---------- Image shape, crop, lock (Chyron) ---------- */
+.mask-picker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.mask-picker button {
+  display: grid;
+  place-items: center;
+  height: var(--control-md);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-control);
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.mask-picker button:hover {
+  background: var(--color-bg-control-hover);
+}
+.mask-picker button.active {
+  color: var(--color-text-inverse);
+  background: var(--color-bg-inverse);
+}
+.mask-picker svg path {
+  fill: currentColor;
+}
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+}
+.button-row:empty {
+  display: none;
+}
+
+.si-transform-box.is-locked {
+  border-style: dotted;
+}
+.composition-lock-badge {
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font: var(--text-label-sm);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--snap-line);
+  background: var(--blue-950);
+  border-radius: var(--radius-full);
+  transform: translateX(-50%);
+}
+
+.composition-crop-box {
+  position: absolute;
+  z-index: 16;
+  border: 1.5px solid #ffffff;
+  outline: 1px solid rgb(0 0 0 / 0.4);
+  touch-action: none;
+}
+.composition-crop-ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.composition .composition-crop-ghost canvas {
+  position: absolute;
+  display: block;
+  max-width: none;
+  opacity: 0.35;
+  outline: 1px dashed rgb(255 255 255 / 0.75);
+}
+.composition-crop-pan {
+  position: absolute;
+  inset: 0;
+  cursor: move;
+  touch-action: none;
+}
+.composition-crop-pan .third {
+  position: absolute;
+  background: rgb(255 255 255 / 0.5);
+  pointer-events: none;
+}
+.composition-crop-pan .third.v1,
+.composition-crop-pan .third.v2 {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.composition-crop-pan .third.v1 {
+  left: 33.333%;
+}
+.composition-crop-pan .third.v2 {
+  left: 66.666%;
+}
+.composition-crop-pan .third.h1,
+.composition-crop-pan .third.h2 {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.composition-crop-pan .third.h1 {
+  top: 33.333%;
+}
+.composition-crop-pan .third.h2 {
+  top: 66.666%;
+}
+.composition-crop-handle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+}
+.composition-crop-handle::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 0 solid #ffffff;
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.7));
+}
+.composition-crop-handle.nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.composition-crop-handle.n {
+  left: 50%;
+  top: 0;
+  cursor: ns-resize;
+}
+.composition-crop-handle.ne {
+  left: 100%;
+  top: 0;
+  cursor: nesw-resize;
+}
+.composition-crop-handle.e {
+  left: 100%;
+  top: 50%;
+  cursor: ew-resize;
+}
+.composition-crop-handle.se {
+  left: 100%;
+  top: 100%;
+  cursor: nwse-resize;
+}
+.composition-crop-handle.s {
+  left: 50%;
+  top: 100%;
+  cursor: ns-resize;
+}
+.composition-crop-handle.sw {
+  left: 0;
+  top: 100%;
+  cursor: nesw-resize;
+}
+.composition-crop-handle.w {
+  left: 0;
+  top: 50%;
+  cursor: ew-resize;
+}
+.composition-crop-handle.nw::before {
+  border-width: 3px 0 0 3px;
+  transform: translate(4px, 4px);
+}
+.composition-crop-handle.ne::before {
+  border-width: 3px 3px 0 0;
+  transform: translate(-4px, 4px);
+}
+.composition-crop-handle.se::before {
+  border-width: 0 3px 3px 0;
+  transform: translate(-4px, -4px);
+}
+.composition-crop-handle.sw::before {
+  border-width: 0 0 3px 3px;
+  transform: translate(4px, -4px);
+}
+.composition-crop-handle.n::before {
+  border-top-width: 3px;
+  transform: translateY(5px);
+}
+.composition-crop-handle.s::before {
+  border-bottom-width: 3px;
+  transform: translateY(-5px);
+}
+.composition-crop-handle.e::before {
+  border-right-width: 3px;
+  transform: translateX(-5px);
+}
+.composition-crop-handle.w::before {
+  border-left-width: 3px;
+  transform: translateX(5px);
+}
+.composition-crop-bar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-3);
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  /* One row even on narrow portrait canvases; the stage around is wider. */
+  width: max-content;
+  white-space: nowrap;
+  padding: var(--space-1);
+  line-height: normal;
+  background: var(--color-bg-surface-raised);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transform: translateX(-50%);
+}
+.composition-crop-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 var(--space-1);
+  background: var(--color-border-default);
+}
+
+.layer-label .eye.lock {
+  opacity: 0;
+}
+.layer-label:hover .eye.lock,
+.layer-label.selected .eye.lock,
+.layer-label .eye.lock:focus-visible,
+.layer-label .eye.lock.is-on {
+  opacity: 1;
+}
+.layer-label .eye.lock.is-on {
+  color: var(--color-text-primary);
+}
+@media (hover: none) {
+  .layer-label .eye.lock {
+    opacity: 1;
+  }
+}
+
+.composition-crop-bar .button.sm {
+  min-height: var(--control-sm);
+  padding: 0 var(--space-2);
 }

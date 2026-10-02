@@ -1,4 +1,5 @@
 import { outline, type Fonts } from './fonts'
+import { adjustFilter, cropOf, maskPath, sourceAspectOf } from './crop'
 import { hash, imagePoseAt, poseAt, type ImagePose } from './motion'
 import { chyronLayer, imageLayers, type ImageLayer, type Project } from './model'
 import type { ImageMap } from './assets'
@@ -339,9 +340,24 @@ function imageSvg(l: ImageLayer, p: Project, time: number, href: string, n: numb
   const defs: string[] = []
   const r = radiusPx(l, w, h)
   const id = `img${n}`
+  const shape = maskPath(l.mask, -w / 2, -h / 2, w, h)
   defs.push(
-    `<clipPath id="${id}-frame"><rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${r}"/></clipPath>`,
+    shape
+      ? `<clipPath id="${id}-frame"><path d="${shape}"/></clipPath>`
+      : `<clipPath id="${id}-frame"><rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${r}"/></clipPath>`,
   )
+  // Colour adjustments: brightness and contrast as one linear transfer, then saturation.
+  let adjust = ''
+  if (l.brightness !== 100 || l.contrast !== 100 || l.saturation !== 100) {
+    const b = l.brightness / 100,
+      c = l.contrast / 100
+    const fn = (ch: string) =>
+      `<feFunc${ch} type="linear" slope="${(b * c).toFixed(4)}" intercept="${(0.5 * (1 - c)).toFixed(4)}"/>`
+    defs.push(
+      `<filter id="${id}-adj" color-interpolation-filters="sRGB"><feComponentTransfer>${fn('R')}${fn('G')}${fn('B')}</feComponentTransfer><feColorMatrix type="saturate" values="${(l.saturation / 100).toFixed(4)}"/></filter>`,
+    )
+    adjust = ` filter="url(#${id}-adj)"`
+  }
   let reveal = ''
   if (pose.reveal < 1) {
     defs.push(
@@ -362,15 +378,29 @@ function imageSvg(l: ImageLayer, p: Project, time: number, href: string, n: numb
       `<filter id="${id}-fx" x="-50%" y="-50%" width="200%" height="200%">${filters.join('')}</filter>`,
     )
   const zoom = pose.contentZoom
-  const border =
+  const insetShape =
     l.border > 0
-      ? `<rect x="${-w / 2 + l.border / 2}" y="${-h / 2 + l.border / 2}" width="${Math.max(0, w - l.border)}" height="${Math.max(0, h - l.border)}" rx="${Math.max(0, r - l.border / 2)}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}"/>`
-      : ''
+      ? maskPath(l.mask, -w / 2 + l.border / 2, -h / 2 + l.border / 2, w - l.border, h - l.border)
+      : null
+  const border =
+    l.border > 0 && insetShape
+      ? `<path d="${insetShape}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}" stroke-linejoin="round"/>`
+      : l.border > 0
+        ? `<rect x="${-w / 2 + l.border / 2}" y="${-h / 2 + l.border / 2}" width="${Math.max(0, w - l.border)}" height="${Math.max(0, h - l.border)}" rx="${Math.max(0, r - l.border / 2)}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}"/>`
+        : ''
   const sx = pose.scale * pose.scaleX * (l.flipX ? -1 : 1)
   const sy = pose.scale * pose.scaleY
   const pivot = pose.pivotY * h
-  const body = `<g opacity="${opacity}" transform="translate(${cx + pose.x} ${cy + pose.y + pivot}) rotate(${l.rotation + pose.rotation}) translate(0 ${-pivot}) scale(${sx} ${sy})"${reveal}><g${filters.length ? ` filter="url(#${id}-fx)"` : ''}><g clip-path="url(#${id}-frame)"><image href="${esc(href)}" x="${(-w * zoom) / 2}" y="${(-h * zoom) / 2}" width="${w * zoom}" height="${h * zoom}" preserveAspectRatio="none"/></g>${border}</g></g>`
+  const body = `<g opacity="${opacity}" transform="translate(${cx + pose.x} ${cy + pose.y + pivot}) rotate(${l.rotation + pose.rotation}) translate(0 ${-pivot}) scale(${sx} ${sy})"${reveal}><g${filters.length ? ` filter="url(#${id}-fx)"` : ''}><g clip-path="url(#${id}-frame)">${croppedImageSvg(l, href, w * zoom, h * zoom, adjust)}</g>${border}</g></g>`
   return { defs: defs.join(''), body }
+}
+
+/** The (cropped) picture filling a w × h box centred on 0,0. */
+function croppedImageSvg(l: ImageLayer, href: string, w: number, h: number, adjust: string) {
+  const c = cropOf(l)
+  const sa = sourceAspectOf(l)
+  const image = `<image href="${esc(href)}" x="0" y="0" width="1" height="${sa}" preserveAspectRatio="none"${adjust}/>`
+  return `<svg x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" viewBox="${c.x} ${c.y * sa} ${c.w} ${c.h * sa}" preserveAspectRatio="none" overflow="hidden">${image}</svg>`
 }
 
 /** Standalone SVG of every visible layer. `images` maps asset ids to data URLs. */
@@ -431,7 +461,8 @@ function framedImage(
   k: number,
   zoom: number,
 ) {
-  const key = `${l.assetId}|${pw}|${ph}|${l.radius}|${l.border}|${l.borderColor}|${zoom.toFixed(4)}`
+  const c = cropOf(l)
+  const key = `${l.assetId}|${pw}|${ph}|${l.radius}|${l.border}|${l.borderColor}|${zoom.toFixed(4)}|${l.mask}|${c.x},${c.y},${c.w},${c.h}|${l.brightness},${l.contrast},${l.saturation}`
   const cached = cards.get(key)
   if (cached) {
     cards.delete(key)
@@ -442,24 +473,43 @@ function framedImage(
   const ctx = context2d(card)
   if (!ctx) return card
   const r = (l.radius / 100) * Math.min(pw, ph)
+  const shape = maskPath(l.mask, 0, 0, pw, ph)
   ctx.save()
-  if (r > 0) {
+  if (shape) ctx.clip(new Path2D(shape))
+  else if (r > 0) {
     ctx.beginPath()
     ctx.roundRect(0, 0, pw, ph, r)
     ctx.clip()
   }
   ctx.imageSmoothingQuality = 'high'
+  const adjust = adjustFilter(l)
+  if (adjust) ctx.filter = adjust
   const dw = pw * zoom,
     dh = ph * zoom
-  ctx.drawImage(image, (pw - dw) / 2, (ph - dh) / 2, dw, dh)
+  ctx.drawImage(
+    image,
+    c.x * image.width,
+    c.y * image.height,
+    c.w * image.width,
+    c.h * image.height,
+    (pw - dw) / 2,
+    (ph - dh) / 2,
+    dw,
+    dh,
+  )
   ctx.restore()
   if (l.border > 0) {
     const b = l.border * k
     ctx.strokeStyle = l.borderColor
     ctx.lineWidth = b
-    ctx.beginPath()
-    ctx.roundRect(b / 2, b / 2, Math.max(0, pw - b), Math.max(0, ph - b), Math.max(0, r - b / 2))
-    ctx.stroke()
+    ctx.lineJoin = 'round'
+    const inset = maskPath(l.mask, b / 2, b / 2, Math.max(0, pw - b), Math.max(0, ph - b))
+    if (inset) ctx.stroke(new Path2D(inset))
+    else {
+      ctx.beginPath()
+      ctx.roundRect(b / 2, b / 2, Math.max(0, pw - b), Math.max(0, ph - b), Math.max(0, r - b / 2))
+      ctx.stroke()
+    }
   }
   cards.set(key, card)
   // Ken Burns creates a new size every frame; keep memory bounded.

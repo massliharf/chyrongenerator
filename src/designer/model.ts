@@ -68,6 +68,8 @@ interface BaseLayer {
   clip: boolean
   /** As a clipping base: lend its shape to the layers clipped to it, draw nothing itself. */
   maskOnly?: boolean
+  /** maskOnly was switched on by dropping a layer in; undone when the mask empties. */
+  autoMask?: boolean
   /** Mask-only bases: show the clipped layers outside the shape instead. */
   maskInvert?: boolean
   /** Mask-only bases: soften the mask edge by this many px. */

@@ -25,6 +25,8 @@ import {
   Heart,
   Layers3,
   Maximize,
+  Crop as CropIcon,
+  RotateCcw as ResetIcon,
   Minimize,
   MoveUp,
   Plus,
@@ -81,12 +83,16 @@ import {
   type Effect,
   type HoldEffect,
   type ImageLayer,
+  type ImageMask,
   type ImageMotion,
   type Project,
   type Template,
 } from '../studio/model'
 import { duplicateLayer, fitWidth, moveLayer, removeLayer, updateLayer } from '../studio/layers'
 import { useProjectImages } from '../studio/useImages'
+import { cropToRatio, FULL_CROP, isCropped, SQUARE_MASKS, withCrop } from '../studio/crop'
+import { ShapeIcon } from '../designer/LeftPanel'
+import type { ShapeKind } from '../designer/model'
 import type { SavedPreset } from '../studio/useProject'
 import type { TimingChange } from './Timeline'
 
@@ -222,6 +228,8 @@ export interface PropertiesProps {
   onSavePreset: (name: string) => boolean
   onRemovePreset: (id: string) => void
   onTiming: (id: string, change: TimingChange) => void
+  /** Start cropping an image layer on the canvas. */
+  onCrop?: (id: string) => void
 }
 
 export function Properties(props: PropertiesProps) {
@@ -361,7 +369,7 @@ export function Properties(props: PropertiesProps) {
           ))}
         {layer?.kind === 'image' &&
           (tab === 'design' ? (
-            <ImageDesign l={layer} p={p} patch={patch} />
+            <ImageDesign l={layer} p={p} patch={patch} onCrop={props.onCrop} />
           ) : (
             <ImageAnimate
               l={layer}
@@ -1168,7 +1176,36 @@ const EASING_NAMES: Record<Easing, string> = {
   linear: 'Linear',
 }
 
-function ImageDesign({ l, p, patch }: { l: ImageLayer; p: Project; patch: Patch }) {
+const MASK_OPTIONS: { id: ImageMask; name: string; kind: ShapeKind; sides?: number }[] = [
+  { id: 'none', name: 'Rectangle', kind: 'rect' },
+  { id: 'circle', name: 'Circle', kind: 'ellipse' },
+  { id: 'arch', name: 'Arch', kind: 'arch' },
+  { id: 'triangle', name: 'Triangle', kind: 'triangle' },
+  { id: 'hexagon', name: 'Hexagon', kind: 'polygon', sides: 6 },
+  { id: 'star', name: 'Star', kind: 'star' },
+  { id: 'heart', name: 'Heart', kind: 'heart' },
+]
+
+function ImageDesign({
+  l,
+  p,
+  patch,
+  onCrop,
+}: {
+  l: ImageLayer
+  p: Project
+  patch: Patch
+  onCrop?: (id: string) => void
+}) {
+  const [squared, setSquared] = useState(false)
+  const setMask = (mask: ImageMask) => {
+    // Round shapes on a wide or tall picture would stretch; frame a square first.
+    const ratio = 1 / l.aspect
+    const square = SQUARE_MASKS.includes(mask) && Math.abs(ratio - 1) > 0.02
+    setSquared(square)
+    set({ mask, ...(square ? withCrop(l, cropToRatio(l, 1), p) : {}) })
+  }
+  const maskName = MASK_OPTIONS.find((m) => m.id === l.mask)?.name ?? 'Rectangle'
   const group = useGroups()
   const set = (values: Partial<ImageLayer>) => patch({ layers: updateLayer(p, l.id, values) })
   const r = (
@@ -1247,10 +1284,57 @@ function ImageDesign({ l, p, patch }: { l: ImageLayer; p: Project; patch: Patch 
       )}
       {group(
         'frame',
-        'Frame & shadow',
-        l.radius || l.border || l.shadow ? `${l.radius}% round · ${l.shadow}px shadow` : '',
+        'Shape & frame',
+        [
+          l.mask !== 'none' ? maskName : l.radius ? `${l.radius}% round` : '',
+          isCropped(l) ? 'Cropped' : '',
+          l.shadow ? `${l.shadow}px shadow` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
         <>
-          {r('Round corners', 'radius', 0, 50, 1, '%')}
+          <div className="mask-picker" role="group" aria-label="Image shape">
+            {MASK_OPTIONS.map((m) => (
+              <button
+                key={m.id}
+                className={l.mask === m.id ? 'active' : ''}
+                aria-pressed={l.mask === m.id}
+                aria-label={m.name}
+                title={m.name}
+                onClick={() => setMask(m.id)}
+              >
+                <ShapeIcon preset={{ kind: m.kind, name: m.name, sides: m.sides }} size={20} />
+              </button>
+            ))}
+          </div>
+          {squared && (
+            <p className="field-hint">
+              Cropped to a square so the shape stays even. Use Crop to reframe.
+            </p>
+          )}
+          <div className="button-row">
+            {onCrop && (
+              <button
+                className="button secondary sm"
+                onClick={() => onCrop(l.id)}
+                title="Or double-click the image"
+              >
+                <CropIcon size={14} aria-hidden="true" /> Crop
+              </button>
+            )}
+            {isCropped(l) && (
+              <button
+                className="button ghost sm"
+                onClick={() => {
+                  setSquared(false)
+                  set(withCrop(l, FULL_CROP, p))
+                }}
+              >
+                <ResetIcon size={14} aria-hidden="true" /> Show whole image
+              </button>
+            )}
+          </div>
+          {l.mask === 'none' && r('Round corners', 'radius', 0, 50, 1, '%')}
           {r('Border', 'border', 0, 40, 1, 'px')}
           {l.border > 0 && (
             <Color
@@ -1261,7 +1345,20 @@ function ImageDesign({ l, p, patch }: { l: ImageLayer; p: Project; patch: Patch 
           )}
           {r('Shadow', 'shadow', 0, 80, 1, 'px')}
         </>,
-        () => set({ radius: 0, border: 0, shadow: 0 }),
+        () => set({ radius: 0, border: 0, shadow: 0, mask: 'none' }),
+      )}
+      {group(
+        'adjust',
+        'Adjustments',
+        l.brightness !== 100 || l.contrast !== 100 || l.saturation !== 100 ? 'Edited' : '',
+        <>
+          {r('Brightness', 'brightness', 0, 200, 1, '%')}
+          {r('Contrast', 'contrast', 0, 200, 1, '%')}
+          {r('Saturation', 'saturation', 0, 300, 1, '%')}
+        </>,
+        l.brightness !== 100 || l.contrast !== 100 || l.saturation !== 100
+          ? () => set({ brightness: 100, contrast: 100, saturation: 100 })
+          : undefined,
       )}
     </>
   )

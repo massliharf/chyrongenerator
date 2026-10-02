@@ -7,19 +7,35 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react'
-import { LoaderCircle, RotateCcw, RotateCw } from 'lucide-react'
+import { Check, Lock, LoaderCircle, RotateCcw, RotateCw, X } from 'lucide-react'
 import { loadFonts, type Fonts } from '../studio/fonts'
 import { buildScene, chyronBounds, imageBounds, renderComposition } from '../studio/renderer'
 import { chyronLayer, type ImageLayer, type Project } from '../studio/model'
 import { useProjectImages } from '../studio/useImages'
+import {
+  cropOf,
+  cropToRatio,
+  FULL_CROP,
+  keepCropRatio,
+  SQUARE_MASKS,
+  panCrop,
+  resizeCrop,
+  sourceAspectOf,
+  withCrop,
+  type CropHandle,
+} from '../studio/crop'
+import type { ImageMap } from '../studio/assets'
 import {
   CORNERS,
   isPointInChyron,
   rotateChyron,
   scaleChyron,
   scaleImage,
+  boundsPercent,
+  layerSnapTargets,
   snapImagePosition,
   snapPosition,
+  type SnapTargets,
   type Corner,
   type Point,
   type SnapState,
@@ -34,6 +50,7 @@ type Gesture = {
   project: Project
   layer: ImageLayer | null
   rect: DOMRect
+  targets: SnapTargets
 }
 type Box = { cx: number; cy: number; width: number; height: number; rotation: number }
 
@@ -45,6 +62,8 @@ export const Composition = memo(function Composition({
   onLayerChange,
   selected = null,
   onSelect,
+  cropping = false,
+  onCropChange,
 }: {
   project: Project
   time: number
@@ -56,6 +75,9 @@ export const Composition = memo(function Composition({
   /** Selected layer id ('chyron' or an image layer id). */
   selected?: string | null
   onSelect?: (id: string | null) => void
+  /** The selected image is being cropped. */
+  cropping?: boolean
+  onCropChange?: (id: string | null) => void
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const drag = useRef<Gesture | null>(null)
@@ -135,7 +157,7 @@ export const Composition = memo(function Composition({
     const rect = canvas.current.getBoundingClientRect()
     for (let i = project.layers.length - 1; i >= 0; i--) {
       const layer = project.layers[i]
-      if (!layer.visible) continue
+      if (!layer.visible || layer.locked) continue
       if (layer.kind === 'chyron') {
         if (isPointInChyron(point, rect, project, bounds)) return 'chyron'
       } else if (images.has(layer.assetId) && layer.opacity > 0) {
@@ -143,6 +165,19 @@ export const Composition = memo(function Composition({
       }
     }
     return null
+  }
+
+  /** Edges and centres of every other visible layer. */
+  function snapTargetsExcept(id: string): SnapTargets {
+    const boxes: { name: string; box: ReturnType<typeof boundsPercent> }[] = []
+    for (const l of project.layers) {
+      if (l.id === id || !l.visible) continue
+      if (l.kind === 'chyron') {
+        if (bounds) boxes.push({ name: 'Chyron', box: boundsPercent(bounds, project) })
+      } else if (images.has(l.assetId) && l.opacity > 0)
+        boxes.push({ name: l.name, box: boundsPercent(imageBounds(l, project), project) })
+    }
+    return layerSnapTargets(boxes)
   }
 
   function begin(e: PointerEvent<HTMLElement>, action: Action, target = selected) {
@@ -164,6 +199,7 @@ export const Composition = memo(function Composition({
       project: { ...project },
       layer: layer && { ...layer },
       rect: canvas.current.getBoundingClientRect(),
+      targets: snapTargetsExcept(target),
     }
   }
 
@@ -182,12 +218,14 @@ export const Composition = memo(function Composition({
         y: rect.top + (rect.height * layer.y) / 100,
       }
       if (start.action === 'move') {
-        const box = imageBounds(layer, project)
+        const box = boundsPercent(imageBounds(layer, project), project)
         const { x, y, snap } = snapImagePosition(
           layer.x + (delta.x / project.width) * 100,
           layer.y + (delta.y / project.height) * 100,
-          (box.width / project.width) * 100,
-          (box.height / project.height) * 100,
+          box.w,
+          box.h,
+          1.5,
+          e.altKey ? { x: [], y: [] } : start.targets,
         )
         setActiveSnap(snap)
         onLayerChange?.(layer.id, { x, y })
@@ -300,6 +338,11 @@ export const Composition = memo(function Composition({
 
   function canvasPointerDown(e: PointerEvent<HTMLCanvasElement>) {
     if (!interactive || e.button !== 0 || drag.current) return
+    if (cropping) {
+      // Clicking outside the crop frame applies it.
+      onCropChange?.(null)
+      return
+    }
     const hit = hitTest({ x: e.clientX, y: e.clientY })
     if (hit) {
       if (hit !== selected) onSelect?.(hit)
@@ -326,6 +369,8 @@ export const Composition = memo(function Composition({
   const ready = loaded?.name === project.font
   const targetName = selectedImage ? selectedImage.name : 'chyron'
   const showControls = !!selectedBox
+  const locked = !!(selectedImage ? selectedImage.locked : selected === 'chyron' && chyron.locked)
+  const cropLayer = cropping && selectedImage?.visible ? selectedImage : null
 
   return (
     <div
@@ -357,6 +402,14 @@ export const Composition = memo(function Composition({
         onPointerCancel={end}
         onLostPointerCapture={end}
         onKeyDown={(e) => keydown(e, 'move')}
+        onDoubleClick={(e) => {
+          if (!interactive || cropping) return
+          const hit = hitTest({ x: e.clientX, y: e.clientY })
+          if (hit && hit !== 'chyron') {
+            onSelect?.(hit)
+            onCropChange?.(hit)
+          }
+        }}
       />
       {interactive && isDragging && activeSnap.x && (
         <>
@@ -386,7 +439,34 @@ export const Composition = memo(function Composition({
           </div>
         </>
       )}
-      {interactive && selectedBox && (
+      {interactive && cropLayer && (
+        <CropOverlay
+          layer={cropLayer}
+          project={project}
+          canvas={canvas}
+          images={images}
+          onChange={(values) => onLayerChange?.(cropLayer.id, values)}
+          onDone={() => onCropChange?.(null)}
+        />
+      )}
+      {interactive && selectedBox && !cropLayer && locked && (
+        <div
+          className="composition-transform-box si-transform-box is-locked"
+          aria-label={`${targetName} is locked`}
+          style={{
+            left: `${boxPosition.x}%`,
+            top: `${boxPosition.y}%`,
+            width: `${(selectedBox.width / project.width) * 100}%`,
+            height: `${(selectedBox.height / project.height) * 100}%`,
+            transform: `translate(-50%, -50%) rotate(${selectedBox.rotation}deg)`,
+          }}
+        >
+          <span className="composition-lock-badge">
+            <Lock size={12} aria-hidden="true" /> Locked
+          </span>
+        </div>
+      )}
+      {interactive && selectedBox && !cropLayer && !locked && (
         <div
           className={`composition-transform-box si-transform-box ${selectedImage ? 'is-image' : ''}`}
           role="group"
@@ -440,3 +520,209 @@ export const Composition = memo(function Composition({
     </div>
   )
 })
+
+const CROP_HANDLES: CropHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+const CROP_RATIOS: { label: string; title: string; ratio: number | null }[] = [
+  { label: '1:1', title: 'Square', ratio: 1 },
+  { label: '4:5', title: 'Portrait 4:5', ratio: 4 / 5 },
+  { label: '16:9', title: 'Wide 16:9', ratio: 16 / 9 },
+  { label: 'Full', title: 'Whole image', ratio: null },
+]
+type CropValues = Partial<ImageLayer>
+
+/**
+ * Crop mode for an image layer: the whole picture shows dimmed behind the
+ * frame; drag the handles to frame it, drag inside to move the picture.
+ * Enter or Done applies, Escape or Cancel restores where it started.
+ */
+function CropOverlay({
+  layer,
+  project,
+  canvas,
+  images,
+  onChange,
+  onDone,
+}: {
+  layer: ImageLayer
+  project: Project
+  canvas: { readonly current: HTMLCanvasElement | null }
+  images: ImageMap
+  onChange: (values: CropValues) => void
+  onDone: () => void
+}) {
+  const ghost = useRef<HTMLCanvasElement>(null)
+  const start = useRef<{
+    id: number
+    handle: CropHandle | 'pan'
+    x: number
+    y: number
+    layer: ImageLayer
+  } | null>(null)
+  // Where crop mode began, for Cancel.
+  const [snapshot] = useState(() => ({
+    crop: layer.crop,
+    sourceAspect: layer.sourceAspect,
+    aspect: layer.aspect,
+    width: layer.width,
+    x: layer.x,
+    y: layer.y,
+  }))
+  const c = cropOf(layer)
+  const image = images.get(layer.assetId)
+
+  useEffect(() => {
+    const el = ghost.current
+    if (!el || !image) return
+    const k = Math.min(1, 640 / Math.max(image.width, image.height))
+    el.width = Math.max(1, Math.round(image.width * k))
+    el.height = Math.max(1, Math.round(image.height * k))
+    el.getContext('2d')?.drawImage(image, 0, 0, el.width, el.height)
+  }, [image])
+
+  useEffect(() => {
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+        onDone()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onChange(snapshot)
+        onDone()
+      }
+    }
+    window.addEventListener('keydown', key, true)
+    return () => window.removeEventListener('keydown', key, true)
+  }, [onChange, onDone, snapshot])
+
+  const fullSize = (l: ImageLayer) => {
+    const rect = canvas.current?.getBoundingClientRect()
+    const s = rect ? rect.width / project.width : 1
+    const boxW = (l.width / 100) * project.width * s
+    const lc = cropOf(l)
+    return { w: boxW / lc.w, h: (boxW * l.aspect) / lc.h }
+  }
+  const begin = (e: PointerEvent<HTMLElement>, handle: CropHandle | 'pan') => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    start.current = { id: e.pointerId, handle, x: e.clientX, y: e.clientY, layer: { ...layer } }
+  }
+  const move = (e: PointerEvent<HTMLElement>) => {
+    const g = start.current
+    if (!g || g.id !== e.pointerId) return
+    // Screen delta in the picture's own (unrotated) frame.
+    const a = (-g.layer.rotation * Math.PI) / 180
+    const sx = e.clientX - g.x,
+      sy = e.clientY - g.y
+    const dx = sx * Math.cos(a) - sy * Math.sin(a)
+    const dy = sx * Math.sin(a) + sy * Math.cos(a)
+    const full = fullSize(g.layer)
+    const c0 = cropOf(g.layer)
+    if (g.handle === 'pan') {
+      onChange({
+        crop: panCrop(c0, dx, dy, full, g.layer.flipX),
+        sourceAspect: sourceAspectOf(g.layer),
+      })
+      return
+    }
+    let next = resizeCrop(c0, g.handle, dx, dy, full, g.layer.flipX)
+    // Round shapes keep their proportions; Shift keeps any crop's.
+    if (SQUARE_MASKS.includes(g.layer.mask) || e.shiftKey)
+      next = keepCropRatio(c0, next, g.handle, sourceAspectOf(g.layer))
+    onChange(withCrop(g.layer, next, project))
+  }
+  const end = (e: PointerEvent<HTMLElement>) => {
+    if (start.current?.id === e.pointerId) start.current = null
+  }
+  const events = { onPointerMove: move, onPointerUp: end, onPointerCancel: end }
+
+  const box = imageBounds(layer, project)
+  const style = {
+    left: `${layer.x}%`,
+    top: `${layer.y}%`,
+    width: `${(box.width / project.width) * 100}%`,
+    height: `${(box.height / project.height) * 100}%`,
+    transform: `translate(-50%, -50%) rotate(${layer.rotation}deg)`,
+  }
+  return (
+    <>
+      <div
+        className="composition-crop-box"
+        style={style}
+        role="group"
+        aria-label={`Crop ${layer.name}`}
+      >
+        <div
+          className="composition-crop-ghost"
+          style={{ transform: layer.flipX ? 'scaleX(-1)' : undefined }}
+        >
+          <canvas
+            ref={ghost}
+            aria-hidden="true"
+            style={{
+              left: `${(-c.x / c.w) * 100}%`,
+              top: `${(-c.y / c.h) * 100}%`,
+              width: `${100 / c.w}%`,
+              height: `${100 / c.h}%`,
+            }}
+          />
+        </div>
+        <div
+          className="composition-crop-pan"
+          title="Drag to move the picture"
+          onPointerDown={(e) => begin(e, 'pan')}
+          {...events}
+        >
+          <i className="third v1" />
+          <i className="third v2" />
+          <i className="third h1" />
+          <i className="third h2" />
+        </div>
+        {CROP_HANDLES.map((h) => (
+          <button
+            key={h}
+            className={`composition-crop-handle ${h}`}
+            aria-label={`Crop from ${h}`}
+            onPointerDown={(e) => begin(e, h)}
+            {...events}
+          />
+        ))}
+      </div>
+      <div className="composition-crop-bar" role="toolbar" aria-label="Crop">
+        {CROP_RATIOS.map(({ label, title, ratio }) => (
+          <button
+            key={label}
+            title={title}
+            aria-label={title}
+            className="button ghost sm"
+            onClick={() =>
+              onChange(
+                withCrop(layer, ratio === null ? FULL_CROP : cropToRatio(layer, ratio), project),
+              )
+            }
+          >
+            {label}
+          </button>
+        ))}
+        <span className="composition-crop-sep" aria-hidden="true" />
+        <button
+          className="icon-button sm"
+          aria-label="Cancel crop"
+          title="Cancel (Esc)"
+          onClick={() => {
+            onChange(snapshot)
+            onDone()
+          }}
+        >
+          <X size={16} />
+        </button>
+        <button className="button primary sm" title="Apply (Enter)" onClick={onDone}>
+          <Check size={14} aria-hidden="true" /> Done
+        </button>
+      </div>
+    </>
+  )
+}

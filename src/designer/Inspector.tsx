@@ -449,7 +449,7 @@ function MaskControls({ base, actions }: { base: Layer; actions: InspectorAction
         label="Hide mask shape"
         hint="Show only what's inside. Off: the shape stays visible behind its contents."
         checked={!!base.maskOnly}
-        onChange={(maskOnly) => up({ maskOnly })}
+        onChange={(maskOnly) => up({ maskOnly, autoMask: false })}
       />
       {base.maskOnly && (
         <>

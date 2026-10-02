@@ -86,11 +86,33 @@ export const HOLD_EFFECTS = [
 ] as const
 export type HoldEffect = (typeof HOLD_EFFECTS)[number]
 
+/** Shape an image is cut to. 'none' keeps the rectangle (with its corner radius). */
+export const IMAGE_MASKS = [
+  'none',
+  'circle',
+  'arch',
+  'triangle',
+  'hexagon',
+  'star',
+  'heart',
+] as const
+export type ImageMask = (typeof IMAGE_MASKS)[number]
+
+/** Visible part of the source image, as fractions of its width and height. */
+export interface ImageCrop {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface ChyronLayer {
   id: 'chyron'
   kind: 'chyron'
   name: string
   visible: boolean
+  /** Locked layers ignore clicks on the canvas; select them from the timeline. */
+  locked?: boolean
   /** Seconds after the clip starts before the title's intro begins. */
   delay: number
   /** Outro length in seconds. Unset: the outro mirrors the intro. */
@@ -103,9 +125,18 @@ export interface ImageLayer {
   kind: 'image'
   name: string
   assetId: string
-  /** Natural height ÷ width, kept on the layer so layout never waits for decoding. */
+  /** Height ÷ width of what is shown (after cropping), kept so layout never waits for decoding. */
   aspect: number
+  /** Natural height ÷ width of the source. Set once the image is cropped. */
+  sourceAspect?: number
+  crop?: ImageCrop
+  mask: ImageMask
+  /** Colour adjustments, 100 = unchanged. */
+  brightness: number
+  contrast: number
+  saturation: number
   visible: boolean
+  locked?: boolean
   /** Center position as a percentage of the canvas. Values outside 0–100 sit partly off-canvas. */
   x: number
   y: number
@@ -152,6 +183,10 @@ export const DEFAULT_IMAGE_LAYER: Omit<ImageLayer, 'id' | 'assetId' | 'aspect' |
   rotation: 0,
   opacity: 100,
   flipX: false,
+  mask: 'none',
+  brightness: 100,
+  contrast: 100,
+  saturation: 100,
   radius: 0,
   border: 0,
   borderColor: '#ffffff',
@@ -390,7 +425,13 @@ export function normalizeImageLayer(raw: Record<string, unknown>): ImageLayer | 
     name: text(raw.name, 'Image'),
     assetId: raw.assetId,
     aspect: num(raw.aspect, 1, 0.01, 100),
+    ...cropFields(raw),
+    mask: pick(raw.mask, IMAGE_MASKS, d.mask),
+    brightness: num(raw.brightness, 100, 0, 200),
+    contrast: num(raw.contrast, 100, 0, 200),
+    saturation: num(raw.saturation, 100, 0, 300),
     visible: typeof raw.visible === 'boolean' ? raw.visible : true,
+    ...(raw.locked === true ? { locked: true } : {}),
     x: num(raw.x, d.x, -50, 150),
     y: num(raw.y, d.y, -50, 150),
     width: num(raw.width, d.width, 2, 400),
@@ -414,6 +455,16 @@ export function normalizeImageLayer(raw: Record<string, unknown>): ImageLayer | 
     burstColor: hex(raw.burstColor, d.burstColor),
   }
 }
+function cropFields(raw: Record<string, unknown>) {
+  const c = raw.crop as Record<string, unknown> | undefined
+  if (!c || typeof c !== 'object' || typeof raw.sourceAspect !== 'number') return {}
+  const w = num(c.w, 1, 0.01, 1),
+    h = num(c.h, 1, 0.01, 1)
+  return {
+    sourceAspect: num(raw.sourceAspect, 1, 0.01, 100),
+    crop: { x: num(c.x, 0, 0, 1 - w), y: num(c.y, 0, 0, 1 - h), w, h },
+  }
+}
 function optionalTiming(raw: Record<string, unknown>) {
   const out: { outDuration?: number; endDelay?: number } = {}
   if (typeof raw.outDuration === 'number') out.outDuration = num(raw.outDuration, 1, 0.05, 12)
@@ -434,6 +485,7 @@ export function normalizeLayers(value: unknown): Layer[] {
         ...CHYRON_LAYER,
         name: text(raw.name, CHYRON_LAYER.name),
         visible: typeof raw.visible === 'boolean' ? raw.visible : true,
+        ...(raw.locked === true ? { locked: true } : {}),
         delay: num(raw.delay, 0, 0, 10),
         ...optionalTiming(raw),
       }
