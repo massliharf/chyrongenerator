@@ -30,10 +30,6 @@
   background: var(--color-bg-surface);
   border-radius: var(--radius-xl);
 }
-.dz-left > .tabs {
-  align-items: center;
-  padding-top: var(--space-3);
-}
 .dz-left-close,
 .dz-left-toggle {
   display: none;
@@ -79,26 +75,8 @@
 .dz-layer.is-hidden .dz-layer-name {
   opacity: 0.45;
 }
-.dz-layer.is-clipped {
-  padding-inline-start: var(--space-1);
-}
 .dz-layer.is-dragging {
   opacity: 0.4;
-}
-.dz-layer.drop-before::before,
-.dz-layer.drop-after::after {
-  content: '';
-  position: absolute;
-  inset-inline: var(--space-2);
-  height: 2px;
-  background: var(--designer-select);
-  border-radius: var(--radius-full);
-}
-.dz-layer.drop-before::before {
-  top: -1px;
-}
-.dz-layer.drop-after::after {
-  bottom: -1px;
 }
 .dz-clip-icon {
   flex: none;
@@ -175,81 +153,6 @@
 }
 .dz-empty-layers span {
   font: var(--text-caption);
-}
-
-/* ---------- Insert ---------- */
-.dz-insert {
-  display: grid;
-  gap: var(--space-5);
-  padding: var(--space-1) var(--space-2);
-}
-.dz-insert section {
-  display: grid;
-  gap: var(--space-2);
-}
-.dz-insert .field-hint svg {
-  vertical-align: -2px;
-}
-.dz-insert-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-.dz-insert-tile {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  text-align: start;
-  background: var(--color-bg-control);
-  border-radius: var(--radius-lg);
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-.dz-insert-tile:hover {
-  background: var(--color-bg-control-hover);
-}
-.dz-insert-tile > svg {
-  margin-bottom: var(--space-2);
-  color: var(--color-text-secondary);
-}
-.dz-insert-tile span {
-  font: var(--text-label-md);
-}
-.dz-insert-tile small {
-  font: var(--text-caption);
-  font-size: 0.6875rem;
-  color: var(--color-text-tertiary);
-}
-.dz-text-presets {
-  display: grid;
-  gap: var(--space-1-5);
-}
-.dz-text-preset {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 44px;
-  padding: 0 var(--space-3);
-  font: var(--text-body-sm);
-  text-align: start;
-  background: var(--color-bg-control);
-  border-radius: var(--radius-md);
-}
-.dz-text-preset:hover {
-  background: var(--color-bg-control-hover);
-}
-.dz-text-preset > svg {
-  flex: none;
-  color: var(--color-text-tertiary);
-}
-.dz-text-preset.is-heading {
-  min-height: 52px;
-  font: var(--text-heading-lg);
-  font-weight: var(--weight-bold);
-}
-.dz-text-preset.is-sub {
-  font: var(--text-heading-sm);
-  font-weight: var(--weight-semibold);
 }
 
 /* ---------- Toolbar ---------- */
@@ -766,5 +669,285 @@
 @media (prefers-reduced-motion: reduce) {
   .dz-left {
     transition: none;
+  }
+}
+
+/* ---------- Left panel: add bar ---------- */
+.dz-addbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+  flex: none;
+  padding: var(--space-2);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.dz-addbar {
+  position: relative;
+}
+/* Popovers span the add bar so they never leave the panel. */
+.dz-add-item {
+  min-width: 0;
+}
+.dz-add-tile {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2) var(--space-1) var(--space-1-5);
+  font: var(--text-label-sm);
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.dz-add-tile:hover,
+.dz-add-tile.is-open {
+  color: var(--color-text-primary);
+  background: var(--color-state-hover);
+}
+.dz-add-tile.is-open {
+  background: var(--color-bg-selected);
+}
+.dz-popover {
+  position: absolute;
+  top: calc(100% - var(--space-1));
+  inset-inline: var(--space-2);
+  z-index: calc(var(--z-dropdown) + 1);
+  padding: var(--space-2);
+  background: var(--color-bg-surface-raised);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  animation: menu-in var(--duration-normal) var(--ease-enter);
+}
+.dz-pop-list {
+  display: grid;
+  gap: var(--space-0-5);
+}
+.dz-pop-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  font: var(--text-label-md);
+  text-align: start;
+  border-radius: var(--radius-md);
+}
+.dz-pop-row > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+}
+.dz-pop-row span {
+  display: grid;
+}
+.dz-pop-row small {
+  font: var(--text-caption);
+  font-size: 0.6875rem;
+  color: var(--color-text-tertiary);
+}
+.dz-pop-row:hover,
+.dz-pop-text:hover,
+.dz-shape-tile:hover {
+  background: var(--color-state-hover);
+}
+.dz-pop-text {
+  padding: var(--space-2);
+  text-align: start;
+  border-radius: var(--radius-md);
+  font: var(--text-body-sm);
+}
+.dz-pop-text.is-heading {
+  font: var(--text-heading-lg);
+  font-weight: var(--weight-bold);
+}
+.dz-pop-text.is-subheading {
+  font: var(--text-heading-sm);
+  font-weight: var(--weight-semibold);
+}
+.dz-pop-note {
+  display: flex;
+  gap: var(--space-1-5);
+  margin: var(--space-2) var(--space-1) var(--space-0-5);
+  font: var(--text-caption);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--color-text-tertiary);
+}
+.dz-pop-note svg {
+  flex: none;
+  margin-top: 1px;
+}
+.dz-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.dz-shape-tile {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) 0 var(--space-1-5);
+  font: var(--text-label-sm);
+  font-size: 0.625rem;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+}
+.dz-shape-tile svg path {
+  fill: var(--mg-cat-image);
+}
+.dz-shape-grid.is-frames .dz-shape-tile svg path,
+.dz-mask-shapes .dz-shape-tile svg path,
+.dz-mask-card svg path {
+  fill: color-mix(in srgb, var(--designer-mask) 18%, transparent);
+  stroke: var(--designer-mask);
+  stroke-width: 1.25;
+  stroke-dasharray: 2.5 1.5;
+}
+.dz-shape-tile.is-compact {
+  padding: var(--space-1-5) 0;
+  background: var(--color-bg-control);
+}
+
+/* ---------- Left panel: layers ---------- */
+.dz-left-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-3) var(--space-3) var(--space-1) var(--space-4);
+}
+.dz-left-head h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+  font: var(--text-label-md);
+  font-weight: var(--weight-semibold);
+}
+.dz-left-hint {
+  margin-inline-start: auto;
+  overflow: hidden;
+  font: var(--text-caption);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-tertiary);
+}
+.dz-layer-twisty {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-inline: -4px -2px;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+}
+button.dz-layer-twisty:hover {
+  color: var(--color-text-primary);
+  background: var(--color-state-hover);
+}
+.dz-group {
+  position: relative;
+  list-style: none;
+  margin: var(--space-0-5) 0;
+  padding: var(--space-0-5) 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--designer-mask) 6%, transparent);
+}
+.dz-group > ul {
+  display: grid;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dz-group::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 22px;
+  left: 17px;
+  width: 1.5px;
+  background: color-mix(in srgb, var(--designer-mask) 45%, transparent);
+  border-radius: var(--radius-full);
+}
+.dz-layer.is-clipped {
+  padding-inline-start: var(--space-6);
+}
+.dz-layer.is-mask .dz-layer-thumb {
+  border-color: color-mix(in srgb, var(--designer-mask) 55%, transparent);
+}
+.dz-layer.is-mask .dz-layer-name > small {
+  color: var(--designer-mask);
+}
+.dz-layer.drop-above::before,
+.dz-layer.drop-below::after {
+  content: '';
+  position: absolute;
+  inset-inline: var(--space-2);
+  height: 2px;
+  background: var(--designer-select);
+  border-radius: var(--radius-full);
+}
+.dz-layer.drop-above::before {
+  top: -1px;
+}
+.dz-layer.drop-below::after {
+  bottom: -1px;
+}
+.dz-layer.drop-into {
+  background: color-mix(in srgb, var(--designer-mask) 14%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--designer-mask);
+}
+
+/* ---------- Canvas: frames ---------- */
+.dz-frame-target {
+  fill: color-mix(in srgb, var(--designer-mask) 16%, transparent);
+  stroke: var(--designer-mask);
+  stroke-width: 2.5;
+}
+
+/* ---------- Inspector: mask ---------- */
+.dz-mask-shapes {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.dz-mask-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--designer-mask) 8%, transparent);
+  border-radius: var(--radius-md);
+}
+.dz-mask-card > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.dz-mask-card strong {
+  overflow: hidden;
+  font: var(--text-label-md);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dz-mask-card small {
+  font: var(--text-caption);
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+}
+.dz-mask-card-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--designer-mask);
+}
+@media (max-width: 1279px) {
+  .dz-mask-shapes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

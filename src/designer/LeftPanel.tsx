@@ -1,22 +1,48 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
-  CornerDownRight,
+  ChevronDown,
+  ChevronRight,
   Eye,
   EyeOff,
   FolderOpen,
-  Heading1,
-  Heading2,
+  SquareDashed,
   Image as ImageIcon,
+  Layers as LayersIcon,
   Lock,
   LockOpen,
-  Square,
-  Circle,
+  Shapes,
   Type,
   Upload,
-  Layers as LayersIcon,
+  ClipboardPaste,
+  X,
 } from 'lucide-react'
-import type { DesignDoc, Layer, TextPreset } from './model'
-import { drawThumb } from './render'
+import { SHAPES, TEXT_PRESETS, isShape, type DesignDoc, type Layer, type TextPreset } from './model'
+import type { DropZone } from './ops'
+import { clipGroups, drawThumb } from './render'
+import { shapePath } from './shapes'
+
+type ShapePreset = (typeof SHAPES)[number]
+
+/* ---------- Small pieces ---------- */
+
+export function ShapeIcon({ preset, size = 22 }: { preset: ShapePreset; size?: number }) {
+  const pad = 2
+  const box = size - pad * 2
+  const h =
+    preset.kind === 'arch' ? box : preset.kind === 'rect' && !preset.radius ? box * 0.86 : box
+  const w = preset.kind === 'arch' ? box * 0.8 : box
+  const d = shapePath(preset.kind, pad + (box - w) / 2, pad + (box - h) / 2, w, h, {
+    radius: (preset.radius ?? 0) * box,
+    sides: preset.sides,
+    points: 5,
+    inner: 0.45,
+  })
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <path d={d} />
+    </svg>
+  )
+}
 
 function Thumb({ layer, version }: { layer: Layer; version: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -26,250 +52,442 @@ function Thumb({ layer, version }: { layer: Layer; version: number }) {
   return <canvas ref={ref} width={56} height={56} className="dz-layer-thumb" aria-hidden="true" />
 }
 
+/** A trigger with a panel anchored below it; closes on outside click or Escape. */
+function Popover({
+  label,
+  icon,
+  children,
+}: {
+  label: string
+  icon: ReactNode
+  children: (close: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const wrap = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const down = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setOpen(false)
+        trigger.current?.focus()
+      }
+    }
+    window.addEventListener('pointerdown', down)
+    window.addEventListener('keydown', key, true)
+    wrap.current?.querySelector<HTMLButtonElement>('.dz-popover button')?.focus()
+    return () => {
+      window.removeEventListener('pointerdown', down)
+      window.removeEventListener('keydown', key, true)
+    }
+  }, [open])
+  return (
+    <div className="dz-add-item" ref={wrap}>
+      <button
+        ref={trigger}
+        className={`dz-add-tile ${open ? 'is-open' : ''}`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => setOpen(!open)}
+      >
+        {icon}
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div className="dz-popover" role="dialog" aria-label={label}>
+          {children(() => setOpen(false))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---------- Add bar ---------- */
+
+export interface AddActions {
+  onUpload: () => void
+  onGallery: () => void
+  onText: (preset: TextPreset) => void
+  onShape: (preset: ShapePreset) => void
+  onFrame: (preset: ShapePreset) => void
+}
+
+function AddBar({ onUpload, onGallery, onText, onShape, onFrame }: AddActions) {
+  return (
+    <div className="dz-addbar" role="group" aria-label="Add to design">
+      <Popover label="Image" icon={<ImageIcon size={18} aria-hidden="true" />}>
+        {(close) => (
+          <div className="dz-pop-list">
+            <button
+              className="dz-pop-row"
+              onClick={() => {
+                close()
+                onUpload()
+              }}
+            >
+              <Upload size={16} aria-hidden="true" />
+              <span>
+                Upload from device
+                <small>PNG, JPEG, WebP, GIF · I</small>
+              </span>
+            </button>
+            <button
+              className="dz-pop-row"
+              onClick={() => {
+                close()
+                onGallery()
+              }}
+            >
+              <FolderOpen size={16} aria-hidden="true" />
+              <span>
+                Media gallery
+                <small>Hosts and backgrounds</small>
+              </span>
+            </button>
+            <p className="dz-pop-note">
+              <ClipboardPaste size={14} aria-hidden="true" /> You can also drop or paste images on
+              the artboard.
+            </p>
+          </div>
+        )}
+      </Popover>
+      <Popover label="Text" icon={<Type size={18} aria-hidden="true" />}>
+        {(close) => (
+          <div className="dz-pop-list">
+            {(Object.keys(TEXT_PRESETS) as TextPreset[]).map((k) => (
+              <button
+                key={k}
+                className={`dz-pop-text is-${k}`}
+                onClick={() => {
+                  close()
+                  onText(k)
+                }}
+              >
+                {TEXT_PRESETS[k].label}
+              </button>
+            ))}
+            <p className="dz-pop-note">Or press T and click on the artboard.</p>
+          </div>
+        )}
+      </Popover>
+      <Popover label="Shape" icon={<Shapes size={18} aria-hidden="true" />}>
+        {(close) => (
+          <>
+            <div className="dz-shape-grid">
+              {SHAPES.map((p) => (
+                <button
+                  key={p.name}
+                  className="dz-shape-tile"
+                  title={p.name}
+                  onClick={() => {
+                    close()
+                    onShape(p)
+                  }}
+                >
+                  <ShapeIcon preset={p} />
+                  <span>{p.name}</span>
+                </button>
+              ))}
+            </div>
+            <p className="dz-pop-note">R and O draw rectangles and ellipses directly.</p>
+          </>
+        )}
+      </Popover>
+      <Popover label="Frame" icon={<SquareDashed size={18} aria-hidden="true" />}>
+        {(close) => (
+          <>
+            <div className="dz-shape-grid is-frames">
+              {SHAPES.map((p) => (
+                <button
+                  key={p.name}
+                  className="dz-shape-tile"
+                  title={`${p.name} frame`}
+                  onClick={() => {
+                    close()
+                    onFrame(p)
+                  }}
+                >
+                  <ShapeIcon preset={p} />
+                  <span>{p.name}</span>
+                </button>
+              ))}
+            </div>
+            <p className="dz-pop-note">
+              Frames are masks waiting for a picture. Drop a photo on one, or drag an image layer
+              onto it.
+            </p>
+          </>
+        )}
+      </Popover>
+    </div>
+  )
+}
+
+/* ---------- Layers ---------- */
+
 const KIND_LABEL: Record<Layer['kind'], string> = {
   image: 'Image',
   text: 'Text',
   rect: 'Rectangle',
   ellipse: 'Ellipse',
+  triangle: 'Triangle',
+  polygon: 'Polygon',
+  star: 'Star',
+  heart: 'Heart',
+  arch: 'Arch',
 }
 
-export function LayersList({
-  doc,
-  selection,
-  imagesVersion,
-  onSelect,
-  onToggle,
-  onRename,
-  onMove,
-  onContextMenu,
-}: {
+interface ListProps {
   doc: DesignDoc
   selection: string[]
   imagesVersion: number
   onSelect: (ids: string[]) => void
   onToggle: (id: string, key: 'visible' | 'locked') => void
   onRename: (id: string, name: string) => void
-  onMove: (id: string, index: number) => void
+  onDrop: (dragId: string, targetId: string, zone: DropZone) => void
   onContextMenu: (at: { x: number; y: number }, id: string) => void
-}) {
+}
+
+function LayersList({
+  doc,
+  selection,
+  imagesVersion,
+  onSelect,
+  onToggle,
+  onRename,
+  onDrop,
+  onContextMenu,
+}: ListProps) {
   const [renaming, setRenaming] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
-  const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null)
+  const [dropAt, setDropAt] = useState<{ id: string; zone: DropZone } | null>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const anchor = useRef<string | null>(null)
-  // Top of the list is the front of the stack.
-  const rows = [...doc.layers].reverse()
 
-  if (!rows.length)
+  // Front of the stack first; inside a mask group, contents above their mask.
+  const groups = clipGroups(doc.layers).reverse()
+  const visualOrder = groups.flatMap((g) => [...[...g.clips].reverse(), g.base])
+
+  if (!doc.layers.length)
     return (
       <div className="dz-empty-layers">
-        <LayersIcon size={28} strokeWidth={1.5} aria-hidden="true" />
+        <LayersIcon size={24} strokeWidth={1.5} aria-hidden="true" />
         <strong>No layers yet</strong>
-        <span>Add an image, text or a shape from Insert, or drop files on the artboard.</span>
+        <span>Add an image, text, shape or frame above, or drop files on the artboard.</span>
       </div>
     )
 
   const select = (id: string, e: React.MouseEvent) => {
     if (e.shiftKey && anchor.current) {
-      const a = rows.findIndex((r) => r.id === anchor.current)
-      const b = rows.findIndex((r) => r.id === id)
+      const a = visualOrder.findIndex((r) => r.id === anchor.current)
+      const b = visualOrder.findIndex((r) => r.id === id)
       const [lo, hi] = a < b ? [a, b] : [b, a]
-      onSelect(rows.slice(lo, hi + 1).map((r) => r.id))
-      return
-    }
-    if (e.metaKey || e.ctrlKey) {
-      onSelect(selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id])
-      anchor.current = id
+      onSelect(visualOrder.slice(lo, hi + 1).map((r) => r.id))
       return
     }
     anchor.current = id
+    if (e.metaKey || e.ctrlKey) {
+      onSelect(selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id])
+      return
+    }
     onSelect([id])
+  }
+
+  const row = (l: Layer, role: 'base' | 'clip' | 'single', clipCount = 0) => {
+    const active = selection.includes(l.id)
+    const isMask = role === 'base'
+    const frame = !!l.maskOnly && isShape(l)
+    const sub =
+      role === 'clip'
+        ? `In ${groups.find((g) => g.clips.includes(l))?.base.name ?? 'mask'}`
+        : frame
+          ? clipCount
+            ? 'Frame'
+            : 'Empty frame · drop an image'
+          : isMask
+            ? `Mask · ${clipCount} inside`
+            : KIND_LABEL[l.kind]
+    const canInto = dragId !== null && dragId !== l.id
+    return (
+      <li
+        key={l.id}
+        role="option"
+        aria-selected={active}
+        className={[
+          'dz-layer',
+          active ? 'is-selected' : '',
+          !l.visible ? 'is-hidden' : '',
+          role === 'clip' ? 'is-clipped' : '',
+          isMask || frame ? 'is-mask' : '',
+          dragId === l.id ? 'is-dragging' : '',
+          dropAt?.id === l.id ? `drop-${dropAt.zone}` : '',
+        ].join(' ')}
+        draggable={renaming !== l.id}
+        onDragStart={(e) => {
+          setDragId(l.id)
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/x-layer', l.id)
+        }}
+        onDragEnd={() => {
+          setDragId(null)
+          setDropAt(null)
+        }}
+        onDragOver={(e) => {
+          if (!dragId) return
+          e.preventDefault()
+          const r = e.currentTarget.getBoundingClientRect()
+          const t = (e.clientY - r.top) / r.height
+          const zone: DropZone =
+            canInto && t > 0.28 && t < 0.72 ? 'into' : t < 0.5 ? 'above' : 'below'
+          if (dropAt?.id !== l.id || dropAt.zone !== zone) setDropAt({ id: l.id, zone })
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node) && dropAt?.id === l.id)
+            setDropAt(null)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          if (dragId && dropAt) onDrop(dragId, dropAt.id, dropAt.zone)
+          setDragId(null)
+          setDropAt(null)
+        }}
+        onClick={(e) => select(l.id, e)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          if (!active) onSelect([l.id])
+          onContextMenu({ x: e.clientX, y: e.clientY }, l.id)
+        }}
+      >
+        {isMask ? (
+          <button
+            className="dz-layer-twisty"
+            aria-label={collapsed.has(l.id) ? `Expand ${l.name}` : `Collapse ${l.name}`}
+            aria-expanded={!collapsed.has(l.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setCollapsed((c) => {
+                const n = new Set(c)
+                if (n.has(l.id)) n.delete(l.id)
+                else n.add(l.id)
+                return n
+              })
+            }}
+          >
+            {collapsed.has(l.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+        ) : (
+          <span className="dz-layer-twisty" aria-hidden="true" />
+        )}
+        <Thumb layer={l} version={imagesVersion} />
+        {renaming === l.id ? (
+          <input
+            className="dz-layer-rename"
+            defaultValue={l.name}
+            maxLength={80}
+            autoFocus
+            aria-label="Layer name"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') setRenaming(null)
+            }}
+            onBlur={(e) => {
+              const v = e.currentTarget.value.trim()
+              if (v && v !== l.name) onRename(l.id, v)
+              setRenaming(null)
+            }}
+          />
+        ) : (
+          <span
+            className="dz-layer-name"
+            title={`${l.name} · double-click to rename`}
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              setRenaming(l.id)
+            }}
+          >
+            <span>{l.name}</span>
+            <small>{sub}</small>
+          </span>
+        )}
+        <span className="dz-layer-actions">
+          <button
+            className={`icon-button sm ${l.locked ? 'is-on' : ''}`}
+            aria-label={l.locked ? `Unlock ${l.name}` : `Lock ${l.name}`}
+            aria-pressed={l.locked}
+            title={l.locked ? 'Unlock (⇧L)' : 'Lock (⇧L)'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle(l.id, 'locked')
+            }}
+          >
+            {l.locked ? <Lock size={14} /> : <LockOpen size={14} />}
+          </button>
+          <button
+            className={`icon-button sm ${!l.visible ? 'is-on' : ''}`}
+            aria-label={l.visible ? `Hide ${l.name}` : `Show ${l.name}`}
+            aria-pressed={!l.visible}
+            title={l.visible ? 'Hide' : 'Show'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle(l.id, 'visible')
+            }}
+          >
+            {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
+        </span>
+      </li>
+    )
   }
 
   return (
     <ul className="dz-layers" role="listbox" aria-label="Layers" aria-multiselectable="true">
-      {rows.map((l) => {
-        const active = selection.includes(l.id)
-        return (
-          <li
-            key={l.id}
-            role="option"
-            aria-selected={active}
-            className={[
-              'dz-layer',
-              active ? 'is-selected' : '',
-              !l.visible ? 'is-hidden' : '',
-              l.clip ? 'is-clipped' : '',
-              dragId === l.id ? 'is-dragging' : '',
-              dropAt?.id === l.id ? (dropAt.after ? 'drop-after' : 'drop-before') : '',
-            ].join(' ')}
-            draggable={renaming !== l.id}
-            onDragStart={(e) => {
-              setDragId(l.id)
-              e.dataTransfer.effectAllowed = 'move'
-              e.dataTransfer.setData('text/x-layer', l.id)
-            }}
-            onDragEnd={() => {
-              setDragId(null)
-              setDropAt(null)
-            }}
-            onDragOver={(e) => {
-              if (!dragId) return
-              e.preventDefault()
-              const r = e.currentTarget.getBoundingClientRect()
-              setDropAt({ id: l.id, after: e.clientY > r.top + r.height / 2 })
-            }}
-            onDrop={(e) => {
-              e.preventDefault()
-              if (!dragId || !dropAt) return
-              // Rows are reversed: "after" in the list is "below" in the stack.
-              const without = doc.layers.filter((x) => x.id !== dragId)
-              const target = without.findIndex((x) => x.id === dropAt.id)
-              onMove(dragId, dropAt.after ? target : target + 1)
-              setDragId(null)
-              setDropAt(null)
-            }}
-            onClick={(e) => select(l.id, e)}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              if (!active) onSelect([l.id])
-              onContextMenu({ x: e.clientX, y: e.clientY }, l.id)
-            }}
-          >
-            {l.clip && (
-              <CornerDownRight
-                size={14}
-                className="dz-clip-icon"
-                aria-label="Clipped to the layer below"
-              />
-            )}
-            <Thumb layer={l} version={imagesVersion} />
-            {renaming === l.id ? (
-              <input
-                className="dz-layer-rename"
-                defaultValue={l.name}
-                maxLength={80}
-                autoFocus
-                aria-label="Layer name"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  e.stopPropagation()
-                  if (e.key === 'Enter') e.currentTarget.blur()
-                  if (e.key === 'Escape') setRenaming(null)
-                }}
-                onBlur={(e) => {
-                  const v = e.currentTarget.value.trim()
-                  if (v && v !== l.name) onRename(l.id, v)
-                  setRenaming(null)
-                }}
-              />
-            ) : (
-              <span
-                className="dz-layer-name"
-                title={`${l.name} · double-click to rename`}
-                onDoubleClick={(e) => {
-                  e.stopPropagation()
-                  setRenaming(l.id)
-                }}
-              >
-                <span>{l.name}</span>
-                <small>{l.clip ? 'Clipped' : l.maskOnly ? 'Mask' : KIND_LABEL[l.kind]}</small>
-              </span>
-            )}
-            <span className="dz-layer-actions">
-              <button
-                className={`icon-button sm ${l.locked ? 'is-on' : ''}`}
-                aria-label={l.locked ? `Unlock ${l.name}` : `Lock ${l.name}`}
-                aria-pressed={l.locked}
-                title={l.locked ? 'Unlock' : 'Lock'}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggle(l.id, 'locked')
-                }}
-              >
-                {l.locked ? <Lock size={14} /> : <LockOpen size={14} />}
-              </button>
-              <button
-                className={`icon-button sm ${!l.visible ? 'is-on' : ''}`}
-                aria-label={l.visible ? `Hide ${l.name}` : `Show ${l.name}`}
-                aria-pressed={!l.visible}
-                title={l.visible ? 'Hide (H)' : 'Show (H)'}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggle(l.id, 'visible')
-                }}
-              >
-                {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-              </button>
-            </span>
+      {groups.map((g) =>
+        g.clips.length ? (
+          <li key={g.base.id} className="dz-group" role="presentation">
+            <ul role="group" aria-label={`${g.base.name} mask group`}>
+              {!collapsed.has(g.base.id) && [...g.clips].reverse().map((c) => row(c, 'clip'))}
+              {row(g.base, 'base', g.clips.length)}
+            </ul>
           </li>
-        )
-      })}
+        ) : (
+          row(g.base, 'single')
+        ),
+      )}
     </ul>
   )
 }
 
-export function InsertPanel({
-  onUpload,
-  onGallery,
-  onText,
-  onShape,
-}: {
-  onUpload: () => void
-  onGallery: () => void
-  onText: (preset: TextPreset) => void
-  onShape: (kind: 'rect' | 'ellipse') => void
-}) {
+/* ---------- Panel ---------- */
+
+export function LeftPanel(props: ListProps & AddActions & { onClose: () => void }) {
+  const { doc } = props
   return (
-    <div className="dz-insert">
-      <section>
-        <h3 className="panel-block-title">Images</h3>
-        <div className="dz-insert-grid">
-          <button className="dz-insert-tile" onClick={onUpload}>
-            <Upload size={20} aria-hidden="true" />
-            <span>Upload</span>
-            <small>PNG, JPEG, WebP, GIF</small>
-          </button>
-          <button className="dz-insert-tile" onClick={onGallery}>
-            <FolderOpen size={20} aria-hidden="true" />
-            <span>Media gallery</span>
-            <small>Hosts & backgrounds</small>
-          </button>
-        </div>
-        <p className="field-hint">You can also drop or paste images onto the artboard.</p>
-      </section>
-      <section>
-        <h3 className="panel-block-title">Text</h3>
-        <div className="dz-text-presets">
-          <button className="dz-text-preset is-heading" onClick={() => onText('heading')}>
-            <Heading1 size={18} aria-hidden="true" /> Add a heading
-          </button>
-          <button className="dz-text-preset is-sub" onClick={() => onText('subheading')}>
-            <Heading2 size={18} aria-hidden="true" /> Add a subheading
-          </button>
-          <button className="dz-text-preset" onClick={() => onText('body')}>
-            <Type size={18} aria-hidden="true" /> Add body text
-          </button>
-        </div>
-      </section>
-      <section>
-        <h3 className="panel-block-title">Shapes</h3>
-        <div className="dz-insert-grid">
-          <button className="dz-insert-tile" onClick={() => onShape('rect')}>
-            <Square size={20} aria-hidden="true" />
-            <span>Rectangle</span>
-            <small>R</small>
-          </button>
-          <button className="dz-insert-tile" onClick={() => onShape('ellipse')}>
-            <Circle size={20} aria-hidden="true" />
-            <span>Ellipse</span>
-            <small>O</small>
-          </button>
-        </div>
-        <p className="field-hint">
-          Shapes double as masks: put one under an image and choose{' '}
-          <ImageIcon size={12} aria-hidden="true" /> Clip to layer below.
-        </p>
-      </section>
-    </div>
+    <aside className="dz-left" aria-label="Add and layers">
+      <AddBar {...props} />
+      <div className="dz-left-head">
+        <h2>
+          Layers {doc.layers.length > 0 && <span className="count-badge">{doc.layers.length}</span>}
+        </h2>
+        <span className="dz-left-hint" title="Drag a layer onto another to mask it">
+          Drag onto a layer to mask
+        </span>
+        <button
+          className="icon-button sm dz-left-close"
+          aria-label="Close panel"
+          onClick={props.onClose}
+        >
+          <X size={16} />
+        </button>
+      </div>
+      <div className="dz-left-body">
+        <LayersList {...props} />
+      </div>
+    </aside>
   )
 }

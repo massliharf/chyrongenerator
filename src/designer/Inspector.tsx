@@ -36,6 +36,9 @@ import {
   AlignRight,
   Check,
   X,
+  Maximize2,
+  Upload,
+  FolderOpen,
 } from 'lucide-react'
 import { Color, Field, NumberField, Section, Toggle } from '../components/Controls'
 import { MenuButton, type MenuEntry } from '../components/Menu'
@@ -45,6 +48,8 @@ import {
   BLEND_MODES,
   DEFAULT_FILTERS,
   FONTS,
+  SHAPES,
+  isShape,
   type BlendMode,
   type DesignDoc,
   type ImageLayer,
@@ -54,6 +59,7 @@ import {
 } from './model'
 import type { Align } from './ops'
 import { maskBaseOf } from './render'
+import { ShapeIcon } from './LeftPanel'
 
 export interface InspectorActions {
   /** Live edit of the selection; consecutive edits merge into one undo step. */
@@ -69,7 +75,12 @@ export interface InspectorActions {
   cancelCrop: () => void
   resetCrop: () => void
   setCropRatio: (id: string) => void
-  maskWith: (kind: 'rect' | 'ellipse') => void
+  maskWith: (presetName: string) => void
+  updateLayer: (id: string, values: Partial<Layer>) => void
+  select: (ids: string[]) => void
+  releaseAll: (baseId: string) => void
+  fitToMask: (id: string) => void
+  fillFrame: (frameId: string, source: 'upload' | 'gallery') => void
   replaceImage: () => void
   fitToArtboard: (mode: 'fit' | 'fill') => void
 }
@@ -396,10 +407,7 @@ function LayerSection({
   open: boolean
   toggle: () => void
 }) {
-  const index = doc.layers.findIndex((x) => x.id === l.id)
-  const below = doc.layers[index - 1]
-  const base = l.clip ? maskBaseOf(doc.layers, l.id) : null
-  const hasClips = !l.clip && doc.layers[index + 1]?.clip === true
+  void doc
   return (
     <Section
       title="Layer"
@@ -427,40 +435,182 @@ function LayerSection({
           ))}
         </select>
       </Field>
+    </Section>
+  )
+}
+
+/* ---------- Mask ---------- */
+
+function MaskControls({ base, actions }: { base: Layer; actions: InspectorActions }) {
+  const up = (v: Partial<Layer>) => actions.updateLayer(base.id, v)
+  return (
+    <>
       <Toggle
-        label="Clip to layer below"
-        hint={
-          base
-            ? `Masked by “${base.name}”. Only its shape shows this layer.`
-            : below
-              ? `Use “${below.name}” as a mask. Shortcut: ⌥⌘G.`
-              : 'Needs a layer below to act as the mask.'
-        }
-        checked={l.clip}
-        onChange={(clip) => (below || !clip ? actions.update({ clip }) : undefined)}
+        label="Hide mask shape"
+        hint="Show only what's inside. Off: the shape stays visible behind its contents."
+        checked={!!base.maskOnly}
+        onChange={(maskOnly) => up({ maskOnly })}
       />
-      {hasClips && (
-        <Toggle
-          label="Use as mask only"
-          hint="Hide this layer and show its shape through the layers clipped to it."
-          checked={!!l.maskOnly}
-          onChange={(maskOnly) => actions.update({ maskOnly })}
-        />
+      {base.maskOnly && (
+        <>
+          <Toggle
+            label="Invert"
+            hint="Show the contents outside the shape instead."
+            checked={!!base.maskInvert}
+            onChange={(maskInvert) => up({ maskInvert })}
+          />
+          <NumberField
+            label="Feather"
+            value={base.maskFeather ?? 0}
+            min={0}
+            max={200}
+            unit="px"
+            onChange={(maskFeather) => up({ maskFeather })}
+          />
+        </>
       )}
-      {!l.clip && l.kind !== 'text' && (
-        <div className="dz-mask-row">
-          <span className="field-label">Mask with shape</span>
+    </>
+  )
+}
+
+function MaskSection({
+  l,
+  doc,
+  actions,
+  open,
+  toggle,
+}: {
+  l: Layer
+  doc: DesignDoc
+  actions: InspectorActions
+  open: boolean
+  toggle: () => void
+}) {
+  const index = doc.layers.findIndex((x) => x.id === l.id)
+  const below = doc.layers[index - 1]
+  const base = l.clip ? maskBaseOf(doc.layers, l.id) : null
+  const contents: Layer[] = []
+  if (!l.clip) for (let j = index + 1; doc.layers[j]?.clip; j++) contents.push(doc.layers[j])
+  const frame = !l.clip && !!l.maskOnly && isShape(l)
+
+  let summary = 'None'
+  if (base) summary = `Inside ${base.name}`
+  else if (frame && !contents.length) summary = 'Empty frame'
+  else if (contents.length)
+    summary = `Masks ${contents.length} layer${contents.length > 1 ? 's' : ''}`
+
+  return (
+    <Section title="Mask" summary={summary} open={open} onToggle={toggle}>
+      {base ? (
+        <>
+          <div className="dz-mask-card">
+            <span className="dz-mask-card-icon" aria-hidden="true">
+              {isShape(base) ? (
+                <ShapeIcon preset={presetOf(base)} size={20} />
+              ) : (
+                <LayersIcon size={16} />
+              )}
+            </span>
+            <span>
+              <strong>{base.name}</strong>
+              <small>This layer only shows inside it.</small>
+            </span>
+          </div>
           <div className="dz-button-row">
-            <button className="button secondary sm" onClick={() => actions.maskWith('rect')}>
-              <Square size={14} aria-hidden="true" /> Rounded
+            <button className="button secondary sm" onClick={() => actions.select([base.id])}>
+              Select mask
             </button>
-            <button className="button secondary sm" onClick={() => actions.maskWith('ellipse')}>
-              <Circle size={14} aria-hidden="true" /> Ellipse
+            <button className="button secondary sm" onClick={() => actions.fitToMask(l.id)}>
+              <Maximize2 size={14} aria-hidden="true" /> Fit to mask
+            </button>
+            <button className="button ghost sm" onClick={() => actions.update({ clip: false })}>
+              <Unlink size={14} aria-hidden="true" /> Release
             </button>
           </div>
-        </div>
+          <MaskControls base={base} actions={actions} />
+        </>
+      ) : frame && !contents.length ? (
+        <>
+          <p className="field-hint">
+            This frame is waiting for a picture. Drop a photo on it, drag an image layer onto it, or
+            choose one:
+          </p>
+          <div className="dz-button-row">
+            <button className="button primary sm" onClick={() => actions.fillFrame(l.id, 'upload')}>
+              <Upload size={14} aria-hidden="true" /> Upload image
+            </button>
+            <button
+              className="button secondary sm"
+              onClick={() => actions.fillFrame(l.id, 'gallery')}
+            >
+              <FolderOpen size={14} aria-hidden="true" /> Media gallery
+            </button>
+          </div>
+        </>
+      ) : contents.length ? (
+        <>
+          <div className="dz-button-row">
+            <button
+              className="button secondary sm"
+              onClick={() => actions.select(contents.map((c) => c.id))}
+            >
+              Select contents
+            </button>
+            {frame && (
+              <button
+                className="button secondary sm"
+                onClick={() => actions.fillFrame(l.id, 'upload')}
+              >
+                <Replace size={14} aria-hidden="true" /> Replace picture
+              </button>
+            )}
+            <button className="button ghost sm" onClick={() => actions.releaseAll(l.id)}>
+              <Unlink size={14} aria-hidden="true" /> Release all
+            </button>
+          </div>
+          <MaskControls base={l} actions={actions} />
+        </>
+      ) : (
+        <>
+          <div className="dz-mask-row">
+            <span className="field-label">Mask with a shape</span>
+            <div className="dz-mask-shapes" role="group" aria-label="Mask shapes">
+              {SHAPES.map((p) => (
+                <button
+                  key={p.name}
+                  className="dz-shape-tile is-compact"
+                  title={`Mask with ${p.name.toLowerCase()}`}
+                  aria-label={`Mask with ${p.name.toLowerCase()}`}
+                  onClick={() => actions.maskWith(p.name)}
+                >
+                  <ShapeIcon preset={p} size={20} />
+                </button>
+              ))}
+            </div>
+            <span className="field-hint">
+              Adds an editable shape under this layer. Or drag the layer onto another one in Layers.
+            </span>
+          </div>
+          <Toggle
+            label="Clip to layer below"
+            hint={
+              below
+                ? `Show this layer only inside “${below.name}”. ⌥⌘G`
+                : 'Needs a layer below to act as the mask.'
+            }
+            checked={false}
+            onChange={(clip) => (below ? actions.update({ clip }) : undefined)}
+          />
+        </>
       )}
     </Section>
+  )
+}
+
+function presetOf(l: ShapeLayer) {
+  return (
+    SHAPES.find((p) => p.kind === l.kind && (l.kind !== 'rect' || !!p.radius === l.radius > 0)) ??
+    SHAPES[0]
   )
 }
 
@@ -610,6 +760,34 @@ function ShapeSection({
       />
       {l.strokeWidth > 0 && (
         <Color label="Stroke color" value={l.stroke} onChange={(stroke) => up({ stroke })} />
+      )}
+      {l.kind === 'polygon' && (
+        <NumberField
+          label="Sides"
+          value={l.sides}
+          min={3}
+          max={24}
+          onChange={(sides) => up({ sides })}
+        />
+      )}
+      {l.kind === 'star' && (
+        <div className="pair-fields">
+          <NumberField
+            label="Points"
+            value={l.points}
+            min={3}
+            max={24}
+            onChange={(points) => up({ points })}
+          />
+          <NumberField
+            label="Inner radius"
+            value={Math.round(l.inner * 100)}
+            min={10}
+            max={95}
+            unit="%"
+            onChange={(v) => up({ inner: v / 100 })}
+          />
+        </div>
       )}
       {l.kind === 'rect' && (
         <NumberField
@@ -892,7 +1070,8 @@ export function Inspector({
 }) {
   const [open, toggle] = useOpen({
     layout: true,
-    layer: true,
+    mask: true,
+    layer: false,
     kind: true,
     adjust: false,
     shadow: false,
@@ -1015,7 +1194,7 @@ export function Inspector({
             {l.kind === 'text' && (
               <TextSection l={l} actions={actions} open={open.kind} toggle={() => toggle('kind')} />
             )}
-            {(l.kind === 'rect' || l.kind === 'ellipse') && (
+            {isShape(l) && !l.maskOnly && (
               <ShapeSection
                 l={l}
                 actions={actions}
@@ -1039,6 +1218,13 @@ export function Inspector({
                 />
               </>
             )}
+            <MaskSection
+              l={l}
+              doc={doc}
+              actions={actions}
+              open={open.mask}
+              toggle={() => toggle('mask')}
+            />
             <LayerSection
               l={l}
               doc={doc}

@@ -16,7 +16,17 @@ import {
   type DesignDoc,
   type ShapeLayer,
 } from '../src/designer/model'
-import { align, distribute, maskWithShape, reorder } from '../src/designer/ops'
+import {
+  align,
+  distribute,
+  dropLayer,
+  groupIds,
+  maskWithShape,
+  putIntoMask,
+  removeLayers,
+  reorder,
+} from '../src/designer/ops'
+import { shapePath } from '../src/designer/shapes'
 import { clipGroups, maskBaseOf } from '../src/designer/render'
 
 function rect(doc: DesignDoc, x: number, y: number, w: number, h: number, name = 'r'): ShapeLayer {
@@ -121,7 +131,7 @@ describe('layer operations', () => {
   })
   it('masking puts a mask-only shape below and clips the layer to it', () => {
     const d = doc([rect(DEFAULT_DOC, 0, 0, 100, 100, 'photo')])
-    const { doc: out, maskId } = maskWithShape(d, d.layers[0].id, 'ellipse')
+    const { doc: out, maskId } = maskWithShape(d, d.layers[0].id, 'Circle')
     expect(out.layers.map((l) => l.name)).toEqual(['photo mask', 'photo'])
     expect(out.layers[1].clip).toBe(true)
     expect(out.layers[0].maskOnly).toBe(true)
@@ -141,5 +151,71 @@ describe('files', () => {
   it('round-trips a design', () => {
     const d = doc([rect(DEFAULT_DOC, 1, 2, 3, 4)])
     expect(parseDoc(JSON.stringify(d)).layers[0]).toMatchObject({ x: 1, y: 2, w: 3, h: 4 })
+  })
+})
+
+describe('masks', () => {
+  const three = () =>
+    doc([
+      rect(DEFAULT_DOC, 0, 0, 100, 100, 'frame'),
+      rect(DEFAULT_DOC, 0, 0, 100, 100, 'photo'),
+      rect(DEFAULT_DOC, 0, 0, 50, 50, 'logo'),
+    ])
+  it('drops a layer into a mask and clips it on top of the group', () => {
+    const d = three()
+    const [frame, photo, logo] = d.layers
+    let out = putIntoMask(d, photo.id, frame.id, false)
+    out = dropLayer(out, logo.id, frame.id, 'into')
+    expect(out.layers.map((l) => [l.name, l.clip])).toEqual([
+      ['frame', false],
+      ['photo', true],
+      ['logo', true],
+    ])
+    expect(groupIds(out.layers, frame.id)).toHaveLength(3)
+  })
+  it('moves a whole mask group and never lands inside another group', () => {
+    const d = three()
+    const [frame, photo, logo] = d.layers
+    const grouped = putIntoMask(d, photo.id, frame.id, false)
+    const out = dropLayer(grouped, frame.id, logo.id, 'above')
+    expect(out.layers.map((l) => l.name)).toEqual(['logo', 'frame', 'photo'])
+    expect(out.layers[2].clip).toBe(true)
+  })
+  it('dragging out of a group releases the layer', () => {
+    const d = three()
+    const [frame, photo, logo] = d.layers
+    const grouped = putIntoMask(d, photo.id, frame.id, false)
+    const out = dropLayer(grouped, photo.id, logo.id, 'above')
+    expect(out.layers.at(-1)).toMatchObject({ name: 'photo', clip: false })
+  })
+  it('deleting a mask releases its contents', () => {
+    const d = three()
+    const [frame, photo] = d.layers
+    const out = removeLayers(putIntoMask(d, photo.id, frame.id, false), [frame.id])
+    expect(out.layers.every((l) => !l.clip)).toBe(true)
+  })
+  it('covers the frame when placing a picture inside', () => {
+    const d = doc([
+      rect(DEFAULT_DOC, 100, 100, 200, 200, 'frame'),
+      rect(DEFAULT_DOC, 0, 0, 400, 100, 'wide'),
+    ])
+    const out = putIntoMask(d, d.layers[1].id, d.layers[0].id)
+    expect(out.layers[1]).toMatchObject({ w: 800, h: 200, x: -200, y: 100 })
+  })
+  it('builds closed paths that fill their box for every shape', () => {
+    for (const kind of [
+      'rect',
+      'ellipse',
+      'triangle',
+      'polygon',
+      'star',
+      'heart',
+      'arch',
+    ] as const) {
+      const d = shapePath(kind, 0, 0, 100, 50, { radius: 10, sides: 6, points: 5, inner: 0.4 })
+      expect(d.trim().endsWith('Z')).toBe(true)
+      const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number)
+      expect(Math.max(...nums)).toBeLessThanOrEqual(100.001)
+    }
   })
 })

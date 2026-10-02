@@ -29,13 +29,23 @@ import {
 import {
   createShape,
   createText,
+  isShape,
+  type ShapeKind,
   type DesignDoc,
   type ImageLayer,
   type Layer,
   type TextLayer,
 } from './model'
-import { addLayer, updateLayers } from './ops'
-import { fontString, loadFont, maskBaseOf, renderLayers, textNaturalWidth } from './render'
+import { addLayer, groupIds, updateLayers } from './ops'
+import {
+  fontString,
+  hitShape,
+  loadFont,
+  maskBaseOf,
+  renderLayers,
+  shapeD,
+  textNaturalWidth,
+} from './render'
 import type { DesignEditor } from './useDesignDoc'
 
 export type Tool = 'select' | 'hand' | 'text' | 'rect' | 'ellipse'
@@ -87,7 +97,11 @@ export interface CanvasProps {
   spaceHeld: boolean
   imagesVersion: number
   onContextMenu: (at: { x: number; y: number }, hit: string | null) => void
-  onDropFiles: (files: File[], at: Point) => void
+  onDropFiles: (files: File[], at: Point, frameId: string | null) => void
+  /** Double-click on an empty frame. */
+  onFillFrame: (frameId: string) => void
+  /** An image dragged onto an empty frame goes inside it. */
+  onDropIntoFrame: (layerId: string, frameId: string) => void
 }
 
 const HANDLE_CURSOR: Record<Handle, string> = {
@@ -131,6 +145,7 @@ export function DesignerCanvas(props: CanvasProps) {
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const [dropping, setDropping] = useState(false)
+  const [frameTarget, setFrameTarget] = useState<string | null>(null)
   const [panning, setPanning] = useState(false)
   const [, setFontTick] = useState(0)
 
@@ -227,7 +242,7 @@ export function DesignerCanvas(props: CanvasProps) {
       scratch.current ??= document.createElement('canvas')
       const skip = new Set<string>()
       if (editingId) skip.add(editingId)
-      renderLayers(ctx, doc, { pixelScale: s, skip, scratch: scratch.current })
+      renderLayers(ctx, doc, { pixelScale: s, skip, scratch: scratch.current, preview: true })
       ctx.restore()
       // Grid
       if (doc.grid.show && doc.grid.size * view.zoom >= 5) {
@@ -280,18 +295,50 @@ export function DesignerCanvas(props: CanvasProps) {
   }, [onView])
 
   /* ---------- Hit testing ---------- */
-  const hitAt = (p: Point, includeLocked = false): Layer | null => {
+  /** Box test plus the real outline for ellipses, stars, hearts… */
+  const hitPrecise = (p: Point, l: Layer, slop: number) => {
+    if (!hitLayer(p, l, slop)) return false
+    if (!isShape(l) || l.kind === 'rect' || l.kind === 'ellipse') return true
+    const q = toLocal(p, l)
+    return hitShape(l, q.x, q.y)
+  }
+  const isFrame = (l: Layer | null | undefined) => !!l && !l.clip && !!l.maskOnly && isShape(l)
+  const frameHasContent = (layers: Layer[], id: string) => groupIds(layers, id).length > 1
+  /**
+   * Topmost layer under p. A picture inside a frame selects the frame, so the
+   * pair moves together; `deep` (⌘-click, double-click) reaches inside.
+   */
+  const hitAt = (p: Point, includeLocked = false, deep = false): Layer | null => {
     const slop = 3 / view.zoom
     for (let i = doc.layers.length - 1; i >= 0; i--) {
       const l = doc.layers[i]
       if (!l.visible || (!includeLocked && l.locked)) continue
-      if (!hitLayer(p, l, l.kind === 'text' ? slop * 2 : slop)) continue
+      if (!hitPrecise(p, l, l.kind === 'text' ? slop * 2 : slop)) continue
       // A clipped layer is only hittable where its mask is.
       if (l.clip) {
         const base = maskBaseOf(doc.layers, l.id)
-        if (base && !hitLayer(p, base, slop)) continue
+        if (base && !hitPrecise(p, base, slop)) continue
+        if (!deep && isFrame(base) && base && base.visible && (includeLocked || !base.locked))
+          return base
       }
       return l
+    }
+    return null
+  }
+  /** Empty frame under p that `excludeId` could be dropped into. */
+  const emptyFrameAt = (p: Point, excludeId?: string) => {
+    for (let i = doc.layers.length - 1; i >= 0; i--) {
+      const l = doc.layers[i]
+      if (l.id === excludeId || !l.visible || !isFrame(l)) continue
+      if (frameHasContent(doc.layers, l.id)) continue
+      if (hitPrecise(p, l, 0)) return l
+    }
+    return null
+  }
+  const frameAt = (p: Point) => {
+    for (let i = doc.layers.length - 1; i >= 0; i--) {
+      const l = doc.layers[i]
+      if (l.visible && isFrame(l) && hitPrecise(p, l, 0)) return l
     }
     return null
   }
@@ -368,8 +415,8 @@ export function DesignerCanvas(props: CanvasProps) {
       props.onEditText(t.id)
       return
     }
-    // Select tool
-    const hit = hitAt(p)
+    // Select tool (⌘/Ctrl-click reaches inside frames)
+    const hit = hitAt(p, false, e.metaKey || e.ctrlKey)
     if (!hit) {
       gesture.current = { kind: 'marquee', start: p, additive: e.shiftKey ? selection : [] }
       if (!e.shiftKey) onSelect([])
@@ -388,14 +435,20 @@ export function DesignerCanvas(props: CanvasProps) {
       ids = [hit.id]
       onSelect(ids)
     } else if (selection.length > 1) narrowTo = hit.id
-    const layers = doc.layers.filter((l) => ids.includes(l.id) && !l.locked)
+    // Frames carry their pictures with them.
+    const moveIds = new Set(
+      ids.flatMap((id) =>
+        isFrame(doc.layers.find((l) => l.id === id)) ? groupIds(doc.layers, id) : [id],
+      ),
+    )
+    const layers = doc.layers.filter((l) => moveIds.has(l.id) && !l.locked)
     if (!layers.length) return
     gesture.current = {
       kind: 'move',
       start: p,
       layers,
       rect: unionBounds(layers)!,
-      targets: targetsExcluding(ids),
+      targets: targetsExcluding([...moveIds]),
       moved: false,
       narrowTo,
     }
@@ -457,6 +510,11 @@ export function DesignerCanvas(props: CanvasProps) {
         guidesNow = s.guides
       }
       setGuides(guidesNow)
+      // A loose image over an empty frame offers to go inside it.
+      const only = g.layers.length === 1 ? g.layers[0] : null
+      setFrameTarget(
+        only && only.kind === 'image' && !only.clip ? (emptyFrameAt(p, only.id)?.id ?? null) : null,
+      )
       const byId = new Map(g.layers.map((l) => [l.id, l]))
       editor.preview(
         updateLayers(editor.current.current, byId.keys(), (l) => ({
@@ -627,14 +685,19 @@ export function DesignerCanvas(props: CanvasProps) {
     setPanning(false)
     if (!g) return
     if (g.kind === 'move') {
-      if (g.moved) editor.end()
+      const target = frameTarget
+      setFrameTarget(null)
+      if (g.moved && target && g.layers.length === 1) {
+        editor.cancel()
+        props.onDropIntoFrame(g.layers[0].id, target)
+      } else if (g.moved) editor.end()
       else if (g.narrowTo) onSelect([g.narrowTo])
     }
     if (g.kind === 'draw') {
       const l = editor.current.current.layers.find((x) => x.id === g.id)
       if (l && l.w < 4 && l.h < 4) {
         // A click places a default-size shape.
-        const d = createShape(doc, l.kind as 'rect' | 'ellipse')
+        const d = createShape(doc, l.kind as ShapeKind)
         editor.preview(
           updateLayers(editor.current.current, [g.id], {
             x: g.start.x - d.w / 2,
@@ -682,8 +745,16 @@ export function DesignerCanvas(props: CanvasProps) {
 
   const onDoubleClick = (e: React.MouseEvent) => {
     if (tool !== 'select' || cropLayer) return
-    const hit = hitAt(toDoc(e.clientX, e.clientY))
+    const p = toDoc(e.clientX, e.clientY)
+    const hit = hitAt(p)
     if (!hit) return
+    if (isFrame(hit)) {
+      // Double-click a frame: reach in to the picture (or ask for one).
+      const inner = hitAt(p, false, true)
+      if (inner && inner.id !== hit.id) onSelect([inner.id])
+      else props.onFillFrame(hit.id)
+      return
+    }
     onSelect([hit.id])
     if (hit.kind === 'image') props.onCrop(hit.id)
     if (hit.kind === 'text') props.onEditText(hit.id)
@@ -701,6 +772,23 @@ export function DesignerCanvas(props: CanvasProps) {
       height: h,
       transform: `rotate(${l.rotation}deg)`,
     }
+  }
+  /** Selection-style outline that follows the real shape. */
+  const outline = (l: Layer, className: string, key?: string) => {
+    if (!isShape(l) || l.kind === 'rect')
+      return <polygon key={key} className={className} points={polygon(l)} />
+    const c = toScreen(center(l))
+    const w = l.w * view.zoom,
+      h = l.h * view.zoom
+    const d = shapeD({ ...l, x: 0, y: 0, w, h, radius: l.radius * view.zoom })
+    return (
+      <path
+        key={key}
+        className={className}
+        d={d}
+        transform={`translate(${c.x} ${c.y}) rotate(${l.rotation}) scale(${l.flipX ? -1 : 1} ${l.flipY ? -1 : 1}) translate(${-w / 2} ${-h / 2})`}
+      />
+    )
   }
   const polygon = (l: Layer) =>
     corners(l)
@@ -760,15 +848,22 @@ export function DesignerCanvas(props: CanvasProps) {
         e.preventDefault()
         e.dataTransfer.dropEffect = 'copy'
         if (!dropping) setDropping(true)
+        const f = frameAt(toDoc(e.clientX, e.clientY))?.id ?? null
+        if (f !== frameTarget) setFrameTarget(f)
       }}
       onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropping(false)
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setDropping(false)
+          setFrameTarget(null)
+        }
       }}
       onDrop={(e) => {
         e.preventDefault()
         setDropping(false)
         const files = Array.from(e.dataTransfer.files)
-        if (files.length) props.onDropFiles(files, toDoc(e.clientX, e.clientY))
+        const at = toDoc(e.clientX, e.clientY)
+        setFrameTarget(null)
+        if (files.length) props.onDropFiles(files, at, frameAt(at)?.id ?? null)
       }}
     >
       <canvas ref={canvas} className="dz-canvas" aria-hidden="true" />
@@ -798,11 +893,16 @@ export function DesignerCanvas(props: CanvasProps) {
           !gesture.current &&
           (() => {
             const l = doc.layers.find((x) => x.id === hover)
-            return l ? <polygon className="dz-hover" points={polygon(l)} /> : null
+            return l ? outline(l, 'dz-hover') : null
           })()}
-        {maskBase && <polygon className="dz-mask-outline" points={polygon(maskBase)} />}
-        {selected.length > 1 &&
-          selected.map((l) => <polygon key={l.id} className="dz-selected" points={polygon(l)} />)}
+        {maskBase && outline(maskBase, 'dz-mask-outline')}
+        {single && isFrame(single) && outline(single, 'dz-selected')}
+        {selected.length > 1 && selected.map((l) => outline(l, 'dz-selected', l.id))}
+        {frameTarget &&
+          (() => {
+            const f = doc.layers.find((l) => l.id === frameTarget)
+            return f ? outline(f, 'dz-frame-target') : null
+          })()}
         {multiRect && (
           <rect
             className="dz-selected"

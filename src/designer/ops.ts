@@ -1,9 +1,10 @@
 import { generateId } from '../utils/id'
-import { bounds, unionBounds } from './geometry'
+import { bounds, center, unionBounds } from './geometry'
 import {
   createImage,
   createShape,
   duplicate,
+  SHAPES,
   type DesignDoc,
   type ImageLayer,
   type Layer,
@@ -28,9 +29,35 @@ export function updateLayers(
   }
 }
 
+/** A layer can't be clipped with nothing below it. */
+export function normalizeClips(layers: Layer[]): Layer[] {
+  return layers[0]?.clip ? [{ ...layers[0], clip: false } as Layer, ...layers.slice(1)] : layers
+}
+
+/** Ids of a base layer and the clip layers stacked on it (just the id otherwise). */
+export function groupIds(layers: Layer[], id: string): string[] {
+  const i = layers.findIndex((l) => l.id === id)
+  if (i < 0) return []
+  if (layers[i].clip) return [id]
+  const ids = [id]
+  for (let j = i + 1; layers[j]?.clip; j++) ids.push(layers[j].id)
+  return ids
+}
+
 export function removeLayers(doc: DesignDoc, ids: Iterable<string>): DesignDoc {
   const set = new Set(ids)
-  return { ...doc, layers: doc.layers.filter((l) => !set.has(l.id)) }
+  // Deleting a mask releases what it masked instead of clipping it to whatever lies below.
+  const layers: Layer[] = []
+  let releasing = false
+  for (const l of doc.layers) {
+    if (set.has(l.id)) {
+      if (!l.clip) releasing = true
+      continue
+    }
+    if (!l.clip) releasing = false
+    layers.push(releasing && l.clip ? ({ ...l, clip: false } as Layer) : l)
+  }
+  return { ...doc, layers: normalizeClips(layers) }
 }
 
 export function addLayer(doc: DesignDoc, layer: Layer, index = doc.layers.length): DesignDoc {
@@ -130,25 +157,31 @@ export function distribute(doc: DesignDoc, ids: string[], axis: 'x' | 'y'): Desi
 }
 
 /**
- * Puts a shape of the layer's size directly below it and clips the layer to
- * it. The shape is the editable mask: move or reshape it to reframe.
+ * Puts a mask-only shape of the layer's size directly below it and clips the
+ * layer to it. The shape is the editable mask: move or reshape it to reframe.
  */
-export function maskWithShape(doc: DesignDoc, id: string, kind: 'rect' | 'ellipse') {
+export function maskWithShape(doc: DesignDoc, id: string, presetName: string) {
   const index = doc.layers.findIndex((l) => l.id === id)
   const layer = doc.layers[index]
+  const preset = SHAPES.find((p) => p.name === presetName) ?? SHAPES[2]
   if (!layer) return { doc, maskId: null }
+  const side = Math.min(layer.w, layer.h)
+  const square = preset.kind !== 'rect' && preset.kind !== 'arch'
+  const w = square ? side : layer.w,
+    h = square ? side : layer.h
+  const c = center(layer)
   const shape = {
-    ...createShape(doc, kind),
+    ...createShape(doc, preset.kind, { radius: preset.radius, sides: preset.sides }),
     name: `${layer.name} mask`,
-    x: layer.x,
-    y: layer.y,
-    w: layer.w,
-    h: layer.h,
+    x: c.x - w / 2,
+    y: c.y - h / 2,
+    w,
+    h,
     rotation: layer.rotation,
-    fill: '#808080',
+    fill: '#9a9a9a',
     maskOnly: true,
-    radius: kind === 'rect' ? Math.round(Math.min(layer.w, layer.h) * 0.08) : 0,
   }
+  shape.radius = Math.round(side * (preset.radius ?? 0))
   let next = addLayer(doc, shape, index)
   next = updateLayers(next, [id], { clip: true })
   return { doc: next, maskId: shape.id }
@@ -156,6 +189,101 @@ export function maskWithShape(doc: DesignDoc, id: string, kind: 'rect' | 'ellips
 
 export function releaseMask(doc: DesignDoc, id: string) {
   return updateLayers(doc, [id], { clip: false })
+}
+
+/** Releases every layer clipped to a base. */
+export function releaseAll(doc: DesignDoc, baseId: string) {
+  return updateLayers(doc, groupIds(doc.layers, baseId).slice(1), { clip: false })
+}
+
+/** Scales and centres a layer so it covers a box (the frame or mask). */
+function coverBox(l: Layer, box: Layer): Partial<Layer> {
+  const k = Math.max(box.w / l.w, box.h / l.h)
+  const w = l.w * k,
+    h = l.h * k
+  const c = center(box)
+  const values: Partial<Layer> = { x: c.x - w / 2, y: c.y - h / 2, w, h, rotation: box.rotation }
+  if (l.kind === 'text') return { x: values.x, y: values.y, rotation: box.rotation }
+  return values
+}
+
+export function baseOf(layers: Layer[], id: string): Layer | null {
+  const i = layers.findIndex((l) => l.id === id)
+  if (i < 0 || !layers[i].clip) return null
+  for (let j = i - 1; j >= 0; j--) if (!layers[j].clip) return layers[j]
+  return null
+}
+
+export function fitToMask(doc: DesignDoc, id: string) {
+  const layer = doc.layers.find((l) => l.id === id)
+  const base = baseOf(doc.layers, id)
+  if (!layer || !base) return doc
+  return updateLayers(doc, [id], coverBox(layer, base))
+}
+
+/** Moves an existing layer into a mask/frame: clipped on top of its group, covering it. */
+export function putIntoMask(doc: DesignDoc, id: string, baseId: string, cover = true) {
+  if (id === baseId) return doc
+  const layer = doc.layers.find((l) => l.id === id)
+  if (!layer) return doc
+  const rest = doc.layers.filter((l) => l.id !== id)
+  const bi = rest.findIndex((l) => l.id === baseId)
+  if (bi < 0) return doc
+  let end = bi
+  while (rest[end + 1]?.clip) end++
+  const base = rest[bi]
+  const moved = { ...layer, ...(cover ? coverBox(layer, base) : {}), clip: true } as Layer
+  rest.splice(end + 1, 0, moved)
+  return { ...doc, layers: normalizeClips(rest) }
+}
+
+/** Adds a new image inside a frame, covering it. */
+export function fillFrame(
+  doc: DesignDoc,
+  frameId: string,
+  asset: { id: string; src: string; width: number; height: number; name: string },
+) {
+  const r = addImageAsset(doc, asset)
+  return { doc: putIntoMask(r.doc, r.layer.id, frameId), layer: r.layer }
+}
+
+export type DropZone = 'above' | 'below' | 'into'
+
+/**
+ * Layers-panel drop. "into" clips the dragged layer to the target's mask;
+ * above/below move it (a mask moves with everything it masks). A layer
+ * dropped between clipped layers joins that mask.
+ */
+export function dropLayer(
+  doc: DesignDoc,
+  dragId: string,
+  targetId: string,
+  zone: DropZone,
+): DesignDoc {
+  const ids = groupIds(doc.layers, dragId)
+  if (!ids.length || ids.includes(targetId)) return doc
+  const target = doc.layers.find((l) => l.id === targetId)
+  if (!target) return doc
+  if (zone === 'into' && ids.length === 1) {
+    const base = target.clip ? baseOf(doc.layers, targetId) : target
+    if (base && base.id !== dragId) {
+      // A layer becoming a mask for the first time lends only its shape.
+      const fresh = groupIds(doc.layers, base.id).length === 1
+      const next = putIntoMask(doc, dragId, base.id, false)
+      return fresh ? updateLayers(next, [base.id], { maskOnly: true }) : next
+    }
+  }
+  const moving = doc.layers.filter((l) => ids.includes(l.id))
+  const rest = doc.layers.filter((l) => !ids.includes(l.id))
+  let at = rest.findIndex((l) => l.id === targetId) + (zone === 'below' ? 0 : 1)
+  if (ids.length > 1) {
+    // A whole mask group never lands inside another one.
+    while (rest[at]?.clip) at++
+  }
+  const joins = ids.length === 1 && !!rest[at]?.clip
+  const placed = moving.map((l, i) => (i === 0 ? ({ ...l, clip: joins } as Layer) : l))
+  rest.splice(at, 0, ...placed)
+  return { ...doc, layers: normalizeClips(rest) }
 }
 
 /* ---------- Image import ---------- */

@@ -15,7 +15,15 @@ import '@fontsource/oswald/400.css'
 import '@fontsource/oswald/700.css'
 import '@fontsource/permanent-marker/400.css'
 import '@fontsource/ranchers/400.css'
-import type { DesignDoc, ImageLayer, Layer, ShapeLayer, TextLayer } from './model'
+import {
+  isShape,
+  type DesignDoc,
+  type ImageLayer,
+  type Layer,
+  type ShapeLayer,
+  type TextLayer,
+} from './model'
+import { shapePath } from './shapes'
 
 /* ---------- Image cache ---------- */
 
@@ -159,7 +167,12 @@ function filterString(l: ImageLayer, pixelScale: number) {
   return parts.join(' ') || 'none'
 }
 
-function drawImageContent(ctx: CanvasRenderingContext2D, l: ImageLayer, pixelScale: number) {
+function drawImageContent(
+  ctx: CanvasRenderingContext2D,
+  l: ImageLayer,
+  pixelScale: number,
+  extra = '',
+) {
   const img = getImage(l.asset)
   ctx.save()
   if (l.radius > 0) {
@@ -168,7 +181,8 @@ function drawImageContent(ctx: CanvasRenderingContext2D, l: ImageLayer, pixelSca
     ctx.clip()
   }
   if (img) {
-    ctx.filter = filterString(l, pixelScale)
+    const own = filterString(l, pixelScale)
+    ctx.filter = [extra, own === 'none' ? '' : own].filter(Boolean).join(' ') || 'none'
     ctx.drawImage(img, l.crop.x, l.crop.y, l.crop.w, l.crop.h, 0, 0, l.w, l.h)
     ctx.filter = 'none'
   } else {
@@ -186,41 +200,83 @@ function drawImageContent(ctx: CanvasRenderingContext2D, l: ImageLayer, pixelSca
   }
 }
 
+export function shapeD(l: ShapeLayer, inset = 0) {
+  return shapePath(l.kind, inset, inset, l.w - inset * 2, l.h - inset * 2, {
+    radius: Math.max(0, l.radius - inset),
+    sides: l.sides,
+    points: l.points,
+    inner: l.inner,
+  })
+}
+
 function drawShapeContent(ctx: CanvasRenderingContext2D, l: ShapeLayer) {
   const s = Math.min(l.strokeWidth, l.w / 2, l.h / 2)
-  const path = (inset: number) => {
-    ctx.beginPath()
-    if (l.kind === 'ellipse')
-      ctx.ellipse(
-        l.w / 2,
-        l.h / 2,
-        Math.max(0.5, l.w / 2 - inset),
-        Math.max(0.5, l.h / 2 - inset),
-        0,
-        0,
-        Math.PI * 2,
-      )
-    else
-      roundedRectPath(
-        ctx,
-        inset,
-        inset,
-        l.w - inset * 2,
-        l.h - inset * 2,
-        Math.max(0, l.radius - inset),
-      )
-  }
   if (l.fillEnabled) {
-    path(0)
     ctx.fillStyle = l.fill
-    ctx.fill()
+    ctx.fill(new Path2D(shapeD(l)))
   }
   if (s > 0) {
-    path(s / 2)
     ctx.lineWidth = s
+    ctx.lineJoin = 'round'
     ctx.strokeStyle = l.stroke
-    ctx.stroke()
+    ctx.stroke(new Path2D(shapeD(l, s / 2)))
   }
+}
+
+/** Point-in-shape for a point in the layer's local (unrotated) frame. */
+export function hitShape(l: ShapeLayer, x: number, y: number) {
+  const ctx = measurer()
+  const px = l.flipX ? l.w - x : x,
+    py = l.flipY ? l.h - y : y
+  return ctx.isPointInPath(new Path2D(shapeD(l)), px, py)
+}
+
+/** Empty image frame while editing: hatched shape with a picture glyph. */
+function drawFramePlaceholder(ctx: CanvasRenderingContext2D, l: ShapeLayer, pixelScale: number) {
+  ctx.save()
+  enterLocal(ctx, l)
+  const path = new Path2D(shapeD(l))
+  ctx.fillStyle = 'rgba(133, 102, 220, 0.12)'
+  ctx.fill(path)
+  ctx.save()
+  ctx.clip(path)
+  ctx.strokeStyle = 'rgba(133, 102, 220, 0.18)'
+  ctx.lineWidth = 1.5 / pixelScale
+  const step = 14 / pixelScale
+  ctx.beginPath()
+  for (let d = -l.h; d < l.w; d += step) {
+    ctx.moveTo(d, 0)
+    ctx.lineTo(d + l.h, l.h)
+  }
+  ctx.stroke()
+  ctx.restore()
+  ctx.setLineDash([6 / pixelScale, 4 / pixelScale])
+  ctx.lineWidth = 1.5 / pixelScale
+  ctx.strokeStyle = 'rgba(133, 102, 220, 0.7)'
+  ctx.stroke(path)
+  // Picture glyph
+  const g = Math.min(l.w, l.h) * 0.22
+  const gx = l.w / 2 - g / 2,
+    gy = l.h / 2 - g * 0.4
+  ctx.setLineDash([])
+  ctx.lineWidth = Math.max(1 / pixelScale, g * 0.07)
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = 'rgba(133, 102, 220, 0.75)'
+  ctx.beginPath()
+  roundedRectPath(ctx, gx, gy, g, g * 0.8, g * 0.12)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(gx + g * 0.12, gy + g * 0.68)
+  ctx.lineTo(gx + g * 0.4, gy + g * 0.38)
+  ctx.lineTo(gx + g * 0.62, gy + g * 0.58)
+  ctx.lineTo(gx + g * 0.74, gy + g * 0.47)
+  ctx.lineTo(gx + g * 0.88, gy + g * 0.68)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(gx + g * 0.7, gy + g * 0.24, g * 0.08, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
 }
 
 function drawTextContent(ctx: CanvasRenderingContext2D, l: TextLayer) {
@@ -237,8 +293,8 @@ function drawTextContent(ctx: CanvasRenderingContext2D, l: TextLayer) {
   lines.forEach((line, i) => ctx.fillText(line, x, i * lh + lh / 2))
 }
 
-function drawContent(ctx: CanvasRenderingContext2D, l: Layer, pixelScale: number) {
-  if (l.kind === 'image') drawImageContent(ctx, l, pixelScale)
+function drawContent(ctx: CanvasRenderingContext2D, l: Layer, pixelScale: number, extra = '') {
+  if (l.kind === 'image') drawImageContent(ctx, l, pixelScale, extra)
   else if (l.kind === 'text') drawTextContent(ctx, l)
   else drawShapeContent(ctx, l)
 }
@@ -265,10 +321,12 @@ function drawLayer(
   l: Layer,
   pixelScale: number,
   composite: GlobalCompositeOperation,
+  filter = '',
 ) {
   ctx.save()
   ctx.globalAlpha = l.opacity / 100
   ctx.globalCompositeOperation = composite
+  if (filter) ctx.filter = filter
   if (l.shadow.enabled && shadowScratch) {
     // Render content once, then cast its alpha as the shadow so it follows
     // transparent edges, text glyphs and rounded corners alike.
@@ -298,7 +356,7 @@ function drawLayer(
     }
   }
   enterLocal(ctx, l)
-  drawContent(ctx, l, pixelScale)
+  drawContent(ctx, l, pixelScale, filter)
   ctx.restore()
 }
 
@@ -309,6 +367,8 @@ export interface RenderOptions {
   skip?: Set<string>
   /** Reusable canvas for clipping groups. */
   scratch?: HTMLCanvasElement
+  /** Editing view: empty image frames show a placeholder (exports skip them). */
+  preview?: boolean
 }
 
 /** Groups each base layer with the clip layers stacked directly on it. */
@@ -339,7 +399,13 @@ export function renderLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, opts
     const visibleClips = clips.filter((c) => c.visible && !opts.skip?.has(c.id))
     const skipBase = opts.skip?.has(base.id)
     if (!visibleClips.length) {
-      if (!skipBase) drawLayer(ctx, base, opts.pixelScale, blend(base))
+      if (skipBase) continue
+      if (base.maskOnly && isShape(base)) {
+        // An empty frame: visible only while editing.
+        if (opts.preview && !clips.length) drawFramePlaceholder(ctx, base, opts.pixelScale)
+        continue
+      }
+      drawLayer(ctx, base, opts.pixelScale, blend(base))
       continue
     }
     const scratch = opts.scratch ?? document.createElement('canvas')
@@ -351,11 +417,13 @@ export function renderLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, opts
       // Pure mask: draw the clipped layers, then keep them only inside the base.
       for (const c of visibleClips)
         drawLayer(sctx, c, opts.pixelScale, c.blend === 'normal' ? 'source-over' : c.blend)
+      const feather = base.maskFeather ? `blur(${base.maskFeather * opts.pixelScale}px)` : ''
       drawLayer(
         sctx,
-        { ...base, shadow: { ...base.shadow, enabled: false } },
+        { ...base, opacity: 100, shadow: { ...base.shadow, enabled: false } },
         opts.pixelScale,
-        'destination-in',
+        base.maskInvert ? 'destination-out' : 'destination-in',
+        feather,
       )
     } else {
       drawLayer(sctx, skipBase ? { ...base, opacity: 0.01 } : base, opts.pixelScale, 'source-over')
@@ -397,5 +465,7 @@ export function drawThumb(canvas: HTMLCanvasElement, l: Layer) {
   ctx.clearRect(0, 0, size, size)
   const s = (size - 4) / Math.max(l.w, l.h)
   ctx.setTransform(s, 0, 0, s, (size - l.w * s) / 2, (size - l.h * s) / 2)
-  drawContent(ctx, l.kind === 'text' ? { ...l, color: l.color } : l, s)
+  if (l.maskOnly && isShape(l))
+    drawFramePlaceholder(ctx, { ...l, x: 0, y: 0, rotation: 0, flipX: false, flipY: false }, s)
+  else drawContent(ctx, l, s)
 }

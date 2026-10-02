@@ -26,10 +26,12 @@ The application remains compatible with GitHub Pages at `/chyrongenerator/`. The
 
 A new **Designer** workspace (pen icon in the rail) is a layered image editor built on the same Magnific design system as the rest of the studio.
 
-- **Layers.** Images, text, rectangles and ellipses stack bottom to top. Drag rows to reorder, hide (eye), lock, double-click to rename, multi-select with Shift / ⌘, right-click for every action.
+- **Layers.** Images, text and shapes stack bottom to top. Drag rows to reorder, hide (eye), lock, double-click to rename, multi-select with Shift / ⌘, right-click for every action.
 - **Add images** by uploading, dropping, pasting from the clipboard or from the Media gallery (also "Add to Designer" in the gallery). Replace an image and keep its frame and crop.
 - **Crop.** Double-click an image (or press C). Drag handles to frame, drag inside to move the picture, pick Free, Original, 1:1, 4:5, 3:2, 16:9 or 9:16. Enter applies, Esc cancels. Works on rotated and flipped images.
-- **Masks.** "Clip to layer below" (⌥⌘G) clips a layer to the one under it. "Mask with shape" adds an editable rounded-rectangle or ellipse mask in one step; "Use as mask only" hides the mask's own fill.
+- **One left panel.** An add bar (Image, Text, Shape, Frame) sits above the layers list, so inserting and arranging happen in one place. Mask groups show as indented, collapsible groups.
+- **Masks.** Drag a layer onto another in Layers to mask it, pick one of eight shapes in the Mask section (square, rounded, circle, arch, triangle, hexagon, star, heart), or use "Clip to layer below" (⌥⌘G). Masks can hide their own shape, invert, and feather their edge. Fit to mask, Release and Release all are one click away.
+- **Frames.** Frames are masks waiting for a picture: drop a photo on one, drag an image layer onto it, or double-click it to upload. A framed picture moves with its frame; double-click (or ⌘-click) to adjust the picture inside.
 - **Snapping & grid.** Edges and centres snap to the artboard and other layers with guides; optional grid with snap-to-grid. Hold Alt to move freely.
 - **Transform.** Move, resize from 8 handles (Shift keeps ratio, Alt from centre), rotate (Shift for 15°), marquee select, align and distribute, nudge with arrows.
 - **Style.** Opacity, 16 blend modes, drop shadow that follows transparent edges, image adjustments (brightness, contrast, saturation, grayscale, hue, blur), corner radius and borders, full text styling.

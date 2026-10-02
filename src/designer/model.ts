@@ -68,6 +68,10 @@ interface BaseLayer {
   clip: boolean
   /** As a clipping base: lend its shape to the layers clipped to it, draw nothing itself. */
   maskOnly?: boolean
+  /** Mask-only bases: show the clipped layers outside the shape instead. */
+  maskInvert?: boolean
+  /** Mask-only bases: soften the mask edge by this many px. */
+  maskFeather?: number
   flipX: boolean
   flipY: boolean
   shadow: Shadow
@@ -102,8 +106,15 @@ export interface ImageLayer extends BaseLayer {
   strokeWidth: number
 }
 
+export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'heart' | 'arch'
+
 export interface ShapeLayer extends BaseLayer {
-  kind: 'rect' | 'ellipse'
+  kind: ShapeKind
+  /** Polygon corners. */
+  sides: number
+  /** Star points and inner radius (0–1). */
+  points: number
+  inner: number
   fill: string
   fillEnabled: boolean
   stroke: string
@@ -240,17 +251,72 @@ function uniqueName(doc: DesignDoc, stem: string) {
   return `${stem} ${i}`
 }
 
-export function createShape(doc: DesignDoc, kind: 'rect' | 'ellipse'): ShapeLayer {
+export const SHAPES: { kind: ShapeKind; name: string; radius?: number; sides?: number }[] = [
+  { kind: 'rect', name: 'Square' },
+  { kind: 'rect', name: 'Rounded', radius: 0.18 },
+  { kind: 'ellipse', name: 'Circle' },
+  { kind: 'arch', name: 'Arch' },
+  { kind: 'triangle', name: 'Triangle' },
+  { kind: 'polygon', name: 'Hexagon', sides: 6 },
+  { kind: 'star', name: 'Star' },
+  { kind: 'heart', name: 'Heart' },
+]
+
+const SHAPE_NAMES: Record<ShapeKind, string> = {
+  rect: 'Rectangle',
+  ellipse: 'Ellipse',
+  triangle: 'Triangle',
+  polygon: 'Polygon',
+  star: 'Star',
+  heart: 'Heart',
+  arch: 'Arch',
+}
+
+export function isShape(l: Layer): l is ShapeLayer {
+  return l.kind !== 'image' && l.kind !== 'text'
+}
+
+export function createShape(
+  doc: DesignDoc,
+  kind: ShapeKind,
+  opts: { radius?: number; sides?: number; name?: string } = {},
+): ShapeLayer {
   const size = Math.round(Math.min(doc.width, doc.height) * 0.4)
   return {
-    ...base(doc, uniqueName(doc, kind === 'rect' ? 'Rectangle' : 'Ellipse'), size, size),
+    ...base(
+      doc,
+      uniqueName(doc, opts.name ?? SHAPE_NAMES[kind]),
+      size,
+      kind === 'arch' ? Math.round(size * 1.25) : size,
+    ),
     kind,
+    sides: opts.sides ?? 6,
+    points: 5,
+    inner: 0.45,
     fill: '#4f69f2',
     fillEnabled: true,
     stroke: '#1a1a1a',
     strokeWidth: 0,
-    radius: 0,
+    radius: Math.round(size * (opts.radius ?? 0)),
   }
+}
+
+/** An image frame: a mask-only shape waiting for a picture. */
+export function createFrame(doc: DesignDoc, preset: (typeof SHAPES)[number]): ShapeLayer {
+  const shape = createShape(doc, preset.kind, {
+    radius: preset.radius,
+    sides: preset.sides,
+    name: `${preset.name} frame`,
+  })
+  const size = Math.round(Math.min(doc.width, doc.height) * 0.55)
+  shape.w = size
+  shape.h = preset.kind === 'arch' ? Math.round(size * 1.25) : size
+  shape.x = Math.round((doc.width - shape.w) / 2)
+  shape.y = Math.round((doc.height - shape.h) / 2)
+  shape.radius = Math.round(size * (preset.radius ?? 0))
+  shape.fill = '#9a9a9a'
+  shape.maskOnly = true
+  return shape
 }
 
 export const TEXT_PRESETS = {
@@ -348,6 +414,10 @@ export function parseDoc(json: string): DesignDoc {
     version: 1,
     grid: { ...DEFAULT_DOC.grid, ...(raw.grid ?? {}) },
     assets: raw.assets ?? {},
-    layers: raw.layers.map((l) => ({ ...l, shadow: { ...DEFAULT_SHADOW, ...(l.shadow ?? {}) } })),
+    layers: raw.layers.map((l) => ({
+      ...(l.kind !== 'image' && l.kind !== 'text' ? { sides: 6, points: 5, inner: 0.45 } : {}),
+      ...l,
+      shadow: { ...DEFAULT_SHADOW, ...(l.shadow ?? {}) },
+    })),
   } as DesignDoc
 }

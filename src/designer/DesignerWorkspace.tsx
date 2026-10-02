@@ -47,11 +47,14 @@ import { DesignerCanvas, type Tool, type View } from './DesignerCanvas'
 import { DesignerExportDialog } from './ExportDialog'
 import { center, clampCrop, unionBounds, type Point } from './geometry'
 import { Inspector, type InspectorActions } from './Inspector'
-import { InsertPanel, LayersList } from './LeftPanel'
+import { LeftPanel } from './LeftPanel'
 import {
   CROP_RATIOS,
+  createFrame,
   createShape,
   createText,
+  isShape,
+  SHAPES,
   DEFAULT_DOC,
   fileStem,
   parseDoc,
@@ -69,7 +72,12 @@ import {
   duplicateLayers,
   importImageFile,
   maskWithShape,
-  moveLayerTo,
+  dropLayer,
+  fillFrame,
+  fitToMask,
+  groupIds,
+  putIntoMask,
+  releaseAll,
   removeLayers,
   reorder,
   replaceImage,
@@ -180,12 +188,12 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
   const [cropId, setCropId] = useState<string | null>(null)
   const [cropRatio, setCropRatioId] = useState('free')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [leftTab, setLeftTab] = useState<'layers' | 'insert'>('layers')
   const [leftOpen, setLeftOpen] = useState(false)
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; hit: string | null } | null>(
     null,
   )
-  const [gallery, setGallery] = useState<'add' | 'replace' | null>(null)
+  const [gallery, setGallery] = useState<'add' | 'replace' | 'frame' | null>(null)
+  const pendingFrame = useRef<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [help, setHelp] = useState(false)
   const [notice, setNotice] = useState('')
@@ -300,9 +308,26 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     t.h = textHeight(t)
     insert(placeAtCenter(t))
   }
-  const addShape = (kind: 'rect' | 'ellipse') => insert(placeAtCenter(createShape(doc, kind)))
+  const addShape = (p: (typeof SHAPES)[number]) =>
+    insert(
+      placeAtCenter(
+        createShape(doc, p.kind, {
+          radius: p.radius,
+          sides: p.sides,
+          name: p.name === 'Square' ? 'Rectangle' : p.name,
+        }),
+      ),
+    )
+  const addFrame = (p: (typeof SHAPES)[number]) => {
+    insert(placeAtCenter(createFrame(doc, p)))
+    setNotice('Frame added. Drop a photo on it, or double-click it to choose one.')
+  }
+  const isEmptyFrame = (d: DesignDoc, id: string | null | undefined) => {
+    const l = d.layers.find((x) => x.id === id)
+    return !!l && !l.clip && !!l.maskOnly && isShape(l) && groupIds(d.layers, l.id).length === 1
+  }
 
-  const addFiles = async (files: File[], at?: Point) => {
+  const addFiles = async (files: File[], at?: Point, frameId: string | null = null) => {
     const images = files.filter((f) => f.type.startsWith('image/'))
     const json = files.find((f) => f.name.endsWith('.json'))
     if (!images.length && json) return openFile(json)
@@ -310,9 +335,27 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     let next = editor.current.current
     const ids: string[] = []
     const errors: string[] = []
+    // A frame target takes the first picture; a filled frame swaps its picture.
+    let frame = frameId ?? pendingFrame.current
+    pendingFrame.current = null
     for (const [i, file] of images.entries()) {
       try {
         const asset = await importImageFile(file)
+        if (frame) {
+          const inside = groupIds(next.layers, frame).slice(1)
+          const picture = next.layers.find((l) => inside.includes(l.id) && l.kind === 'image')
+          if (isEmptyFrame(next, frame)) {
+            const r = fillFrame(next, frame, asset)
+            next = r.doc
+            ids.push(frame)
+          } else if (picture) {
+            next = replaceImage(next, picture.id, asset)
+            next = fitToMask(next, picture.id)
+            ids.push(frame)
+          }
+          frame = null
+          if (ids.length) continue
+        }
         const point = at ? { x: at.x + i * 24, y: at.y + i * 24 } : undefined
         const r = addImageAsset(next, asset, point)
         next = r.doc
@@ -367,7 +410,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       setNotice(`Adding ${item.name}…`)
       const file = await fetchGalleryFile(item)
       if (target === 'replace') await replaceWith(file)
-      else await addFiles([file])
+      else await addFiles([file], undefined, target === 'frame' ? pendingFrame.current : null)
     } catch (e) {
       setNotice(e instanceof Error ? e.message : 'Could not load gallery asset.')
     }
@@ -549,13 +592,25 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     cancelCrop,
     resetCrop,
     setCropRatio,
-    maskWith: (kind) => {
+    maskWith: (preset) => {
       if (!single) return
-      const r = maskWithShape(doc, single.id, kind)
+      const r = maskWithShape(doc, single.id, preset)
       commit(r.doc)
       setNotice('Masked. Select the mask layer below to move or reshape it.')
     },
     replaceImage: () => setGallery('replace'),
+    updateLayer: (id, values) => live((d) => updateLayers(d, [id], values)),
+    select: (ids) => setSelection(ids),
+    releaseAll: (id) => {
+      commit((d) => releaseAll(d, id))
+      setNotice('Released. The layers keep their place.')
+    },
+    fitToMask: (id) => commit((d) => fitToMask(d, id)),
+    fillFrame: (id, source) => {
+      pendingFrame.current = id
+      if (source === 'gallery') setGallery('frame')
+      else uploadInput.current?.click()
+    },
     fitToArtboard: (mode) => {
       if (!single) return
       const k =
@@ -863,15 +918,32 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
               shortcut: '⌥⌘ G',
               onSelect: toggleClip,
             },
-            ...(single.kind !== 'text' && !single.clip
+            ...(!single.clip && groupIds(doc.layers, single.id).length === 1
               ? [
                   {
-                    label: 'Mask with ellipse',
+                    label: 'Mask with circle',
                     Icon: Circle,
-                    onSelect: () => actions.maskWith('ellipse'),
+                    onSelect: () => actions.maskWith('Circle'),
                   },
                 ]
               : []),
+            ...(single.clip
+              ? [
+                  {
+                    label: 'Fit to mask',
+                    Icon: Maximize,
+                    onSelect: () => actions.fitToMask(single.id),
+                  },
+                ]
+              : groupIds(doc.layers, single.id).length > 1
+                ? [
+                    {
+                      label: 'Release all from mask',
+                      Icon: CornerDownRight,
+                      onSelect: () => actions.releaseAll(single.id),
+                    },
+                  ]
+                : []),
             ...(single.kind === 'image'
               ? [{ label: 'Crop', Icon: Crop, shortcut: 'C', onSelect: () => startCrop(single.id) }]
               : []),
@@ -997,53 +1069,25 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       </TopBar>
 
       <div className={`workspace-body dz-body ${leftOpen ? 'left-open' : ''}`}>
-        <aside className="dz-left" aria-label="Layers and insert">
-          <div className="tabs" role="tablist" aria-label="Left panel">
-            {(['layers', 'insert'] as const).map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={leftTab === t}
-                className={leftTab === t ? 'active' : ''}
-                onClick={() => setLeftTab(t)}
-              >
-                {t === 'layers'
-                  ? `Layers${doc.layers.length ? ` ${doc.layers.length}` : ''}`
-                  : 'Insert'}
-              </button>
-            ))}
-            <button
-              className="icon-button dz-left-close"
-              aria-label="Close panel"
-              onClick={() => setLeftOpen(false)}
-            >
-              <X size={18} />
-            </button>
-          </div>
-          <div className="dz-left-body">
-            {leftTab === 'layers' ? (
-              <LayersList
-                doc={doc}
-                selection={sel}
-                imagesVersion={imagesVersion}
-                onSelect={(ids) => setSelection(ids)}
-                onToggle={(id, key) =>
-                  commit((d) => updateLayers(d, [id], (l) => ({ [key]: !l[key] })))
-                }
-                onRename={(id, name) => commit((d) => updateLayers(d, [id], { name }))}
-                onMove={(id, index) => commit((d) => moveLayerTo(d, id, index))}
-                onContextMenu={(at, id) => setMenu({ at, hit: id })}
-              />
-            ) : (
-              <InsertPanel
-                onUpload={() => uploadInput.current?.click()}
-                onGallery={() => setGallery('add')}
-                onText={addText}
-                onShape={addShape}
-              />
-            )}
-          </div>
-        </aside>
+        <LeftPanel
+          doc={doc}
+          selection={sel}
+          imagesVersion={imagesVersion}
+          onSelect={(ids) => setSelection(ids)}
+          onToggle={(id, key) => commit((d) => updateLayers(d, [id], (l) => ({ [key]: !l[key] })))}
+          onRename={(id, name) => commit((d) => updateLayers(d, [id], { name }))}
+          onDrop={(dragId, targetId, zone) => {
+            commit((d) => dropLayer(d, dragId, targetId, zone))
+            if (zone === 'into') setNotice('Masked. Drag it out of the group to release.')
+          }}
+          onContextMenu={(at, id) => setMenu({ at, hit: id })}
+          onUpload={() => uploadInput.current?.click()}
+          onGallery={() => setGallery('add')}
+          onText={addText}
+          onShape={addShape}
+          onFrame={addFrame}
+          onClose={() => setLeftOpen(false)}
+        />
 
         <main className="editor-main" aria-label="Artboard">
           <div className="canvas-toolbar">
@@ -1196,12 +1240,25 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
             spaceHeld={spaceHeld}
             imagesVersion={imagesVersion}
             onContextMenu={(at, hit) => setMenu({ at, hit })}
-            onDropFiles={(files, at) => void addFiles(files, at)}
+            onDropFiles={(files, at, frameId) => void addFiles(files, at, frameId)}
+            onFillFrame={(frameId) => {
+              setSelection([frameId])
+              pendingFrame.current = frameId
+              uploadInput.current?.click()
+            }}
+            onDropIntoFrame={(layerId, frameId) => {
+              commit((d) => putIntoMask(d, layerId, frameId))
+              setSelection([frameId])
+              setNotice('Placed in frame. Double-click to adjust the picture inside.')
+            }}
           />
           {!doc.layers.length && editor.ready && (
             <div className="dz-empty-hint" role="note">
               <strong>Start with an image, text or a shape</strong>
-              <span>Drop or paste images here, or use the Insert tab. Press ? for shortcuts.</span>
+              <span>
+                Drop or paste images here, or use Image, Text, Shape and Frame on the left. Press ?
+                for shortcuts.
+              </span>
               <div className="dz-button-row">
                 <button className="button primary sm" onClick={() => uploadInput.current?.click()}>
                   Upload image
@@ -1265,12 +1322,16 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       {exportOpen && <DesignerExportDialog doc={doc} onClose={() => setExportOpen(false)} />}
       <MediaGalleryModal
         open={gallery !== null}
-        onClose={() => setGallery(null)}
+        onClose={() => {
+          if (gallery === 'frame') pendingFrame.current = null
+          setGallery(null)
+        }}
         onSelect={(item) => void onGallery(item)}
         onUploadClick={() => {
           const target = gallery
           setGallery(null)
           if (target === 'replace') replaceInput.current?.click()
+          else if (target === 'frame') uploadInput.current?.click()
           else uploadInput.current?.click()
         }}
       />
@@ -1317,8 +1378,9 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
                 hides, the lock protects from clicks.
               </li>
               <li>
-                <strong>Masks clip to the layer below.</strong> Turn on “Clip to layer below” (⌥⌘G),
-                or use Mask with shape to make an editable mask in one step.
+                <strong>Mask anything.</strong> Drag a layer onto another in Layers, pick a shape in
+                the Mask section, or add a Frame and drop a photo on it. Double-click a frame to
+                adjust the picture inside; ⌘-click reaches inside too.
               </li>
               <li>
                 <strong>Crop by double-clicking an image.</strong> Drag handles to frame, drag
