@@ -4,8 +4,11 @@ import {
   frameCount,
   layerTiming,
   type Easing,
-  type ImageLayer,
+  type ElementLayer,
+  type Emphasis,
   type ImageMotion,
+  type LayerTiming,
+  type Motion,
   type Project,
 } from './model'
 export const clamp = (x: number) => Math.max(0, Math.min(1, x))
@@ -39,7 +42,7 @@ export interface Pose {
 /** Pure time-based motion: preview, scrubbing and offline renders use exactly this function. */
 export function poseAt(time: number, index: number, count: number, p: Project): Pose {
   const pose: Pose = { opacity: 1, x: 0, y: 0, scale: 1, scaleX: 1, rotation: 0, reveal: 1 }
-  if (p.motion === 'none') return pose
+  if (p.motion === 'none' && (p.outro === 'mirror' || p.outro === 'none' || !p.outro)) return pose
   const total = duration(p)
   // Mirror the same clock, easing and stagger so the outro retraces the intro.
   // Matching transparent margins guarantee clean first/last encoded frames,
@@ -48,6 +51,9 @@ export function poseAt(time: number, index: number, count: number, p: Project): 
   // Intro and outro each have their own start offset and length (symmetric by default).
   const tm = layerTiming(chyronLayer(p), p)
   const introSide = time <= (tm.introEnd + tm.outroStart) / 2
+  // The outro retraces the intro unless it has a style of its own.
+  const motion: Motion = introSide || !p.outro || p.outro === 'mirror' ? p.motion : p.outro
+  if (motion === 'none') return pose
   const phaseTime = introSide ? time - tm.delay : total - time - tm.endDelay
   const phaseLength = introSide ? tm.length : tm.outLength
   const progress = clamp((phaseTime - edge) / Math.max(1e-6, phaseLength - edge))
@@ -56,83 +62,83 @@ export function poseAt(time: number, index: number, count: number, p: Project): 
   const enter = clamp((progress - order * p.stagger) / (1 - p.stagger))
   const hidden = phaseTime <= edge + 1e-7
   pose.opacity = hidden ? 0 : smooth(clamp(enter * 3))
-  if (p.motion === 'pop') {
+  if (motion === 'pop') {
     pose.scale = Math.max(0.001, 0.45 + 0.55 * outBack(enter))
     pose.y = (1 - outCubic(enter)) * 45
     pose.rotation = (1 - outCubic(enter)) * (index % 2 ? 12 : -12)
-  } else if (p.motion === 'flip') {
+  } else if (motion === 'flip') {
     const turn = 1 - outCubic(enter)
     // Orthographic projection of a letter turning from edge-on to face-on.
     pose.scaleX = Math.max(0.001, Math.cos((turn * Math.PI) / 2))
     pose.rotation = turn * -8
     pose.y = turn * 18
-  } else if (p.motion === 'slide') {
+  } else if (motion === 'slide') {
     pose.y = (1 - outCubic(enter)) * 85
-  } else if (p.motion === 'wipe') {
+  } else if (motion === 'wipe') {
     pose.reveal = smooth(enter)
     pose.x = (1 - outCubic(enter)) * -18
-  } else if (p.motion === 'typewriter') {
+  } else if (motion === 'typewriter') {
     pose.opacity = enter > 0.15 ? 1 : 0
-  } else if (p.motion === 'drop') {
+  } else if (motion === 'drop') {
     // Letters fall from above and bounce into place.
     pose.y = -(1 - outBounce(enter)) * 140
     pose.opacity = phaseTime <= edge + 1e-7 ? 0 : smooth(clamp(enter * 6))
-  } else if (p.motion === 'zoom') {
+  } else if (motion === 'zoom') {
     // Letters shrink down from oversized, like a camera push.
     pose.scale = 1 + 1.6 * (1 - outCubic(enter))
     pose.opacity = phaseTime <= edge + 1e-7 ? 0 : smooth(clamp(enter * 2))
-  } else if (p.motion === 'spin') {
+  } else if (motion === 'spin') {
     pose.rotation = (1 - outCubic(enter)) * (index % 2 ? 200 : -200)
     pose.scale = Math.max(0.001, 0.2 + 0.8 * outBack(enter))
-  } else if (p.motion === 'wave') {
+  } else if (motion === 'wave') {
     // A ripple: each letter overshoots upward, then settles.
     pose.y = (1 - outElastic(enter)) * 70
-  } else if (p.motion === 'elastic') {
+  } else if (motion === 'elastic') {
     pose.scale = Math.max(0.001, outElastic(enter))
     pose.scaleX = Math.max(0.001, 1 + (1 - outCubic(enter)) * 0.6)
-  } else if (p.motion === 'bounce') {
+  } else if (motion === 'bounce') {
     pose.scale = Math.max(0.001, outBounce(enter))
-  } else if (p.motion === 'from-left' || p.motion === 'from-right') {
-    pose.x = (1 - outExpo(enter)) * (p.motion === 'from-left' ? -240 : 240)
+  } else if (motion === 'from-left' || motion === 'from-right') {
+    pose.x = (1 - outExpo(enter)) * (motion === 'from-left' ? -240 : 240)
     pose.opacity = hidden ? 0 : smooth(clamp(enter * 2))
-  } else if (p.motion === 'split') {
+  } else if (motion === 'split') {
     // Alternate letters arrive from above and below.
     pose.y = (1 - outCubic(enter)) * (index % 2 ? 130 : -130)
-  } else if (p.motion === 'scatter') {
+  } else if (motion === 'scatter') {
     const e = 1 - outCubic(enter)
     pose.x = (hash(index, 1) - 0.5) * 520 * e
     pose.y = (hash(index, 2) - 0.5) * 400 * e
     pose.rotation = (hash(index, 3) - 0.5) * 220 * e
     pose.scale = Math.max(0.001, 1 - 0.5 * e)
-  } else if (p.motion === 'cascade') {
+  } else if (motion === 'cascade') {
     const e = 1 - outBack(enter)
     pose.y = -e * 70
     pose.rotation = e * -30
-  } else if (p.motion === 'stamp' || p.motion === 'slam') {
+  } else if (motion === 'stamp' || motion === 'slam') {
     // A fast approach, an impact, then a small recoil.
     const a = clamp(enter / 0.7)
     const recoil = enter > 0.7 ? (enter - 0.7) / 0.3 : 0
     const settle = Math.sin(recoil * Math.PI) * (1 - recoil)
-    if (p.motion === 'stamp') pose.scale = 3 - 2 * a * a - 0.1 * settle
+    if (motion === 'stamp') pose.scale = 3 - 2 * a * a - 0.1 * settle
     else {
       pose.y = -(1 - a * a) * 180
       pose.scaleX = 1 + 0.3 * settle
       pose.scale = 1 - 0.12 * settle
     }
     pose.opacity = hidden ? 0 : smooth(clamp(a * 3))
-  } else if (p.motion === 'shake') {
+  } else if (motion === 'shake') {
     pose.x = Math.sin(enter * 42) * (1 - enter) ** 2 * 28
-  } else if (p.motion === 'blink' || p.motion === 'glitch') {
+  } else if (motion === 'blink' || motion === 'glitch') {
     // Deterministic flicker: the same letter blinks the same way every render.
-    const step = Math.floor(enter * (p.motion === 'blink' ? 10 : 22))
+    const step = Math.floor(enter * (motion === 'blink' ? 10 : 22))
     const on = enter >= 0.85 || hash(index * 7 + 1, step) < 0.2 + enter * 0.8
     pose.opacity = hidden ? 0 : on ? 1 : 0
-    if (p.motion === 'glitch') {
+    if (motion === 'glitch') {
       const k = 1 - enter
       pose.x = (hash(index, step + 50) - 0.5) * 60 * k
       pose.scaleX = 1 + (hash(index, step + 90) - 0.5) * 0.8 * k
     }
-  } else if (p.motion === 'swing') {
+  } else if (motion === 'swing') {
     const s = 1 - enter
     pose.rotation = 70 * s * s * Math.cos(enter * Math.PI * 3) * (index % 2 ? 1 : -1)
     pose.y = -s * s * 40
@@ -229,7 +235,7 @@ export const settledImagePose = (): ImagePose => ({
 })
 
 /** Start and end of a layer's own intro, and start of its outro, in clip seconds. */
-export function imageTiming(l: ImageLayer, p: Project) {
+export function imageTiming(l: ElementLayer, p: Project) {
   return layerTiming(l, p)
 }
 
@@ -237,7 +243,7 @@ function applyMotion(
   pose: ImagePose,
   motion: ImageMotion,
   t: number,
-  l: ImageLayer,
+  l: ElementLayer,
   p: Project,
   frame: number,
 ) {
@@ -383,20 +389,32 @@ function applyMotion(
   }
 }
 
-function applyEmphasis(pose: ImagePose, l: ImageLayer, p: Project, time: number, frame: number) {
-  if (l.emphasis === 'none' || l.emphasisStrength <= 0) return
-  const { total, introEnd, outroStart } = imageTiming(l, p)
-  const strength = l.emphasisStrength / 100
-  const w = (l.width / 100) * p.width
-  const h = w * l.aspect
-  if (l.emphasis === 'orbit') {
+/**
+ * Effects while a layer is on screen, shared by every layer kind. `w`/`h` are
+ * the layer's size in composition pixels; the pose is in the same units.
+ */
+function applyEmphasis(
+  pose: ImagePose,
+  src: Partial<Emphasis>,
+  tm: LayerTiming,
+  time: number,
+  frame: number,
+  w: number,
+  h: number,
+) {
+  const kind = src.emphasis ?? 'none'
+  const strength = (src.emphasisStrength ?? 50) / 100
+  const speed = src.emphasisSpeed ?? 2
+  if (kind === 'none' || strength <= 0) return
+  const { total, introEnd, outroStart } = tm
+  if (kind === 'orbit') {
     // Whole turns across the hold: eases in and out and ends exactly upright.
     const span = Math.max(0.001, outroStart - introEnd)
-    const turns = Math.max(1, Math.round((strength * span) / l.emphasisSpeed))
+    const turns = Math.max(1, Math.round((strength * span) / speed))
     pose.rotation += 360 * turns * smooth(clamp((time - introEnd) / span))
     return
   }
-  if (l.emphasis === 'kenburns') {
+  if (kind === 'kenburns') {
     // A continuous push across the whole clip, so there is never a jump at a boundary.
     pose.contentZoom = 1 + strength * 0.2 * (time / total)
     return
@@ -404,39 +422,78 @@ function applyEmphasis(pose: ImagePose, l: ImageLayer, p: Project, time: number,
   const envelope =
     smooth(clamp((time - introEnd) / 0.35)) * smooth(clamp((outroStart - time) / 0.35))
   if (envelope <= 0) return
-  const phase = (time - introEnd) / l.emphasisSpeed
+  const phase = (time - introEnd) / speed
   const wave = Math.sin(phase * Math.PI * 2)
-  if (l.emphasis === 'pulse')
+  if (kind === 'pulse')
     pose.scale *= 1 + 0.09 * strength * envelope * (0.5 - 0.5 * Math.cos(phase * Math.PI * 2))
-  else if (l.emphasis === 'float') pose.y += wave * strength * 0.04 * h * envelope
-  else if (l.emphasis === 'sway') pose.rotation += wave * strength * 7 * envelope
-  else if (l.emphasis === 'rumble') {
+  else if (kind === 'float') pose.y += wave * strength * 0.04 * h * envelope
+  else if (kind === 'sway') pose.rotation += wave * strength * 7 * envelope
+  else if (kind === 'rumble') {
     const amp = strength * 0.015 * w * envelope
     pose.x += (hash(frame, 7) - 0.5) * 2 * amp
     pose.y += (hash(frame, 8) - 0.5) * 2 * amp
     pose.rotation += (hash(frame, 9) - 0.5) * strength * 2 * envelope
-  } else if (l.emphasis === 'glow') {
+  } else if (kind === 'glow') {
     pose.brightness = 1 + 0.4 * strength * envelope * (0.5 - 0.5 * Math.cos(phase * Math.PI * 2))
-  } else if (l.emphasis === 'jelly') {
+  } else if (kind === 'jelly') {
     const k = 0.07 * strength * envelope * Math.sin(phase * Math.PI * 4)
     pose.scaleX *= 1 + k
     pose.scaleY *= 1 - k
-  } else if (l.emphasis === 'wiggle') {
+  } else if (kind === 'wiggle') {
     pose.rotation += Math.sin(phase * Math.PI * 8) * strength * 6 * envelope
-  } else if (l.emphasis === 'heartbeat') {
+  } else if (kind === 'heartbeat') {
     // Two quick beats, then rest.
     const c = phase - Math.floor(phase)
     const beat = (t: number) => Math.max(0, 1 - Math.abs(c - t) / 0.08)
     pose.scale *= 1 + 0.12 * strength * envelope * Math.max(beat(0.1), beat(0.3) * 0.7)
-  } else if (l.emphasis === 'shine' && envelope > 0.5) {
+  } else if (kind === 'shine' && envelope > 0.5) {
     const cycle = phase - Math.floor(phase)
     // The sweep occupies the first half of each cycle; brighter strength = wider band.
     if (cycle < 0.5) pose.shine = cycle / 0.5
   }
+  // 'wave' and 'ripple' move letters one by one; see letterEmphasisAt.
 }
 
-/** Pure time-based pose for an image layer. Preview, scrubbing and export share it. */
-export function imagePoseAt(time: number, l: ImageLayer, p: Project): ImagePose {
+/**
+ * The whole chyron's on-screen effect (pulse, float, shine…) at `time`, in
+ * composition pixels. `p` is the chyron's own view (see chyronProject);
+ * `w`/`h` its placed size.
+ */
+export function chyronGroupPose(time: number, p: Project, w: number, h: number): ImagePose {
+  const pose = settledImagePose()
+  const l = chyronLayer(p)
+  if (!l.emphasis || l.emphasis === 'none' || l.emphasis === 'kenburns') return pose
+  applyEmphasis(pose, l, layerTiming(l, p), time, Math.round(time * p.fps), w, h)
+  return pose
+}
+
+/** Per-letter on-screen effects: Wave lifts letters in turn, Ripple swells them in turn. */
+export function letterEmphasisAt(time: number, index: number, count: number, p: Project) {
+  const l = chyronLayer(p)
+  const out = { y: 0, scale: 1 }
+  if (l.emphasis !== 'wave' && l.emphasis !== 'ripple') return out
+  const strength = (l.emphasisStrength ?? 50) / 100
+  if (strength <= 0) return out
+  const { introEnd, outroStart } = layerTiming(l, p)
+  const envelope =
+    smooth(clamp((time - introEnd) / 0.35)) * smooth(clamp((outroStart - time) / 0.35))
+  if (envelope <= 0) return out
+  const order = count <= 1 ? 0 : index / (count - 1)
+  const phase = (time - introEnd) / (l.emphasisSpeed ?? 2)
+  if (l.emphasis === 'wave') {
+    // A sine that travels along the line, about one letter-height tall at full strength.
+    out.y = -Math.sin((phase - order * 0.6) * Math.PI * 2) * strength * 0.18 * p.tileSize * envelope
+  } else {
+    // One swell per cycle that runs from the first letter to the last.
+    const c = phase - Math.floor(phase)
+    const d = Math.abs(c * 1.4 - 0.2 - order)
+    out.scale = 1 + 0.22 * strength * envelope * Math.max(0, 1 - d / 0.18)
+  }
+  return out
+}
+
+/** Pure time-based pose for an image or shape layer. Preview, scrubbing and export share it. */
+export function imagePoseAt(time: number, l: ElementLayer, p: Project): ImagePose {
   const pose = settledImagePose()
   const tm = imageTiming(l, p)
   const { total } = tm
@@ -453,6 +510,7 @@ export function imagePoseAt(time: number, l: ImageLayer, p: Project): ImagePose 
   const t = motion === 'none' ? 1 : clamp((local - edge) / Math.max(1e-6, length - edge))
   if (t < 1) applyMotion(pose, motion, t, l, p, frame)
   else if (motion === 'glitch') pose.seed = frame
-  applyEmphasis(pose, l, p, time, frame)
+  const w = (l.width / 100) * p.width
+  applyEmphasis(pose, l, tm, time, frame, w, w * l.aspect)
   return pose
 }

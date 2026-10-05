@@ -1177,3 +1177,336 @@
   min-height: var(--control-sm);
   padding: 0 var(--space-2);
 }
+
+/* ---------- Shapes, chyrons and music (3.5) ---------- */
+.si-side-handle {
+  width: 28px;
+  height: 28px;
+}
+.si-side-handle span {
+  width: 10px;
+  height: 10px;
+  border: var(--border-width-thick) solid var(--transform-ink);
+  border-radius: var(--radius-full);
+  background: var(--transform-handle);
+  box-shadow: 0 0 0 1px var(--transform-line);
+}
+.si-side-handle.side-n {
+  top: 0;
+  left: 50%;
+  cursor: ns-resize;
+}
+.si-side-handle.side-s {
+  top: 100%;
+  left: 50%;
+  cursor: ns-resize;
+}
+.si-side-handle.side-e {
+  top: 50%;
+  left: 100%;
+  cursor: ew-resize;
+}
+.si-side-handle.side-w {
+  top: 50%;
+  left: 0;
+  cursor: ew-resize;
+}
+.clip.shape-clip {
+  color: var(--track-shape-fg);
+  background: var(--track-shape-bg);
+  border-color: var(--track-shape-line);
+}
+.clip.audio-clip {
+  color: var(--track-audio-fg);
+  background: var(--track-audio-bg);
+  border-color: var(--track-audio-line);
+}
+.clip.audio-clip .waveform {
+  position: absolute;
+  inset: 3px 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 6px);
+  pointer-events: none;
+}
+.clip-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.clip-fade.in {
+  left: 0;
+  background: linear-gradient(to top right, var(--color-bg-surface) 50%, transparent 50%);
+  opacity: 0.55;
+}
+.clip-fade.out {
+  right: 0;
+  background: linear-gradient(to top left, var(--color-bg-surface) 50%, transparent 50%);
+  opacity: 0.55;
+}
+.music-tracks {
+  margin-top: var(--space-1);
+}
+.music-tracks .playhead {
+  top: 0;
+}
+.music-label {
+  margin-top: var(--space-1);
+}
+.inspector-icon.is-shape {
+  color: var(--track-shape-fg);
+  background: var(--track-shape-bg);
+}
+.inspector-icon.is-music {
+  color: var(--track-audio-fg);
+  background: var(--track-audio-bg);
+}
+
+/* Image tools at the top of an image's Design tab. */
+.picture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-3) var(--space-4) 0;
+}
+.picture-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  font: var(--text-label-md);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-control);
+  border-radius: var(--radius-md);
+}
+.picture-note span {
+  flex: 1;
+}
+
+/* Music settings */
+.music-overview {
+  position: relative;
+  height: 48px;
+  overflow: hidden;
+  color: var(--track-audio-fg);
+  background: var(--track-audio-bg);
+  border-radius: var(--radius-md);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.music-overview:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+.music-overview .waveform {
+  position: absolute;
+  inset: 4px 0;
+  width: 100%;
+  height: calc(100% - 8px);
+  opacity: 0.45;
+}
+.music-overview-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 4px;
+  background: var(--track-audio-bg);
+  border: var(--border-width-thick) solid var(--track-audio-fg);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+.music-actions {
+  padding: 0 var(--space-4) var(--space-4);
+}
+.waveform {
+  display: block;
+}
+
+/* Where is my work? */
+.storage-list {
+  display: grid;
+  gap: var(--space-3);
+}
+.storage-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-bg-control);
+  border-radius: var(--radius-lg);
+}
+.storage-item > div {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.storage-item h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-heading-xs);
+}
+.storage-item p {
+  font: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+.storage-item p.storage-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--text-caption);
+  color: var(--color-text-tertiary);
+}
+.storage-item code {
+  font: var(--text-code);
+}
+.storage-item .button {
+  justify-self: start;
+}
+.storage-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-md);
+}
+.storage-badge {
+  padding: 0 var(--space-2);
+  font: var(--text-label-sm);
+  line-height: 20px;
+  color: var(--color-success-text);
+  background: var(--color-success-bg);
+  border-radius: var(--radius-full);
+}
+.save-status.is-button {
+  height: var(--control-sm);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+}
+.save-status.is-button:hover {
+  color: var(--color-text-secondary);
+  background: var(--color-state-hover);
+}
+
+/* Remove background */
+.cutout-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 1fr);
+  gap: var(--space-5);
+}
+.cutout-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  max-height: 60dvh;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-b) 0% 50%) 50% / 20px
+    20px;
+}
+.cutout-preview canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 60dvh;
+  object-fit: contain;
+}
+.cutout-preview canvas.is-picking {
+  cursor: crosshair;
+}
+.cutout-status {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  font: var(--text-label-md);
+  white-space: nowrap;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface-raised);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+  transform: translateX(-50%);
+}
+.cutout-controls {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+.cutout-controls .button.ghost {
+  justify-self: start;
+}
+.cutout-key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-label-md);
+}
+.cutout-key > span:nth-child(2) {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cutout-swatch {
+  width: 24px;
+  height: 24px;
+  border: var(--border-width-thin) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+@media (max-width: 767px) {
+  .cutout-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cutout-preview {
+    min-height: 200px;
+    max-height: 40dvh;
+  }
+  .cutout-preview canvas {
+    max-height: 40dvh;
+  }
+}
+.cutout-controls .button.selected,
+.cutout-key .button.selected {
+  color: var(--color-text-primary);
+  background: var(--color-bg-selected);
+}
+.inspector-title-heading {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+@media (pointer: coarse) {
+  .si-side-handle {
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+  }
+  .picture-actions .button,
+  .picture-actions .icon-button,
+  .picture-note .button,
+  .music-actions .button,
+  .storage-item .button,
+  .cutout-controls .button,
+  .cutout-key .button,
+  .save-status.is-button {
+    min-height: var(--touch-target-min);
+  }
+  .picture-actions .icon-button {
+    width: var(--touch-target-min);
+  }
+}
+.save-status.is-button {
+  justify-content: center;
+  min-width: var(--control-sm);
+}
+@media (pointer: coarse) {
+  .save-status.is-button {
+    min-width: var(--touch-target-min);
+  }
+}

@@ -22,6 +22,24 @@ npm run preview
 
 The application remains compatible with GitHub Pages at `/chyrongenerator/`. The deployment command is still `npm run deploy`. Set `base` in `vite.config.ts` if you host it at a different path.
 
+## What's new in 3.5 — Layers, music and cut-outs
+
+The Chyron editor now builds whole graphics packages in one file.
+
+- **Several chyrons in one export.** **Add** in the timeline adds a **Chyron** (title and subtitle in the look of your first one, smaller and in a free band), plain **Text**, a **Shape**, an image or **Music**. Every chyron has its own words, style, placement and animation; templates and saved styles restyle only the selected one. Double-click a chyron to type. Up to 8 chyrons and text layers, 16 shapes and 12 images.
+- **Shapes.** Rectangle (a lower-third bar by default), circle, arch, triangle, hexagon, star and heart, with a solid, linear or radial fill, round corners, border and shadow. Side handles stretch them; corners scale.
+- **One animation system for every layer.** Each layer's Animate tab has the same parts: In, Out, Timing and While on screen. Text animates letter by letter (24 styles, now with its own Out style instead of always reversing); images and shapes move as one piece (24 styles). The on-screen effects (Pulse, Float, Sway, Shine, Rumble, Wiggle, Heartbeat, Orbit, Glow, Jelly) work on chyrons, images and shapes alike; text adds **Letter wave** and **Ripple**, images keep **Ken Burns**. "Use this animation on…" copies an animation to the other layers of the same family.
+- **Music.** Add an MP3, WAV, M4A, OGG or FLAC file (up to 80 MB, 20 minutes). It shows as a waveform under the layers; drag it to change when it starts. Choose which part of the song plays, volume (0–200 %), fade in and out, loop and mute. It plays with the preview, and WebM (Vorbis), ProRes (PCM) and PNG sequences (`music.wav`, already trimmed and faded) include it. Project files embed it.
+- **Longer holds.** Hold goes up to 60 seconds. WebM is encoded in parts that are joined at the end, so only a few hundred frames sit in memory at a time: 720 × 1280 at 30 fps exports up to 90 seconds, Full HD up to 40. ProRes stores every frame whole and keeps its single-pass budget (45 and 20 seconds). The export dialog shows the limit for your size and frame rate; PNG sequences have no limit.
+- **Exports keep going in the background.** Rendering no longer waits on timers, which browsers slow to a crawl in background tabs, so switching to another app no longer pauses an export. The tab title shows the progress, and the page asks the browser not to freeze it while exporting.
+- **Remove background.** In an image's Design tab (or its ⋯ menu): **Subject** finds the person or object with a bundled U²-Netp model (4.6 MB, loaded once, Apache-2.0) and **Colour** removes a picked colour, optionally only where it touches the edge. Edge softness and shrink/grow refine the result, a compare toggle shows the original, and **Restore original** brings it back. Everything runs on the device with ONNX Runtime Web; nothing is uploaded.
+- **Cropping is easier to find.** Crop and Remove background sit at the top of every image's Design tab, in its ⋯ menu and on **C**; a new image offers Crop in its toast.
+- **Where is my work?** Click the save status (or Project menu › Where is my work?) to see what is stored where: autosave lives in this browser on this device (with how much space it uses and an option to keep it when space runs low); **Save project file** writes one `.chyron.json` with every image and the music. In Chrome and Edge you choose the folder the first time and later saves update the same file (**Save as…** / ⇧⌘S picks a new one); other browsers save to the downloads folder, and the message after saving says which.
+
+- **Every element can be deleted**, the starting chyron included: select it and press Del, or use Delete layer in its ⋯ menu; undo brings it back. A composition can be empty, and a chyron added to an empty canvas takes the middle at full size. New compositions still start with one chyron to edit.
+
+Older projects open unchanged: their chyron becomes the first chyron, and every new setting starts at its old behaviour.
+
 ## What's new in 3.4 — Image shapes and crop in Chyron
 
 Image layers in the Chyron editor pick up the Designer's most useful tools, without new panels:
@@ -182,7 +200,7 @@ Saved projects retain their canvas dimensions. Earlier v2 projects with separate
 
 All formats exclude the preview background and safe-area guides. A deliberately enabled **Soft dark backdrop** is part of the artwork and is included. Still exports default to the settled composition; select the current-frame checkbox to export the exact playhead frame instead.
 
-Video exports are capped at **2,073,600 pixels per frame and 600 frames** to keep browser memory usage practical. Full HD landscape, Full HD portrait, 24/30/60 fps and shorter square videos are supported. Larger canvases, including 4K, can be exported as PNG sequences or stills. Encoding speed depends on the device; it is not real-time screen recording.
+Video exports are capped at **2,073,600 pixels per frame** and a pixels × frames budget to keep browser memory usage practical (WebM: Full HD for 1,200 frames, ProRes: 600). Full HD landscape, Full HD portrait, 24/30/60 fps and shorter square videos are supported. Larger canvases, including 4K, can be exported as PNG sequences or stills. Encoding speed depends on the device; it is not real-time screen recording.
 
 The video encoder is a single-threaded FFmpeg WebAssembly worker, loaded from the same origin on first use (about 32 MB). No server, upload, runtime CDN or cross-origin isolation headers are required. Cancellation terminates the worker; every subsequent job gets a fresh encoder. VP9 uses the `good` deadline because the realtime/lossless combination failed the browser export regression checks.
 
@@ -218,8 +236,11 @@ Stream image tests verify the exact three PNG dimensions, decoded background/hos
 
 ## Code map
 
-- `src/studio/model.ts`: versioned project schema, layer schema, validation, templates and legacy migration.
-- `src/studio/motion.ts`: pure time-to-pose animation math for the chyron and image layers.
+- `src/studio/model.ts`: versioned project schema, layer schema (chyrons, images, shapes), music track, validation, templates and legacy migration. The first chyron's style lives on the project; added chyrons carry theirs in `layer.style`, and `chyronProject()` gives every chyron the same view.
+- `src/studio/motion.ts`: pure time-to-pose animation math for chyrons (per letter and as a group), images and shapes.
+- `src/studio/audio.ts`: music import, decoding, waveform peaks, the fade envelope and the schedule shared by preview and export.
+- `src/studio/cutout.ts`: background removal (model pre/post-processing, colour key, edge refinement), runnable without a browser.
+- `src/studio/projectFile.ts`: saving `.chyron.json` files, with a save dialog where the browser has one.
 - `src/studio/layers.ts`: pure layer operations (add, reorder, duplicate, remove, fit).
 - `src/studio/assets.ts`: IndexedDB image storage, decoding cache and project-file embedding.
 - `src/studio/fonts.ts`: self-hosted font loading and glyph outlines.
@@ -232,6 +253,6 @@ Stream image tests verify the exact three PNG dimensions, decoded background/hos
 
 ## Fonts and dependencies
 
-Geist Sans (interface) and display fonts are bundled via Fontsource; their license files ship in the respective npm packages. The existing Wicked Mouse font and its original license/readme have been retained. Check `public/assets/fonts/wicked_mouse/readme.txt` for the original font's usage terms. FFmpeg core is GPL-2.0-or-later; keep the relevant notices and comply with its license when distributing the application.
+Geist Sans (interface) and display fonts are bundled via Fontsource; their license files ship in the respective npm packages. The existing Wicked Mouse font and its original license/readme have been retained. Check `public/assets/fonts/wicked_mouse/readme.txt` for the original font's usage terms. FFmpeg core is GPL-2.0-or-later; keep the relevant notices and comply with its license when distributing the application. Background removal uses ONNX Runtime Web (MIT) and the U²-Netp model (Apache-2.0); its notice and license text are in `public/models/`.
 
 Useful upstream references: [FFmpeg codecs](https://ffmpeg.org/ffmpeg-codecs.html), [ffmpeg.wasm](https://ffmpegwasm.netlify.app/), [Fontsource](https://fontsource.org/).

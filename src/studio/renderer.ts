@@ -1,7 +1,24 @@
 import { outline, type Fonts } from './fonts'
-import { adjustFilter, cropOf, maskPath, sourceAspectOf } from './crop'
-import { hash, imagePoseAt, poseAt, type ImagePose } from './motion'
-import { chyronLayer, imageLayers, type ImageLayer, type Project } from './model'
+import { adjustFilter, cropOf, maskPath, shapeOutline, sourceAspectOf } from './crop'
+import {
+  chyronGroupPose,
+  hash,
+  imagePoseAt,
+  letterEmphasisAt,
+  poseAt,
+  type ImagePose,
+} from './motion'
+import {
+  CHYRON_STYLE_KEYS,
+  chyronLayer,
+  chyronLayers,
+  chyronProject,
+  type ElementLayer,
+  type FontName,
+  type ImageLayer,
+  type Project,
+  type ShapeLayer,
+} from './model'
 import type { ImageMap } from './assets'
 
 interface Shape {
@@ -189,6 +206,50 @@ export function buildScene(p: Project, fonts: Fonts): Scene {
     paths: new Map(),
   }
 }
+/* ---------- Scenes: one per chyron, cached by what shapes its letters ---------- */
+
+/** Style keys that change a chyron's letters (placement and motion do not). */
+const SCENE_KEYS = CHYRON_STYLE_KEYS.filter(
+  (k) =>
+    ![
+      'scale',
+      'compositionRotation',
+      'opacity',
+      'x',
+      'y',
+      'motion',
+      'outro',
+      'stagger',
+      'backdrop',
+    ].includes(k),
+)
+const scenes = new Map<string, Scene>()
+/** The scene for a chyron's style, reused while its lettering is unchanged. */
+export function sceneFor(p: Project, fonts: Fonts): Scene {
+  const key = JSON.stringify(SCENE_KEYS.map((k) => p[k]))
+  const cached = scenes.get(key)
+  if (cached) {
+    scenes.delete(key)
+    scenes.set(key, cached)
+    return cached
+  }
+  const scene = buildScene(p, fonts)
+  scenes.set(key, scene)
+  while (scenes.size > 32) scenes.delete(scenes.keys().next().value!)
+  return scene
+}
+export type SceneMap = ReadonlyMap<string, Scene>
+/** Scenes for every chyron whose font is loaded, keyed by layer id. */
+export function buildScenes(p: Project, fonts: ReadonlyMap<FontName, Fonts>): Map<string, Scene> {
+  const map = new Map<string, Scene>()
+  for (const l of chyronLayers(p)) {
+    const view = chyronProject(p, l)
+    const f = fonts.get(view.font)
+    if (f) map.set(l.id, sceneFor(view, f))
+  }
+  return map
+}
+
 export function placement(scene: Scene, p: Project) {
   const angle = (p.compositionRotation * Math.PI) / 180
   const rotatedWidth =
@@ -216,33 +277,46 @@ export function chyronBounds(scene: Scene, p: Project) {
   }
 }
 
+const settled = (g: ImagePose) =>
+  g.x === 0 && g.y === 0 && g.rotation === 0 && g.scale === 1 && g.scaleX === 1 && g.scaleY === 1
+
+/**
+ * Draw one chyron (`p` is its own view, see chyronProject) onto a cleared
+ * canvas. Its on-screen effect moves the whole chyron; Wave and Ripple move
+ * single letters; Shine sweeps across the letters only.
+ */
 export function renderFrame(ctx: CanvasRenderingContext2D, scene: Scene, p: Project, time: number) {
   const { scale, x, y } = placement(scene, p)
+  const group = chyronGroupPose(time, p, scene.width * scale, scene.height * scale)
+  const count = scene.elements.length
   ctx.save()
   ctx.setTransform(ctx.canvas.width / p.width, 0, 0, ctx.canvas.height / p.height, 0, 0)
   ctx.clearRect(0, 0, p.width, p.height)
+  if (!settled(group)) {
+    const cx = (p.width * p.x) / 100,
+      cy = (p.height * p.y) / 100
+    ctx.translate(cx + group.x, cy + group.y)
+    ctx.rotate((group.rotation * Math.PI) / 180)
+    ctx.scale(group.scale * group.scaleX, group.scale * group.scaleY)
+    ctx.translate(-cx, -cy)
+  }
   ctx.translate(x, y)
   ctx.scale(scale, scale)
   ctx.translate(scene.width / 2, scene.height / 2)
   ctx.rotate((p.compositionRotation * Math.PI) / 180)
   ctx.translate(-scene.width / 2, -scene.height / 2)
-  const backdropPose = poseAt(time, 0, 1, p)
-  if (p.backdrop && scene.elements.length) {
-    ctx.save()
-    ctx.globalAlpha = backdropPose.opacity * 0.4
-    ctx.fillStyle = '#000'
-    ctx.filter = 'blur(20px)'
-    ctx.fillRect(60, 60, scene.width - 120, scene.height - 120)
-    ctx.restore()
-  }
+  const bright = group.brightness !== 1 ? `brightness(${group.brightness.toFixed(3)})` : ''
+  const local = ctx.getTransform()
   scene.elements.forEach((node, i) => {
-    const pose = poseAt(time, i, scene.elements.length, p)
+    const pose = poseAt(time, i, count, p)
     if (pose.opacity <= 0 || pose.reveal <= 0) return
+    const letter = letterEmphasisAt(time, i, count, p)
     ctx.save()
     ctx.globalAlpha = pose.opacity
-    ctx.translate(node.x + node.width / 2 + pose.x, node.y + node.height / 2 + pose.y)
+    ctx.translate(node.x + node.width / 2 + pose.x, node.y + node.height / 2 + pose.y + letter.y)
     ctx.rotate(((node.rotation + pose.rotation) * Math.PI) / 180)
-    ctx.scale(node.scale * pose.scale * pose.scaleX, node.scale * pose.scale)
+    const k = node.scale * pose.scale * letter.scale
+    ctx.scale(k * pose.scaleX, k)
     ctx.transform(1, 0, node.skew, 1, 0, 0)
     ctx.translate(-node.width / 2, -node.height / 2)
     if (pose.reveal < 1) {
@@ -259,13 +333,14 @@ export function renderFrame(ctx: CanvasRenderingContext2D, scene: Scene, p: Proj
       ctx.shadowColor = '#00000090'
       ctx.shadowBlur = p.glow
     }
+    if (bright) ctx.filter = bright
     for (const shape of node.shapes) {
       if (!shape.d) continue
       if (!scene.paths.has(shape.d)) scene.paths.set(shape.d, new Path2D(shape.d))
       const path = scene.paths.get(shape.d)!
       ctx.save()
       ctx.translate(shape.x || 0, shape.y || 0)
-      if (shape.blur) ctx.filter = `blur(${shape.blur}px)`
+      if (shape.blur) ctx.filter = `${bright} blur(${shape.blur}px)`.trim()
       if (shape.color !== 'transparent') {
         ctx.fillStyle = shape.color
         ctx.fill(path)
@@ -280,6 +355,36 @@ export function renderFrame(ctx: CanvasRenderingContext2D, scene: Scene, p: Proj
     }
     ctx.restore()
   })
+  if (group.shine >= 0) {
+    // A light band across the letters, in the chyron's own frame.
+    const strength = (chyronLayer(p).emphasisStrength ?? 50) / 100
+    ctx.save()
+    ctx.setTransform(local)
+    ctx.globalCompositeOperation = 'source-atop'
+    const w = scene.width,
+      h = scene.height
+    const band = Math.max(w, h) * (0.12 + 0.18 * strength) * 0.5
+    const center = -band + (w + h + band * 2) * group.shine
+    const gradient = ctx.createLinearGradient(center - band, 0, center + band, h * 0.35)
+    gradient.addColorStop(0, 'rgba(255,255,255,0)')
+    gradient.addColorStop(0.5, `rgba(255,255,255,${0.35 + 0.45 * strength})`)
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = gradient
+    ctx.fillRect(-w, -h, w * 3, h * 3)
+    ctx.restore()
+  }
+  const backdropPose = poseAt(time, 0, 1, p)
+  if (p.backdrop && scene.elements.length) {
+    // Drawn behind the letters, after them, so Shine never lights it.
+    ctx.save()
+    ctx.setTransform(local)
+    ctx.globalCompositeOperation = 'destination-over'
+    ctx.globalAlpha = backdropPose.opacity * 0.4
+    ctx.fillStyle = '#000'
+    ctx.filter = 'blur(20px)'
+    ctx.fillRect(60, 60, scene.width - 120, scene.height - 120)
+    ctx.restore()
+  }
   ctx.restore()
   // Apply composition opacity once after compositing its layers, matching SVG group
   // opacity. Per-shape alpha would make overlapping letters and shadows too opaque.
@@ -293,71 +398,71 @@ export function renderFrame(ctx: CanvasRenderingContext2D, scene: Scene, p: Proj
     ctx.restore()
   }
 }
-function chyronSvg(scene: Scene, p: Project, time: number) {
+function chyronSvg(scene: Scene, p: Project, time: number, n: number) {
   const { scale, x, y } = placement(scene, p)
+  const group = chyronGroupPose(time, p, scene.width * scale, scene.height * scale)
+  const count = scene.elements.length
+  const id = `c${n}`
   const defs: string[] = []
   const content = scene.elements
     .map((node, i) => {
-      const pose = poseAt(time, i, scene.elements.length, p)
-      const transform = `translate(${node.x + node.width / 2 + pose.x} ${node.y + node.height / 2 + pose.y}) rotate(${node.rotation + pose.rotation}) scale(${node.scale * pose.scale * pose.scaleX} ${node.scale * pose.scale}) matrix(1 0 ${node.skew} 1 0 0) translate(${-node.width / 2} ${-node.height / 2})`
+      const pose = poseAt(time, i, count, p)
+      const letter = letterEmphasisAt(time, i, count, p)
+      const k = node.scale * pose.scale * letter.scale
+      const transform = `translate(${node.x + node.width / 2 + pose.x} ${node.y + node.height / 2 + pose.y + letter.y}) rotate(${node.rotation + pose.rotation}) scale(${k * pose.scaleX} ${k}) matrix(1 0 ${node.skew} 1 0 0) translate(${-node.width / 2} ${-node.height / 2})`
       if (pose.reveal < 1)
         defs.push(
-          `<clipPath id="clip${i}"><rect x="${-p.depth * 3}" y="${-p.depth * 3}" width="${(node.width + p.depth * 6) * pose.reveal}" height="${node.height + p.depth * 6}"/></clipPath>`,
+          `<clipPath id="${id}clip${i}"><rect x="${-p.depth * 3}" y="${-p.depth * 3}" width="${(node.width + p.depth * 6) * pose.reveal}" height="${node.height + p.depth * 6}"/></clipPath>`,
         )
       const shapes = node.shapes
         .map((s, j) => {
           if (s.blur)
             defs.push(
-              `<filter id="blur${i}-${j}" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="${s.blur / 2}"/></filter>`,
+              `<filter id="${id}blur${i}-${j}" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="${s.blur / 2}"/></filter>`,
             )
-          return `<path d="${s.d}" fill="${s.color === 'transparent' ? 'none' : s.color}" transform="translate(${s.x || 0} ${s.y || 0})"${s.stroke ? ` stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linejoin="round"` : ''}${s.blur ? ` filter="url(#blur${i}-${j})"` : ''}/>`
+          return `<path d="${s.d}" fill="${s.color === 'transparent' ? 'none' : s.color}" transform="translate(${s.x || 0} ${s.y || 0})"${s.stroke ? ` stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linejoin="round"` : ''}${s.blur ? ` filter="url(#${id}blur${i}-${j})"` : ''}/>`
         })
         .join('')
-      return `<g opacity="${pose.opacity}" transform="${transform}"${pose.reveal < 1 ? ` clip-path="url(#clip${i})"` : ''}${p.glow ? ' filter="url(#shadow)"' : ''}>${shapes}</g>`
+      return `<g opacity="${pose.opacity}" transform="${transform}"${pose.reveal < 1 ? ` clip-path="url(#${id}clip${i})"` : ''}${p.glow ? ` filter="url(#${id}shadow)"` : ''}>${shapes}</g>`
     })
     .join('')
   if (p.glow)
     defs.push(
-      `<filter id="shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="0" stdDeviation="${p.glow / 2}" flood-opacity="0.56"/></filter>`,
+      `<filter id="${id}shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="0" stdDeviation="${p.glow / 2}" flood-opacity="0.56"/></filter>`,
     )
   let backdrop = ''
   if (p.backdrop && scene.elements.length) {
-    defs.push('<filter id="backdrop"><feGaussianBlur stdDeviation="10"/></filter>')
-    backdrop = `<rect x="60" y="60" width="${scene.width - 120}" height="${scene.height - 120}" opacity="${poseAt(time, 0, 1, p).opacity * 0.4}" filter="url(#backdrop)"/>`
+    defs.push(`<filter id="${id}backdrop"><feGaussianBlur stdDeviation="10"/></filter>`)
+    backdrop = `<rect x="60" y="60" width="${scene.width - 120}" height="${scene.height - 120}" opacity="${poseAt(time, 0, 1, p).opacity * 0.4}" filter="url(#${id}backdrop)"/>`
   }
+  const cx = (p.width * p.x) / 100,
+    cy = (p.height * p.y) / 100
+  const groupTransform = settled(group)
+    ? ''
+    : `translate(${cx + group.x} ${cy + group.y}) rotate(${group.rotation}) scale(${group.scale * group.scaleX} ${group.scale * group.scaleY}) translate(${-cx} ${-cy}) `
   return {
     defs: defs.join(''),
-    body: `<g opacity="${p.opacity / 100}" transform="translate(${x} ${y}) scale(${scale}) rotate(${p.compositionRotation} ${scene.width / 2} ${scene.height / 2})">${backdrop}${content}</g>`,
+    body: `<g opacity="${p.opacity / 100}" transform="${groupTransform}translate(${x} ${y}) scale(${scale}) rotate(${p.compositionRotation} ${scene.width / 2} ${scene.height / 2})">${backdrop}${content}</g>`,
   }
 }
 
 const esc = (value: string) => value.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)
-function imageSvg(l: ImageLayer, p: Project, time: number, href: string, n: number) {
+/**
+ * An image or shape in SVG: its pose, reveal, blur and shadow around content
+ * drawn in a w × h box centred on 0,0.
+ */
+function elementSvg(
+  l: ElementLayer,
+  p: Project,
+  time: number,
+  id: string,
+  content: (w: number, h: number, zoom: number, defs: string[]) => string,
+) {
   const pose = imagePoseAt(time, l, p)
   const opacity = pose.opacity * (l.opacity / 100)
   if (opacity <= 0 || pose.reveal <= 0) return { defs: '', body: '' }
   const { w, h, cx, cy } = imageBox(l, p)
   const defs: string[] = []
-  const r = radiusPx(l, w, h)
-  const id = `img${n}`
-  const shape = maskPath(l.mask, -w / 2, -h / 2, w, h)
-  defs.push(
-    shape
-      ? `<clipPath id="${id}-frame"><path d="${shape}"/></clipPath>`
-      : `<clipPath id="${id}-frame"><rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${r}"/></clipPath>`,
-  )
-  // Colour adjustments: brightness and contrast as one linear transfer, then saturation.
-  let adjust = ''
-  if (l.brightness !== 100 || l.contrast !== 100 || l.saturation !== 100) {
-    const b = l.brightness / 100,
-      c = l.contrast / 100
-    const fn = (ch: string) =>
-      `<feFunc${ch} type="linear" slope="${(b * c).toFixed(4)}" intercept="${(0.5 * (1 - c)).toFixed(4)}"/>`
-    defs.push(
-      `<filter id="${id}-adj" color-interpolation-filters="sRGB"><feComponentTransfer>${fn('R')}${fn('G')}${fn('B')}</feComponentTransfer><feColorMatrix type="saturate" values="${(l.saturation / 100).toFixed(4)}"/></filter>`,
-    )
-    adjust = ` filter="url(#${id}-adj)"`
-  }
   let reveal = ''
   if (pose.reveal < 1) {
     defs.push(
@@ -377,22 +482,88 @@ function imageSvg(l: ImageLayer, p: Project, time: number, href: string, n: numb
     defs.push(
       `<filter id="${id}-fx" x="-50%" y="-50%" width="200%" height="200%">${filters.join('')}</filter>`,
     )
-  const zoom = pose.contentZoom
-  const insetShape =
-    l.border > 0
-      ? maskPath(l.mask, -w / 2 + l.border / 2, -h / 2 + l.border / 2, w - l.border, h - l.border)
-      : null
-  const border =
-    l.border > 0 && insetShape
-      ? `<path d="${insetShape}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}" stroke-linejoin="round"/>`
-      : l.border > 0
-        ? `<rect x="${-w / 2 + l.border / 2}" y="${-h / 2 + l.border / 2}" width="${Math.max(0, w - l.border)}" height="${Math.max(0, h - l.border)}" rx="${Math.max(0, r - l.border / 2)}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}"/>`
-        : ''
+  const inner = content(w, h, pose.contentZoom, defs)
   const sx = pose.scale * pose.scaleX * (l.flipX ? -1 : 1)
   const sy = pose.scale * pose.scaleY
   const pivot = pose.pivotY * h
-  const body = `<g opacity="${opacity}" transform="translate(${cx + pose.x} ${cy + pose.y + pivot}) rotate(${l.rotation + pose.rotation}) translate(0 ${-pivot}) scale(${sx} ${sy})"${reveal}><g${filters.length ? ` filter="url(#${id}-fx)"` : ''}><g clip-path="url(#${id}-frame)">${croppedImageSvg(l, href, w * zoom, h * zoom, adjust)}</g>${border}</g></g>`
+  const body = `<g opacity="${opacity}" transform="translate(${cx + pose.x} ${cy + pose.y + pivot}) rotate(${l.rotation + pose.rotation}) translate(0 ${-pivot}) scale(${sx} ${sy})"${reveal}><g${filters.length ? ` filter="url(#${id}-fx)"` : ''}>${inner}</g></g>`
   return { defs: defs.join(''), body }
+}
+
+/** The border stroked just inside the outline (rectangle with radius, or a shape). */
+function borderSvg(
+  l: ElementLayer,
+  outlineAt: (x: number, y: number, w: number, h: number) => string | null,
+  w: number,
+  h: number,
+  r: number,
+) {
+  if (l.border <= 0) return ''
+  const inset = outlineAt(-w / 2 + l.border / 2, -h / 2 + l.border / 2, w - l.border, h - l.border)
+  return inset
+    ? `<path d="${inset}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}" stroke-linejoin="round"/>`
+    : `<rect x="${-w / 2 + l.border / 2}" y="${-h / 2 + l.border / 2}" width="${Math.max(0, w - l.border)}" height="${Math.max(0, h - l.border)}" rx="${Math.max(0, r - l.border / 2)}" fill="none" stroke="${l.borderColor}" stroke-width="${l.border}"/>`
+}
+
+function imageSvg(l: ImageLayer, p: Project, time: number, href: string, n: number) {
+  const id = `img${n}`
+  return elementSvg(l, p, time, id, (w, h, zoom, defs) => {
+    const r = radiusPx(l, w, h)
+    const shape = maskPath(l.mask, -w / 2, -h / 2, w, h)
+    defs.push(
+      shape
+        ? `<clipPath id="${id}-frame"><path d="${shape}"/></clipPath>`
+        : `<clipPath id="${id}-frame"><rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${r}"/></clipPath>`,
+    )
+    // Colour adjustments: brightness and contrast as one linear transfer, then saturation.
+    let adjust = ''
+    if (l.brightness !== 100 || l.contrast !== 100 || l.saturation !== 100) {
+      const b = l.brightness / 100,
+        c = l.contrast / 100
+      const fn = (ch: string) =>
+        `<feFunc${ch} type="linear" slope="${(b * c).toFixed(4)}" intercept="${(0.5 * (1 - c)).toFixed(4)}"/>`
+      defs.push(
+        `<filter id="${id}-adj" color-interpolation-filters="sRGB"><feComponentTransfer>${fn('R')}${fn('G')}${fn('B')}</feComponentTransfer><feColorMatrix type="saturate" values="${(l.saturation / 100).toFixed(4)}"/></filter>`,
+      )
+      adjust = ` filter="url(#${id}-adj)"`
+    }
+    const border = borderSvg(l, (x, y, bw, bh) => maskPath(l.mask, x, y, bw, bh), w, h, r)
+    return `<g clip-path="url(#${id}-frame)">${croppedImageSvg(l, href, w * zoom, h * zoom, adjust)}</g>${border}`
+  })
+}
+
+/** SVG paint for a shape's fill: a colour, or a gradient added to `defs`. */
+function shapeFillSvg(l: ShapeLayer, w: number, h: number, id: string, defs: string[]) {
+  if (l.gradient === 'none') return l.fill
+  const stops = `<stop offset="0" stop-color="${l.fill}"/><stop offset="1" stop-color="${l.fill2}"/>`
+  if (l.gradient === 'radial')
+    defs.push(
+      `<radialGradient id="${id}-fill" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="${Math.hypot(w, h) / 2}">${stops}</radialGradient>`,
+    )
+  else {
+    const g = linearGradientLine(l.gradientAngle, w, h, 0, 0)
+    defs.push(
+      `<linearGradient id="${id}-fill" gradientUnits="userSpaceOnUse" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}">${stops}</linearGradient>`,
+    )
+  }
+  return `url(#${id}-fill)`
+}
+
+function shapeSvg(l: ShapeLayer, p: Project, time: number, n: number) {
+  const id = `shape${n}`
+  return elementSvg(l, p, time, id, (w, h, _zoom, defs) => {
+    const r = radiusPx(l, w, h)
+    const d = shapeOutline(l.shape, -w / 2, -h / 2, w, h, r)
+    const fill = shapeFillSvg(l, w, h, id, defs)
+    const border = borderSvg(
+      l,
+      (x, y, bw, bh) => shapeOutline(l.shape, x, y, bw, bh, Math.max(0, r - l.border / 2)),
+      w,
+      h,
+      r,
+    )
+    return `<path d="${d}" fill="${fill}"/>${border}`
+  })
 }
 
 /** The (cropped) picture filling a w × h box centred on 0,0. */
@@ -405,7 +576,7 @@ function croppedImageSvg(l: ImageLayer, href: string, w: number, h: number, adju
 
 /** Standalone SVG of every visible layer. `images` maps asset ids to data URLs. */
 export function renderSvg(
-  scene: Scene,
+  scenes: SceneMap,
   p: Project,
   time: number,
   images: ReadonlyMap<string, string> = new Map(),
@@ -415,12 +586,17 @@ export function renderSvg(
   let n = 0
   for (const layer of p.layers) {
     if (!layer.visible) continue
+    const scene = layer.kind === 'chyron' ? scenes.get(layer.id) : undefined
     const part =
       layer.kind === 'chyron'
-        ? chyronSvg(scene, p, time)
-        : images.has(layer.assetId)
-          ? imageSvg(layer, p, time, images.get(layer.assetId)!, n++)
+        ? scene
+          ? chyronSvg(scene, chyronProject(p, layer), time, n++)
           : null
+        : layer.kind === 'shape'
+          ? shapeSvg(layer, p, time, n++)
+          : images.has(layer.assetId)
+            ? imageSvg(layer, p, time, images.get(layer.assetId)!, n++)
+            : null
     if (!part) continue
     defs.push(part.defs)
     bodies.push(part.body)
@@ -430,15 +606,24 @@ export function renderSvg(
 
 /* ---------- Image layers ---------- */
 
-export function imageBox(l: ImageLayer, p: Project) {
+export function imageBox(l: ElementLayer, p: Project) {
   const w = (l.width / 100) * p.width
   return { w, h: w * l.aspect, cx: (l.x / 100) * p.width, cy: (l.y / 100) * p.height }
 }
-export function imageBounds(l: ImageLayer, p: Project) {
+export function imageBounds(l: ElementLayer, p: Project) {
   const { w, h, cx, cy } = imageBox(l, p)
   return { cx, cy, width: w, height: h, rotation: l.rotation }
 }
-const radiusPx = (l: ImageLayer, w: number, h: number) => (l.radius / 100) * Math.min(w, h)
+const radiusPx = (l: ElementLayer, w: number, h: number) => (l.radius / 100) * Math.min(w, h)
+/** End points of a linear gradient at `angle`° that spans a w × h box centred on (cx, cy). */
+export function linearGradientLine(angle: number, w: number, h: number, cx: number, cy: number) {
+  const a = (angle * Math.PI) / 180
+  const half = (Math.abs(w * Math.cos(a)) + Math.abs(h * Math.sin(a))) / 2
+  const dx = Math.cos(a) * half,
+    dy = Math.sin(a) * half
+  const r = (v: number) => Math.round(v * 100) / 100
+  return { x1: r(cx - dx), y1: r(cy - dy), x2: r(cx + dx), y2: r(cy + dy) }
+}
 
 type Surface = HTMLCanvasElement | OffscreenCanvas
 function surface(width: number, height: number): Surface {
@@ -516,6 +701,55 @@ function framedImage(
   while (cards.size > 24) cards.delete(cards.keys().next().value!)
   return card
 }
+/* A shape's fill and border, cached by its exact pixel size. */
+function framedShape(l: ShapeLayer, pw: number, ph: number, k: number) {
+  const key = `shape|${pw}|${ph}|${l.shape}|${l.radius}|${l.fill}|${l.fill2}|${l.gradient}|${l.gradientAngle}|${l.border}|${l.borderColor}`
+  const cached = cards.get(key)
+  if (cached) {
+    cards.delete(key)
+    cards.set(key, cached)
+    return cached
+  }
+  const card = surface(pw, ph)
+  const ctx = context2d(card)
+  if (!ctx) return card
+  const r = (l.radius / 100) * Math.min(pw, ph)
+  if (l.gradient === 'none') ctx.fillStyle = l.fill
+  else {
+    const g =
+      l.gradient === 'radial'
+        ? ctx.createRadialGradient(pw / 2, ph / 2, 0, pw / 2, ph / 2, Math.hypot(pw, ph) / 2)
+        : (() => {
+            const line = linearGradientLine(l.gradientAngle, pw, ph, pw / 2, ph / 2)
+            return ctx.createLinearGradient(line.x1, line.y1, line.x2, line.y2)
+          })()
+    g.addColorStop(0, l.fill)
+    g.addColorStop(1, l.fill2)
+    ctx.fillStyle = g
+  }
+  ctx.fill(new Path2D(shapeOutline(l.shape, 0, 0, pw, ph, r)))
+  if (l.border > 0) {
+    const b = l.border * k
+    ctx.strokeStyle = l.borderColor
+    ctx.lineWidth = b
+    ctx.lineJoin = 'round'
+    ctx.stroke(
+      new Path2D(
+        shapeOutline(
+          l.shape,
+          b / 2,
+          b / 2,
+          Math.max(0, pw - b),
+          Math.max(0, ph - b),
+          Math.max(0, r - b / 2),
+        ),
+      ),
+    )
+  }
+  cards.set(key, card)
+  while (cards.size > 24) cards.delete(cards.keys().next().value!)
+  return card
+}
 function tinted(card: Surface, color: string) {
   const out = surface(card.width, card.height)
   const ctx = context2d(out)
@@ -548,7 +782,7 @@ function shineCard(card: Surface, position: number, strength: number) {
 function drawSparks(
   ctx: CanvasRenderingContext2D,
   pose: ImagePose,
-  l: ImageLayer,
+  l: ElementLayer,
   w: number,
   h: number,
 ) {
@@ -586,6 +820,25 @@ export function drawImageLayer(
   p: Project,
   time: number,
 ) {
+  drawElement(ctx, l, p, time, (pw, ph, k, zoom) => framedImage(image, l, pw, ph, k, zoom))
+}
+export function drawShapeLayer(
+  ctx: CanvasRenderingContext2D,
+  l: ShapeLayer,
+  p: Project,
+  time: number,
+) {
+  drawElement(ctx, l, p, time, (pw, ph, k) => framedShape(l, pw, ph, k))
+}
+
+/** Pose, reveal, blur, shadow, glitch and shine around an element's rendered card. */
+function drawElement(
+  ctx: CanvasRenderingContext2D,
+  l: ElementLayer,
+  p: Project,
+  time: number,
+  frame: (pw: number, ph: number, k: number, zoom: number) => Surface,
+) {
   const pose = imagePoseAt(time, l, p)
   const opacity = pose.opacity * (l.opacity / 100)
   if (opacity <= 0 || pose.reveal <= 0) return
@@ -593,7 +846,7 @@ export function drawImageLayer(
   const { w, h, cx, cy } = imageBox(l, p)
   const pw = Math.max(1, Math.min(8192, Math.round(w * k)))
   const ph = Math.max(1, Math.min(8192, Math.round(h * k)))
-  let card: Surface = framedImage(image, l, pw, ph, k, pose.contentZoom)
+  let card: Surface = frame(pw, ph, k, pose.contentZoom)
   if (pose.shine >= 0) card = shineCard(card, pose.shine, l.emphasisStrength / 100)
   ctx.save()
   ctx.setTransform(k, 0, 0, ctx.canvas.height / p.height, 0, 0)
@@ -653,35 +906,39 @@ export function drawImageLayer(
 
 const chyronSurfaces = new WeakMap<HTMLCanvasElement | OffscreenCanvas, Surface>()
 /**
- * Render every visible layer, bottom to top. A project with only its chyron renders
- * exactly as before; otherwise the chyron is composited from its own surface so its
- * group opacity never affects the images beneath it.
+ * Render every visible layer, bottom to top. A project whose only visible layer
+ * is one chyron renders exactly as before; otherwise each chyron is composited
+ * from its own surface so its group opacity never affects the layers beneath it.
  */
 export function renderComposition(
   ctx: CanvasRenderingContext2D,
-  scene: Scene | null,
+  scenes: SceneMap,
   p: Project,
   time: number,
   images: ImageMap = new Map(),
 ) {
-  const images_ = imageLayers(p).filter((l) => l.visible && images.has(l.assetId))
-  const chyron = chyronLayer(p)
-  if (!images_.length && scene && chyron.visible) {
-    renderFrame(ctx, scene, p, time)
+  const drawn = p.layers.filter(
+    (l) =>
+      l.visible &&
+      (l.kind === 'chyron' ? scenes.has(l.id) : l.kind === 'shape' || images.has(l.assetId)),
+  )
+  if (drawn.length === 1 && drawn[0].kind === 'chyron') {
+    renderFrame(ctx, scenes.get(drawn[0].id)!, chyronProject(p, drawn[0]), time)
     return
   }
   ctx.save()
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
   ctx.restore()
-  for (const layer of p.layers) {
-    if (!layer.visible) continue
+  for (const layer of drawn) {
     if (layer.kind === 'image') {
-      const image = images.get(layer.assetId)
-      if (image) drawImageLayer(ctx, layer, image, p, time)
+      drawImageLayer(ctx, layer, images.get(layer.assetId)!, p, time)
       continue
     }
-    if (!scene) continue
+    if (layer.kind === 'shape') {
+      drawShapeLayer(ctx, layer, p, time)
+      continue
+    }
     let layerSurface = chyronSurfaces.get(ctx.canvas)
     if (
       !layerSurface ||
@@ -693,7 +950,12 @@ export function renderComposition(
     }
     const layerContext = context2d(layerSurface)
     if (!layerContext) continue
-    renderFrame(layerContext as CanvasRenderingContext2D, scene, p, time)
+    renderFrame(
+      layerContext as CanvasRenderingContext2D,
+      scenes.get(layer.id)!,
+      chyronProject(p, layer),
+      time,
+    )
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.drawImage(layerSurface, 0, 0)

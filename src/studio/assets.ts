@@ -2,8 +2,9 @@ import { generateId } from '../utils/id'
 import { imageLayers, type Project } from './model'
 
 /**
- * Uploaded images live in IndexedDB, separately from the autosaved project JSON, so
- * large photos never hit the localStorage quota. Layers reference them by asset id.
+ * Uploaded images and music live in IndexedDB, separately from the autosaved project
+ * JSON, so large files never hit the localStorage quota. Layers and the music track
+ * reference them by asset id.
  */
 const DB_NAME = 'chyron-studio-assets'
 const STORE = 'images'
@@ -60,8 +61,14 @@ export async function collectUnusedAssets(keep: Iterable<string>) {
   for (const key of await assetKeys())
     if (typeof key === 'string' && !used.has(key)) await deleteAsset(key)
 }
-export const referencedAssets = (projects: Project[]) =>
-  projects.flatMap((p) => imageLayers(p).map((l) => l.assetId))
+/** Every stored file a project uses: images, their originals and the music. */
+export const projectAssets = (p: Project) => [
+  ...imageLayers(p).flatMap((l) =>
+    l.originalAssetId ? [l.assetId, l.originalAssetId] : [l.assetId],
+  ),
+  ...(p.audio ? [p.audio.assetId] : []),
+]
+export const referencedAssets = (projects: Project[]) => projects.flatMap(projectAssets)
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number) {
   return new Promise<Blob>((resolve, reject) =>
@@ -148,7 +155,12 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 export async function dataUrlToBlob(url: string): Promise<Blob> {
-  if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(url)) throw new Error('Invalid image data.')
+  if (
+    !/^data:(image\/(png|jpeg|webp|gif)|audio\/[\w.+-]+|application\/octet-stream);base64,/.test(
+      url,
+    )
+  )
+    throw new Error('Invalid file data.')
   return (await fetch(url)).blob()
 }
 
@@ -161,11 +173,11 @@ export interface EmbeddedAsset {
 }
 export async function embedAssets(p: Project): Promise<Record<string, EmbeddedAsset>> {
   const out: Record<string, EmbeddedAsset> = {}
-  for (const l of imageLayers(p)) {
-    if (out[l.assetId]) continue
-    const stored = await readAsset(l.assetId)
+  for (const id of projectAssets(p)) {
+    if (out[id]) continue
+    const stored = await readAsset(id)
     if (stored)
-      out[l.assetId] = {
+      out[id] = {
         name: stored.name,
         width: stored.width,
         height: stored.height,

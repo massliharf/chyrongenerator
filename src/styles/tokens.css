@@ -169,6 +169,7 @@
   --mg-cat-image: #4f69f2;
   --mg-cat-video: #17cb8d;
   --mg-cat-audio: #00cdc6;
+  --mg-cat-design: #cc7e80;
 
   /* ---------- Semantic — light ---------- */
   --color-bg-canvas: #f5f5f5;
@@ -244,6 +245,13 @@
   --track-image-bg: rgb(23 203 141 / 0.1);
   --track-image-fg: #0b7a54;
   --track-image-line: rgb(23 203 141 / 0.4);
+  /* Shapes use the Design category tone, music the Audio tone. */
+  --track-shape-bg: rgb(204 126 128 / 0.12);
+  --track-shape-fg: #8f4547;
+  --track-shape-line: rgb(204 126 128 / 0.45);
+  --track-audio-bg: rgb(0 205 198 / 0.1);
+  --track-audio-fg: #00736f;
+  --track-audio-line: rgb(0 205 198 / 0.4);
   --track-stripe: rgb(16 16 16 / 0.06);
   --transform-line: var(--blue-300);
   --transform-handle: var(--blue-50);
@@ -317,6 +325,12 @@
     --track-image-bg: rgb(23 203 141 / 0.16);
     --track-image-fg: #7de8c2;
     --track-image-line: rgb(23 203 141 / 0.4);
+    --track-shape-bg: rgb(204 126 128 / 0.18);
+    --track-shape-fg: #f0b9ba;
+    --track-shape-line: rgb(204 126 128 / 0.45);
+    --track-audio-bg: rgb(0 205 198 / 0.14);
+    --track-audio-fg: #6ee9e3;
+    --track-audio-line: rgb(0 205 198 / 0.4);
     --track-stripe: rgb(255 255 255 / 0.07);
     --scrollbar: #3a3a3a;
   }
@@ -383,6 +397,12 @@
   --track-image-bg: rgb(23 203 141 / 0.16);
   --track-image-fg: #7de8c2;
   --track-image-line: rgb(23 203 141 / 0.4);
+  --track-shape-bg: rgb(204 126 128 / 0.18);
+  --track-shape-fg: #f0b9ba;
+  --track-shape-line: rgb(204 126 128 / 0.45);
+  --track-audio-bg: rgb(0 205 198 / 0.14);
+  --track-audio-fg: #6ee9e3;
+  --track-audio-line: rgb(0 205 198 / 0.4);
   --track-stripe: rgb(255 255 255 / 0.07);
   --scrollbar: #3a3a3a;
 }

@@ -15,6 +15,8 @@ import {
   exportAvailability,
   exportDescription,
   exportProject,
+  keepAwake,
+  maxVideoSeconds,
   saveBlob,
   type ExportFormat,
   type ExportProgress,
@@ -75,8 +77,20 @@ export function ExportDialog({
   const [error, setError] = useState('')
   const [done, setDone] = useState<{ blob: Blob; filename: string } | null>(null)
   const [useCurrentFrame, setUseCurrentFrame] = useState(false)
+  const [withMusic, setWithMusic] = useState(true)
   const still = format === 'png' || format === 'svg'
   const unavailable = exportAvailability(format, project)
+  const music =
+    project.audio && !project.audio.muted && project.audio.volume > 0 ? project.audio : null
+  // While exporting, the tab title shows progress, so it can be followed from another app.
+  useEffect(() => {
+    if (!progress) return
+    const title = document.title
+    document.title = `${Math.round(progress.progress * 100)}% · Exporting — ${title.replace(/^\d+% · Exporting — /, '')}`
+    return () => {
+      document.title = title
+    }
+  }, [progress])
   useEffect(() => {
     dialog.current?.showModal()
     return () => {
@@ -90,20 +104,25 @@ export function ExportDialog({
     setDone(null)
     setProgress({ progress: 0, label: 'Getting ready…' })
     try {
-      const result = await exportProject(
-        { ...project },
-        format,
-        useCurrentFrame ? time : restTime(project),
-        ctrl.signal,
-        setProgress,
+      const result = await keepAwake(() =>
+        exportProject(
+          { ...project },
+          format,
+          useCurrentFrame ? time : restTime(project),
+          ctrl.signal,
+          setProgress,
+          { music: withMusic },
+        ),
       )
       if (!ctrl.signal.aborted) {
         setDone(result)
         saveBlob(result.blob, result.filename)
       }
     } catch (e) {
-      if (!ctrl.signal.aborted)
+      if (!ctrl.signal.aborted) {
+        console.error(e)
         setError(e instanceof Error ? e.message : 'Export failed. Please try again.')
+      }
     } finally {
       setProgress(null)
       controller.current = null
@@ -219,10 +238,26 @@ export function ExportDialog({
             Export the current playhead frame ({time.toFixed(2)} s)
           </label>
         )}
+        {music && !still && (
+          <label className="current-frame">
+            <input
+              type="checkbox"
+              checked={withMusic}
+              disabled={!!progress}
+              onChange={(e) => {
+                setWithMusic(e.target.checked)
+                setDone(null)
+              }}
+            />{' '}
+            {format === 'sequence'
+              ? `Add the music as music.wav (${music.name})`
+              : `Include the music (${music.name})`}
+          </label>
+        )}
         {!progress && (format === 'webm' || format === 'mov') && (
           <p className="export-footnote">
-            {format === 'mov' ? 'ProRes' : 'VP9'} encoder loads on first use · up to Full HD / 600
-            frames
+            {format === 'mov' ? 'ProRes' : 'VP9'} encoder loads on first use · up to Full HD and{' '}
+            {maxVideoSeconds(project, format)} s at this size
             {imageLayers(project).some((l) => l.visible)
               ? ' · photos slow video exports; PNG sequence is fastest'
               : ''}
@@ -253,7 +288,9 @@ export function ExportDialog({
       </div>
       <div className="dialog-footer">
         <span className="dialog-footer-note">
-          {progress ? 'You can cancel at any time.' : 'Rendered on your device.'}
+          {progress
+            ? 'Keeps going while you use other apps. You can cancel at any time.'
+            : 'Rendered on your device.'}
         </span>
         <span className="dialog-footer-spacer" />
         {progress ? (

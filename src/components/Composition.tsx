@@ -8,10 +8,20 @@ import {
   type PointerEvent,
 } from 'react'
 import { Check, Lock, LoaderCircle, RotateCcw, RotateCw, X } from 'lucide-react'
-import { loadFonts, type Fonts } from '../studio/fonts'
-import { buildScene, chyronBounds, imageBounds, renderComposition } from '../studio/renderer'
-import { chyronLayer, type ImageLayer, type Project } from '../studio/model'
+import { chyronBounds, imageBounds, renderComposition } from '../studio/renderer'
+import {
+  chyronProject,
+  isElement,
+  styleOf,
+  type ChyronLayer,
+  type ChyronStyle,
+  type ElementLayer,
+  type ImageLayer,
+  type Layer,
+  type Project,
+} from '../studio/model'
 import { useProjectImages } from '../studio/useImages'
+import { useScenes } from '../studio/useScenes'
 import {
   cropOf,
   cropToRatio,
@@ -35,20 +45,25 @@ import {
   layerSnapTargets,
   snapImagePosition,
   snapPosition,
+  type SnapGuide,
+  type SnapLine,
   type SnapTargets,
   type Corner,
   type Point,
   type SnapState,
 } from '../studio/transform'
 
-type Action = 'move' | 'rotate' | Corner
+type Side = 'n' | 's' | 'e' | 'w'
+type Action = 'move' | 'rotate' | Corner | Side
+const SIDES: Side[] = ['n', 'e', 's', 'w']
 type Gesture = {
   id: number
   action: Action
   target: string
   start: Point
-  project: Project
-  layer: ImageLayer | null
+  /** The chyron's style when the gesture began. */
+  style: ChyronStyle | null
+  layer: ElementLayer | null
   rect: DOMRect
   targets: SnapTargets
 }
@@ -58,79 +73,65 @@ export const Composition = memo(function Composition({
   project,
   time,
   thumbnail = false,
-  onTransform,
+  onChyronChange,
   onLayerChange,
   selected = null,
   onSelect,
   cropping = false,
   onCropChange,
+  onEditText,
 }: {
   project: Project
   time: number
   thumbnail?: boolean
-  /** Chyron placement changes. */
-  onTransform?: (values: Partial<Project>) => void
-  /** Image layer placement changes. */
-  onLayerChange?: (id: string, values: Partial<ImageLayer>) => void
-  /** Selected layer id ('chyron' or an image layer id). */
+  /** Placement changes of a chyron (its x, y, scale and rotation). */
+  onChyronChange?: (id: string, values: Partial<ChyronStyle>) => void
+  /** Placement changes of an image or shape. */
+  onLayerChange?: (id: string, values: Partial<ElementLayer>) => void
+  /** Selected layer id. */
   selected?: string | null
   onSelect?: (id: string | null) => void
   /** The selected image is being cropped. */
   cropping?: boolean
   onCropChange?: (id: string | null) => void
+  /** Double-clicking a chyron edits its words. */
+  onEditText?: (id: string) => void
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const drag = useRef<Gesture | null>(null)
-  const [loaded, setLoaded] = useState<{ fonts: Fonts; name: string } | null>(null)
-  const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [hovering, setHovering] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [activeSnap, setActiveSnap] = useState<SnapState>({ x: null, y: null })
   const images = useProjectImages(project)
+  const { scenes, ready, error } = useScenes(project, attempt)
 
-  useEffect(() => {
-    let disposed = false
-    loadFonts(project.font)
-      .then((fonts) => {
-        if (!disposed) {
-          setLoaded({ fonts, name: project.font })
-          setError('')
-        }
-      })
-      .catch((e) => {
-        if (!disposed) setError(e instanceof Error ? e.message : 'Font could not be loaded.')
-      })
-    return () => {
-      disposed = true
+  /** Where each visible layer sits on the canvas, in composition pixels. */
+  const boxes = useMemo(() => {
+    const map = new Map<string, Box>()
+    for (const l of project.layers) {
+      if (l.kind === 'chyron') {
+        const scene = scenes.get(l.id)
+        if (scene) map.set(l.id, chyronBounds(scene, chyronProject(project, l)))
+      } else if (l.kind === 'shape' || images.has(l.assetId)) map.set(l.id, imageBounds(l, project))
     }
-  }, [project.font, attempt])
-
-  const scene = useMemo(
-    () => (loaded ? buildScene(project, loaded.fonts) : null),
-    [loaded, project],
-  )
-  const chyron = chyronLayer(project)
-  const bounds = useMemo(() => (scene ? chyronBounds(scene, project) : null), [scene, project])
-  const interactive = !thumbnail && !!onTransform && !!bounds && !!scene
-  const selectedImage =
-    selected && selected !== 'chyron'
-      ? (project.layers.find((l) => l.id === selected && l.kind === 'image') as
-          ImageLayer | undefined)
-      : undefined
+    return map
+  }, [project, scenes, images])
+  const interactive = !thumbnail && !!onLayerChange && !!onChyronChange && ready
+  const selectedLayer = project.layers.find((l) => l.id === selected)
+  const selectedElement = selectedLayer && isElement(selectedLayer) ? selectedLayer : undefined
+  const selectedImage = selectedElement?.kind === 'image' ? selectedElement : undefined
+  const selectedStyle =
+    selectedLayer?.kind === 'chyron' ? styleOf(project, selectedLayer) : undefined
   const selectedBox: Box | null =
-    selected === 'chyron' && chyron.visible
-      ? bounds
-      : selectedImage?.visible
-        ? imageBounds(selectedImage, project)
-        : null
-  const boxPosition = selectedImage
-    ? { x: selectedImage.x, y: selectedImage.y }
-    : { x: project.x, y: project.y }
+    selectedLayer?.visible && boxes.has(selectedLayer.id) ? boxes.get(selectedLayer.id)! : null
+  const boxPosition = selectedElement
+    ? { x: selectedElement.x, y: selectedElement.y }
+    : { x: selectedStyle?.x ?? project.x, y: selectedStyle?.y ?? project.y }
 
   useEffect(() => {
     const node = canvas.current
-    if (!node || !scene || loaded?.name !== project.font) return
+    if (!node || !ready) return
     const draw = () => {
       const width = Math.min(
         project.width,
@@ -143,61 +144,55 @@ export const Composition = memo(function Composition({
         node.height = height
       }
       const context = node.getContext('2d', { alpha: true })
-      if (context) renderComposition(context, scene, project, time, images)
+      if (context) renderComposition(context, scenes, project, time, images)
     }
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(node)
     return () => observer.disconnect()
-  }, [scene, project, time, loaded, images])
+  }, [scenes, project, time, ready, images])
 
+  const hittable = (l: Layer) =>
+    l.visible && !l.locked && boxes.has(l.id) && (l.kind === 'chyron' || l.opacity > 0)
   /** Topmost visible layer under the pointer. */
   function hitTest(point: Point): string | null {
-    if (!canvas.current || !bounds) return null
+    if (!canvas.current) return null
     const rect = canvas.current.getBoundingClientRect()
     for (let i = project.layers.length - 1; i >= 0; i--) {
       const layer = project.layers[i]
-      if (!layer.visible || layer.locked) continue
-      if (layer.kind === 'chyron') {
-        if (isPointInChyron(point, rect, project, bounds)) return 'chyron'
-      } else if (images.has(layer.assetId) && layer.opacity > 0) {
-        if (isPointInChyron(point, rect, project, imageBounds(layer, project))) return layer.id
-      }
+      if (hittable(layer) && isPointInChyron(point, rect, project, boxes.get(layer.id)!))
+        return layer.id
     }
     return null
   }
 
   /** Edges and centres of every other visible layer. */
   function snapTargetsExcept(id: string): SnapTargets {
-    const boxes: { name: string; box: ReturnType<typeof boundsPercent> }[] = []
+    const list: { name: string; box: ReturnType<typeof boundsPercent> }[] = []
     for (const l of project.layers) {
-      if (l.id === id || !l.visible) continue
-      if (l.kind === 'chyron') {
-        if (bounds) boxes.push({ name: 'Chyron', box: boundsPercent(bounds, project) })
-      } else if (images.has(l.assetId) && l.opacity > 0)
-        boxes.push({ name: l.name, box: boundsPercent(imageBounds(l, project), project) })
+      if (l.id === id || !l.visible || !boxes.has(l.id)) continue
+      if (l.kind !== 'chyron' && l.opacity <= 0) continue
+      list.push({ name: l.name, box: boundsPercent(boxes.get(l.id)!, project) })
     }
-    return layerSnapTargets(boxes)
+    return layerSnapTargets(list)
   }
 
   function begin(e: PointerEvent<HTMLElement>, action: Action, target = selected) {
     if (!interactive || !target || e.button !== 0 || drag.current || !canvas.current) return
+    const layer = project.layers.find((l) => l.id === target)
+    if (!layer) return
     e.preventDefault()
     e.stopPropagation()
     e.currentTarget.focus({ preventScroll: true })
     e.currentTarget.setPointerCapture(e.pointerId)
     setIsDragging(true)
-    const layer =
-      target === 'chyron'
-        ? null
-        : ((project.layers.find((l) => l.id === target) as ImageLayer | undefined) ?? null)
     drag.current = {
       id: e.pointerId,
       action,
       target,
       start: { x: e.clientX, y: e.clientY },
-      project: { ...project },
-      layer: layer && { ...layer },
+      style: layer.kind === 'chyron' ? { ...styleOf(project, layer) } : null,
+      layer: isElement(layer) ? { ...layer } : null,
       rect: canvas.current.getBoundingClientRect(),
       targets: snapTargetsExcept(target),
     }
@@ -205,8 +200,8 @@ export const Composition = memo(function Composition({
 
   function move(e: PointerEvent<HTMLElement>) {
     const start = drag.current
-    if (!interactive || !start || start.id !== e.pointerId || !bounds) return
-    const { rect, project: initial, layer } = start
+    if (!interactive || !start || start.id !== e.pointerId) return
+    const { rect, layer, style } = start
     const delta = {
       x: ((e.clientX - start.start.x) / rect.width) * project.width,
       y: ((e.clientY - start.start.y) / rect.height) * project.height,
@@ -233,6 +228,8 @@ export const Composition = memo(function Composition({
         onLayerChange?.(layer.id, {
           rotation: rotateChyron(layer.rotation, center, start.start, pointer, e.shiftKey),
         })
+      } else if (SIDES.includes(start.action as Side)) {
+        onLayerChange?.(layer.id, stretch(layer, start.action as Side, delta, e.altKey))
       } else {
         onLayerChange?.(layer.id, {
           width: scaleImage(layer.width, center, start.start, pointer),
@@ -240,28 +237,87 @@ export const Composition = memo(function Composition({
       }
       return
     }
-    if (start.action === 'move') {
-      const rawX = initial.x + (delta.x / project.width) * 100
-      const rawY = initial.y + (delta.y / project.height) * 100
-      const { x, y, snap } = snapPosition(rawX, rawY, project, bounds)
+    if (!style) return
+    const box = boxes.get(start.target)
+    const view = { ...project, ...style }
+    if (start.action === 'move' && box) {
+      const rawX = style.x + (delta.x / project.width) * 100
+      const rawY = style.y + (delta.y / project.height) * 100
+      let { x, y, snap } = snapPosition(rawX, rawY, view, box)
+      if (e.altKey) {
+        x = Math.round(Math.min(90, Math.max(10, rawX)) * 10) / 10
+        y = Math.round(Math.min(90, Math.max(10, rawY)) * 10) / 10
+        snap = { x: null, y: null }
+      } else {
+        // No safe-area line nearby: line up with the other layers instead.
+        const b = boundsPercent(box, project)
+        const near = snapImagePosition(rawX, rawY, b.w, b.h, 1.5, start.targets)
+        const fromLayer = (guide: SnapGuide | null, lines: SnapLine[]) =>
+          !!guide && lines.some((line) => line.label === guide.label)
+        if (!snap.x && fromLayer(near.snap.x, start.targets.x)) {
+          x = near.x
+          snap = { ...snap, x: near.snap.x }
+        }
+        if (!snap.y && fromLayer(near.snap.y, start.targets.y)) {
+          y = near.y
+          snap = { ...snap, y: near.snap.y }
+        }
+      }
       setActiveSnap(snap)
-      onTransform!({ x, y })
+      onChyronChange!(start.target, { x, y })
     } else if (start.action === 'rotate') {
       const center = {
-        x: rect.left + (rect.width * initial.x) / 100,
-        y: rect.top + (rect.height * initial.y) / 100,
+        x: rect.left + (rect.width * style.x) / 100,
+        y: rect.top + (rect.height * style.y) / 100,
       }
-      onTransform!({
+      onChyronChange!(start.target, {
         compositionRotation: rotateChyron(
-          initial.compositionRotation,
+          style.compositionRotation,
           center,
           start.start,
           pointer,
           e.shiftKey,
         ),
       })
+    } else if (CORNERS.includes(start.action as Corner)) {
+      onChyronChange!(start.target, {
+        scale: scaleChyron(style.scale, rect, view, start.start, pointer),
+      })
+    }
+  }
+
+  /** Width and height from a side handle; the opposite side stays put unless Alt is held. */
+  function stretch(l: ElementLayer, side: Side, delta: Point, centered: boolean) {
+    const a = (-l.rotation * Math.PI) / 180
+    // Pointer travel in the layer's own frame, in composition pixels.
+    const lx = delta.x * Math.cos(a) - delta.y * Math.sin(a)
+    const ly = delta.x * Math.sin(a) + delta.y * Math.cos(a)
+    const w0 = (l.width / 100) * project.width
+    const h0 = w0 * l.aspect
+    const k = centered ? 2 : 1
+    let w = w0,
+      h = h0,
+      ox = 0,
+      oy = 0
+    if (side === 'e' || side === 'w') {
+      const d = (side === 'e' ? lx : -lx) * k
+      w = Math.max(4, w0 + d)
+      if (!centered) ox = ((w - w0) / 2) * (side === 'e' ? 1 : -1)
     } else {
-      onTransform!({ scale: scaleChyron(initial.scale, rect, initial, start.start, pointer) })
+      const d = (side === 's' ? ly : -ly) * k
+      h = Math.max(4, h0 + d)
+      if (!centered) oy = ((h - h0) / 2) * (side === 's' ? 1 : -1)
+    }
+    const r = (l.rotation * Math.PI) / 180
+    const dx = ox * Math.cos(r) - oy * Math.sin(r)
+    const dy = ox * Math.sin(r) + oy * Math.cos(r)
+    const round = (v: number) => Math.round(v * 100) / 100
+    const width = Math.min(400, Math.max(2, (w / project.width) * 100))
+    return {
+      width: round(width),
+      aspect: Math.min(100, Math.max(0.01, h / ((width / 100) * project.width))),
+      x: round(l.x + (dx / project.width) * 100),
+      y: round(l.y + (dy / project.height) * 100),
     }
   }
 
@@ -280,7 +336,7 @@ export const Composition = memo(function Composition({
       const gesture = drag.current
       if (gesture) {
         if (gesture.layer) onLayerChange?.(gesture.layer.id, gesture.layer)
-        else onTransform!(gesture.project)
+        else if (gesture.style) onChyronChange!(gesture.target, gesture.style)
         drag.current = null
         setIsDragging(false)
         setActiveSnap({ x: null, y: null })
@@ -290,15 +346,16 @@ export const Composition = memo(function Composition({
       e.stopPropagation()
       return
     }
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) || !selected) return
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) || !selectedLayer)
+      return
     e.preventDefault()
     e.stopPropagation()
     const dx = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
     const dy = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
     const direction = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : -1
     const round = (v: number) => Math.round(v * 10) / 10
-    if (selectedImage) {
-      const l = selectedImage
+    if (selectedElement) {
+      const l = selectedElement
       if (action === 'move') {
         const step = e.shiftKey ? 2 : 0.5
         onLayerChange?.(l.id, {
@@ -316,22 +373,25 @@ export const Composition = memo(function Composition({
       }
       return
     }
+    const style = selectedStyle
+    if (!style) return
+    const id = selectedLayer.id
     if (action === 'move') {
       const step = e.shiftKey ? 2 : 0.5
-      onTransform!({
-        x: round(Math.min(95, Math.max(5, project.x + dx * step))),
-        y: round(Math.min(95, Math.max(5, project.y + dy * step))),
+      onChyronChange!(id, {
+        x: round(Math.min(95, Math.max(5, style.x + dx * step))),
+        y: round(Math.min(95, Math.max(5, style.y + dy * step))),
       })
     } else if (action === 'rotate') {
-      onTransform!({
+      onChyronChange!(id, {
         compositionRotation: Math.min(
           180,
-          Math.max(-180, project.compositionRotation + direction * (e.shiftKey ? 15 : 1)),
+          Math.max(-180, style.compositionRotation + direction * (e.shiftKey ? 15 : 1)),
         ),
       })
     } else {
-      onTransform!({
-        scale: Math.min(150, Math.max(20, project.scale + direction * (e.shiftKey ? 10 : 2))),
+      onChyronChange!(id, {
+        scale: Math.min(150, Math.max(20, style.scale + direction * (e.shiftKey ? 10 : 2))),
       })
     }
   }
@@ -366,11 +426,20 @@ export const Composition = memo(function Composition({
     onLostPointerCapture: end,
   }
 
-  const ready = loaded?.name === project.font
-  const targetName = selectedImage ? selectedImage.name : 'chyron'
+  // Spoken summary: the words of every visible chyron, then how many other layers.
+  const words = project.layers
+    .filter((l): l is ChyronLayer => l.kind === 'chyron' && l.visible)
+    .map((l) => {
+      const s = styleOf(project, l)
+      return [s.text.replace(/\n/g, ' '), s.subtitlePill ? s.subtitle : '']
+        .filter(Boolean)
+        .join(' ')
+    })
+  const targetName = selectedLayer?.name ?? 'layer'
   const showControls = !!selectedBox
-  const locked = !!(selectedImage ? selectedImage.locked : selected === 'chyron' && chyron.locked)
+  const locked = !!selectedLayer?.locked
   const cropLayer = cropping && selectedImage?.visible ? selectedImage : null
+  const others = project.layers.filter((l) => l.kind !== 'chyron').length
 
   return (
     <div
@@ -382,14 +451,14 @@ export const Composition = memo(function Composition({
         aria-label={
           thumbnail
             ? undefined
-            : `Composition preview: ${chyron.visible ? project.text.replace(/\n/g, ' ') : ''}.${chyron.visible && project.subtitlePill ? ` ${project.subtitle}` : ''}${project.layers.length > 1 ? ` ${project.layers.length - 1} image layer${project.layers.length > 2 ? 's' : ''}.` : ''}`
+            : `Composition preview: ${words.join('. ') || 'empty'}.${others > 0 ? ` ${others} more layer${others > 1 ? 's' : ''}.` : ''}`
         }
         role={thumbnail ? undefined : 'img'}
         title={
           interactive
             ? showControls
               ? 'Drag to move (snaps to center and edges) · Corners to scale · Click empty space to deselect'
-              : 'Click the chyron or an image to move, scale & rotate'
+              : 'Click a layer to move, scale & rotate it'
             : undefined
         }
         className={`${interactive ? 'is-interactive' : ''} ${showControls ? 'has-controls' : ''} ${hovering ? 'hovering-chyron' : ''} ${isDragging ? 'is-dragging' : ''}`}
@@ -405,10 +474,11 @@ export const Composition = memo(function Composition({
         onDoubleClick={(e) => {
           if (!interactive || cropping) return
           const hit = hitTest({ x: e.clientX, y: e.clientY })
-          if (hit && hit !== 'chyron') {
-            onSelect?.(hit)
-            onCropChange?.(hit)
-          }
+          const layer = project.layers.find((l) => l.id === hit)
+          if (!layer) return
+          onSelect?.(layer.id)
+          if (layer.kind === 'image') onCropChange?.(layer.id)
+          else if (layer.kind === 'chyron') onEditText?.(layer.id)
         }}
       />
       {interactive && isDragging && activeSnap.x && (
@@ -468,9 +538,9 @@ export const Composition = memo(function Composition({
       )}
       {interactive && selectedBox && !cropLayer && !locked && (
         <div
-          className={`composition-transform-box si-transform-box ${selectedImage ? 'is-image' : ''}`}
+          className={`composition-transform-box si-transform-box ${selectedElement ? 'is-image' : ''}`}
           role="group"
-          aria-label={`${selectedImage ? selectedImage.name : 'Chyron'} transform controls`}
+          aria-label={`${targetName} transform controls`}
           style={{
             left: `${boxPosition.x}%`,
             top: `${boxPosition.y}%`,
@@ -492,6 +562,20 @@ export const Composition = memo(function Composition({
               <span />
             </button>
           ))}
+          {selectedElement?.kind === 'shape' &&
+            SIDES.map((side) => (
+              <button
+                key={side}
+                className={`si-transform-handle si-side-handle side-${side}`}
+                aria-label={`Stretch ${targetName} from the ${{ n: 'top', s: 'bottom', e: 'right', w: 'left' }[side]}`}
+                title="Drag to stretch · Alt from the centre"
+                tabIndex={-1}
+                onPointerDown={(e) => begin(e, side)}
+                {...pointerEvents}
+              >
+                <span />
+              </button>
+            ))}
           <button
             className="si-transform-handle si-rotate-handle"
             aria-label={`Rotate ${targetName}`}

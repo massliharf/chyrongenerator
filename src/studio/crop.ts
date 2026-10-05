@@ -1,4 +1,4 @@
-import type { ImageCrop, ImageLayer, ImageMask } from './model'
+import type { ImageCrop, ImageLayer, ImageMask, ShapeKind as LayerShape } from './model'
 import { shapePath } from '../designer/shapes'
 import type { ShapeKind } from '../designer/model'
 
@@ -137,6 +137,19 @@ export function maskPath(mask: ImageMask, x: number, y: number, w: number, h: nu
   if (mask === 'none') return null
   const s = MASK_SHAPES[mask]
   return shapePath(s.kind, x, y, w, h, { sides: s.sides, points: 5, inner: 0.45 })
+}
+
+/** Outline of a shape layer filling the box; rectangles round their corners by `radius` px. */
+export function shapeOutline(
+  shape: LayerShape,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius = 0,
+) {
+  if (shape === 'rect') return shapePath('rect', x, y, w, h, { radius })
+  return maskPath(shape, x, y, w, h)!
 }
 
 /** CSS/canvas filter string for the colour adjustments, or '' when unchanged. */

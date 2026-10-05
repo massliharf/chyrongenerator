@@ -27,6 +27,10 @@ async function exportAs(page: Page, format: string, path: string) {
 test('image layers: upload, arrange, animate, export and reopen', async ({ page }, testInfo) => {
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
+  // Project files download when the browser has no save dialog (Playwright cannot answer one).
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }),
+  )
   await page.addInitScript(
     (p) => {
       if (!sessionStorage.getItem('seeded')) {
@@ -80,9 +84,9 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   // Advanced motion and a staggered start.
   await page.getByRole('tab', { name: 'Animate', exact: true }).click()
   await page.getByRole('button', { name: 'Burst', exact: true }).click()
-  await page.getByLabel('Out', { exact: true }).selectOption('slide-right')
-  await page.getByLabel('Delay (s)').fill('0.3')
-  await page.getByLabel('Delay (s)').press('Tab')
+  await page.getByRole('combobox', { name: 'Out', exact: true }).selectOption('slide-right')
+  await page.getByLabel('Starts at', { exact: true }).fill('0.3')
+  await page.getByLabel('Starts at', { exact: true }).press('Tab')
   await expect(page.getByRole('button', { name: 'Burst', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -162,7 +166,7 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   await page.getByRole('menuitem', { name: /New composition/ }).click()
   await expect.poll(cornerAlpha).toBe(0)
   await page.locator('.topbar input[type=file]').setInputFiles(projectPath)
-  await expect(page.getByText('Project opened.')).toBeVisible()
+  await expect(page.getByText(/^Opened .*\.chyron\.json\.$/)).toBeVisible()
   await expect.poll(cornerAlpha).toBe(255)
 
   // Mobile layout keeps working with layers.
@@ -187,7 +191,7 @@ test('WebM export keeps alpha around a photo layer', async ({ page }, testInfo) 
   await expect(page.locator('.layer-label')).toHaveCount(2)
   const webm = testInfo.outputPath('layers.webm')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
-  await expect(page.getByText(/Photos make lossless video slower/)).toBeVisible()
+  await expect(page.getByText(/photos slow video exports/)).toBeVisible()
   await page.getByRole('button', { name: 'Close export' }).click()
   await exportAs(page, 'WebM', webm)
   const planes = execFileSync(
@@ -235,10 +239,10 @@ test('timeline drag, reorder, shortcuts, shared animation and live previews', as
   await expect(page.getByRole('button', { name: 'Play animation' })).toBeVisible()
   await expect(page.locator('.timecode')).toHaveText('2.20 / 4.40 s')
 
-  // Drag the logo's bar to the right: its delay follows the pointer, snapped to frames.
-  const delay = page.getByLabel('Delay (s)')
+  // Drag the start of the logo's bar to the right: its delay follows the pointer, snapped to frames.
+  const delay = page.getByLabel('Starts at', { exact: true })
   await expect(delay).toHaveValue('0')
-  const clip = page.locator('.track').first().locator('.clip')
+  const clip = page.locator('.track').first().locator('.clip-edge.start')
   const box = (await clip.boundingBox())!
   const tracks = (await page.locator('.tracks').boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -254,8 +258,12 @@ test('timeline drag, reorder, shortcuts, shared animation and live previews', as
   await expect.poll(async () => Number(await delay.inputValue())).toBeCloseTo(0.5, 1)
 
   // Drag the transition edge to lengthen the intro.
-  const length = page.getByLabel('Length (s)')
-  const handle = (await page.locator('.track').first().locator('.clip-handle').boundingBox())!
+  const length = page.getByLabel('In', { exact: true })
+  const handle = (await page
+    .locator('.track')
+    .first()
+    .getByTitle('Drag to change the intro length')
+    .boundingBox())!
   await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
   await page.mouse.down()
   await page.mouse.move(handle.x + handle.width / 2 + tracks.width * (0.3 / 4.4), handle.y + 5, {
@@ -291,7 +299,7 @@ test('timeline drag, reorder, shortcuts, shared animation and live previews', as
 
   // The guide lists the shortcuts.
   await page.keyboard.press('?')
-  await expect(page.getByRole('dialog')).toContainText('Duplicate image')
+  await expect(page.getByRole('dialog')).toContainText('Duplicate layer')
   await page.getByRole('button', { name: 'Close tour' }).click()
   expect(errors).toEqual([])
 })

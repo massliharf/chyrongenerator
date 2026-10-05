@@ -75,6 +75,10 @@ test('editing, undo, persistence, project files and responsive layout', async ({
 }, testInfo) => {
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
+  // Project files download when the browser has no save dialog (Playwright cannot answer one).
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }),
+  )
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
   await page.screenshot({ path: testInfo.outputPath('desktop.png') })

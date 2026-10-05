@@ -1,242 +1,115 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Activity,
   AlignCenter,
   AlignLeft,
   AlignRight,
-  Aperture,
   ArrowDown,
   ArrowDownToLine,
-  ArrowLeftFromLine,
   ArrowLeftRight,
-  ArrowRightFromLine,
   ArrowUp,
-  AudioWaveform,
-  Bell,
   ChevronDown,
   ChevronUp,
-  Circle,
-  Clapperboard,
   Copy,
-  Crosshair,
-  FlipHorizontal2,
-  Focus,
-  Hammer,
-  Heart,
-  Layers3,
-  Maximize,
   Crop as CropIcon,
-  RotateCcw as ResetIcon,
-  Minimize,
-  MoveUp,
-  Plus,
-  RotateCw,
-  ScanLine,
-  Scissors,
-  Sparkles,
-  Sun,
-  Trash2,
-  Type,
-  Waves,
-  Wind,
-  Zap,
-  ZoomIn,
+  Crosshair,
+  Eraser,
   Film,
-  MoveVertical,
-  MoveHorizontal,
-  Disc3,
-  FoldVertical,
-  Waypoints,
-  HeartPulse,
-  Orbit,
-  ChevronsDown,
-  Split,
-  Shuffle,
-  Tornado,
-  Stamp,
-  Vibrate,
-  Keyboard,
-  Lightbulb,
-  ArrowDownFromLine,
-  ArrowUpFromLine,
-  Sparkle,
-  Droplets,
+  Layers3,
   Lock,
   LockOpen,
+  Maximize,
+  Minimize,
   MoreHorizontal,
+  Music,
+  Plus,
+  RectangleHorizontal,
+  Replace,
+  RotateCcw as ResetIcon,
+  Shapes,
+  Trash2,
+  Type,
+  WandSparkles,
 } from 'lucide-react'
-import { Color, Field, NumberField, NumberInput, Section, Toggle } from './Controls'
+import { Color, Field, NumberField, NumberInput, Toggle } from './Controls'
+import { Segmented } from './InspectorParts'
+import { useGroups } from './inspectorHooks'
 import { MenuButton, type MenuEntry } from './Menu'
 import { Composition } from './Composition'
+import { AnimatePanel } from './AnimatePanel'
+import { MusicPanel } from './MusicPanel'
 import {
   DEFAULT_PROJECT,
-  EASINGS,
   FONT_NAMES,
+  MAX_HOLD,
   TEMPLATES,
   applyTemplate,
-  layerTiming,
   duration,
   frameCount,
   restTime,
-  type ChyronLayer,
-  type Easing,
+  styleOf,
+  type AudioTrack,
+  type ChyronStyle,
+  type ChyronStyleKey,
   type Effect,
-  type HoldEffect,
+  type Gradient,
   type ImageLayer,
   type ImageMask,
-  type ImageMotion,
+  type Layer,
   type Project,
+  type ShapeKind as LayerShape,
+  type ShapeLayer,
   type Template,
 } from '../studio/model'
-import { duplicateLayer, fitWidth, moveLayer, removeLayer, updateLayer } from '../studio/layers'
+import { chyronStylePatch, fitWidth, moveLayer, updateLayer } from '../studio/layers'
 import { useProjectImages } from '../studio/useImages'
 import { cropToRatio, FULL_CROP, isCropped, SQUARE_MASKS, withCrop } from '../studio/crop'
+import { maxVideoSeconds } from '../studio/export'
 import { ShapeIcon } from '../designer/LeftPanel'
 import type { ShapeKind } from '../designer/model'
 import type { SavedPreset } from '../studio/useProject'
 import type { TimingChange } from './Timeline'
 
-type Icon = typeof Sparkles
 export type PropertiesTab = 'design' | 'animate'
 type Patch = (patch: Partial<Project>) => void
-
-/* ---------- Shared building blocks ---------- */
-
-const OPEN_KEY = 'chyron-studio:groups:v3'
-const defaultOpen: Record<string, boolean> = {
-  style: true,
-  text: true,
-  place: true,
-  canvas: true,
-  timing: true,
-}
-function useGroups() {
-  const [open, setOpen] = useState<Record<string, boolean>>(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(OPEN_KEY) || 'null')
-      return raw && typeof raw === 'object' ? { ...defaultOpen, ...raw } : defaultOpen
-    } catch {
-      return defaultOpen
-    }
-  })
-  const toggle = (id: string) => {
-    const next = { ...open, [id]: !open[id] }
-    setOpen(next)
-    try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify(next))
-    } catch {
-      /* Optional preference. */
-    }
-  }
-  return (
-    id: string,
-    title: string,
-    summary: string,
-    children: ReactNode,
-    onReset?: () => void,
-  ) => (
-    <Section
-      key={id}
-      title={title}
-      summary={summary}
-      open={!!open[id]}
-      onToggle={() => toggle(id)}
-      onReset={onReset}
-    >
-      {children}
-    </Section>
-  )
-}
-
-function Chips<T extends string>({
-  label,
-  items,
-  value,
-  onChange,
-  columns = 4,
-}: {
-  label: string
-  items: { id: T; name: string; Icon: Icon }[]
-  value: T
-  onChange: (value: T) => void
-  columns?: number
-}) {
-  return (
-    <div
-      className="chip-grid"
-      role="group"
-      aria-label={label}
-      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-    >
-      {items.map(({ id, name, Icon }) => (
-        <button
-          key={id}
-          className={value === id ? 'active' : ''}
-          aria-pressed={value === id}
-          onClick={() => onChange(id)}
-        >
-          <Icon size={18} aria-hidden="true" />
-          <span>{name}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function Segmented<T extends string>({
-  label,
-  items,
-  value,
-  onChange,
-}: {
-  label: string
-  items: { id: T; name: string; Icon?: Icon }[]
-  value: T
-  onChange: (value: T) => void
-}) {
-  return (
-    <div className="segmented" role="group" aria-label={label}>
-      {items.map(({ id, name, Icon }) => (
-        <button
-          key={id}
-          className={value === id ? 'active' : ''}
-          aria-pressed={value === id}
-          aria-label={Icon && !name ? id : undefined}
-          onClick={() => onChange(id)}
-        >
-          {Icon && <Icon size={18} aria-hidden="true" />}
-          {name}
-        </button>
-      ))}
-    </div>
-  )
-}
+/** Selection id of the music track. */
+export const MUSIC = 'audio'
 
 /* ---------- Panel ---------- */
 
 export interface PropertiesProps {
   project: Project
   patch: Patch
+  /** A layer id, MUSIC, or null for the composition. */
   selected: string | null
   onSelect: (id: string | null) => void
   tab: PropertiesTab
   onTab: (tab: PropertiesTab) => void
   previewPhase: (phase: 'intro' | 'outro', returnToRest?: boolean) => void
   presets: SavedPreset[]
-  onApplyTemplate: (template: Template) => void
-  onApplyPreset: (preset: SavedPreset) => void
-  onSavePreset: (name: string) => boolean
+  /** Restyle a chyron with a template or saved style. */
+  onApplyTemplate: (id: string, template: Template) => void
+  /** Save a chyron's style to the library. */
+  onSavePreset: (name: string, id: string) => boolean
   onRemovePreset: (id: string) => void
   onTiming: (id: string, change: TimingChange) => void
+  onDelete: (id: string) => void
+  onDuplicate: (id: string) => void
   /** Start cropping an image layer on the canvas. */
   onCrop?: (id: string) => void
+  onRemoveBackground?: (id: string) => void
+  onReplaceImage?: (id: string) => void
+  onReplaceMusic: () => void
+  onRemoveMusic: () => void
 }
 
 export function Properties(props: PropertiesProps) {
-  const { project: p, patch, selected, onSelect, tab, onTab } = props
+  const { project: p, patch, selected, tab, onTab } = props
   const layer = p.layers.find((l) => l.id === selected)
+  const music = selected === MUSIC && p.audio ? p.audio : null
   const index = layer ? p.layers.indexOf(layer) : -1
   const images = useProjectImages(p)
+  const setMusic = (values: Partial<AudioTrack>) =>
+    p.audio && patch({ audio: { ...p.audio, ...values } })
   const tabs: { id: PropertiesTab; label: string }[] = [
     { id: 'design', label: 'Design' },
     { id: 'animate', label: 'Animate' },
@@ -245,27 +118,38 @@ export function Properties(props: PropertiesProps) {
     <aside className="inspector" aria-label="Properties">
       <header className="inspector-head">
         <span
-          className={`inspector-icon ${layer?.kind === 'chyron' ? 'is-chyron' : ''}`}
+          className={`inspector-icon ${layer?.kind === 'chyron' ? 'is-chyron' : ''} ${layer?.kind === 'shape' ? 'is-shape' : ''} ${music ? 'is-music' : ''}`}
           aria-hidden="true"
         >
-          {!layer ? (
+          {music ? (
+            <Music size={16} />
+          ) : !layer ? (
             <Film size={16} />
           ) : layer.kind === 'chyron' ? (
             <Type size={16} />
+          ) : layer.kind === 'shape' ? (
+            <Shapes size={16} />
           ) : (
             <Thumb image={images.get(layer.assetId)} />
           )}
         </span>
-        {layer?.kind === 'image' ? (
-          <input
-            className="inspector-title-input"
-            aria-label="Layer name"
-            value={layer.name}
-            maxLength={80}
-            onChange={(e) => patch({ layers: updateLayer(p, layer.id, { name: e.target.value }) })}
-          />
+        {layer || music ? (
+          // The heading takes its name from the editable field inside it.
+          <h2 className="inspector-title-heading">
+            <input
+              className="inspector-title-input"
+              aria-label={music ? 'Music name' : 'Layer name'}
+              value={music ? music.name : layer!.name}
+              maxLength={80}
+              onChange={(e) =>
+                music
+                  ? setMusic({ name: e.target.value })
+                  : patch({ layers: updateLayer(p, layer!.id, { name: e.target.value }) })
+              }
+            />
+          </h2>
         ) : (
-          <h2 className="inspector-title">{layer ? 'Chyron' : 'Composition'}</h2>
+          <h2 className="inspector-title">Composition</h2>
         )}
         {layer && (
           <MenuButton
@@ -289,31 +173,34 @@ export function Properties(props: PropertiesProps) {
                 },
                 ...(layer.kind === 'image'
                   ? ([
-                      {
-                        label: 'Duplicate layer',
-                        Icon: Copy,
-                        shortcut: '⌘ D',
-                        onSelect: () => {
-                          const next = duplicateLayer(p, layer.id)
-                          if (next.id) {
-                            patch({ layers: next.layers })
-                            onSelect(next.id)
-                          }
-                        },
-                      },
                       'separator',
                       {
-                        label: 'Delete layer',
-                        Icon: Trash2,
-                        shortcut: 'Del',
-                        danger: true,
-                        onSelect: () => {
-                          patch({ layers: removeLayer(p, layer.id) })
-                          onSelect(null)
-                        },
+                        label: 'Crop',
+                        Icon: CropIcon,
+                        shortcut: 'C',
+                        onSelect: () => props.onCrop?.(layer.id),
+                      },
+                      {
+                        label: 'Remove background',
+                        Icon: WandSparkles,
+                        onSelect: () => props.onRemoveBackground?.(layer.id),
                       },
                     ] as MenuEntry[])
                   : []),
+                'separator',
+                {
+                  label: 'Duplicate layer',
+                  Icon: Copy,
+                  shortcut: '⌘ D',
+                  onSelect: () => props.onDuplicate(layer.id),
+                },
+                {
+                  label: 'Delete layer',
+                  Icon: Trash2,
+                  shortcut: 'Del',
+                  danger: true,
+                  onSelect: () => props.onDelete(layer.id),
+                },
               ] as MenuEntry[]
             }
           >
@@ -352,33 +239,51 @@ export function Properties(props: PropertiesProps) {
         id="props-panel"
         role={layer ? 'tabpanel' : 'region'}
         aria-labelledby={layer ? `props-tab-${tab}` : undefined}
-        aria-label={layer ? undefined : 'Composition settings'}
+        aria-label={layer ? undefined : music ? 'Music settings' : 'Composition settings'}
       >
-        {!layer && <CompositionSettings project={p} patch={patch} />}
-        {layer?.kind === 'chyron' &&
-          (tab === 'design' ? (
-            <ChyronDesign {...props} />
-          ) : (
-            <ChyronAnimate
-              project={p}
-              patch={patch}
-              layer={layer}
-              previewPhase={props.previewPhase}
-              onTiming={props.onTiming}
-            />
-          ))}
-        {layer?.kind === 'image' &&
-          (tab === 'design' ? (
-            <ImageDesign l={layer} p={p} patch={patch} onCrop={props.onCrop} />
-          ) : (
-            <ImageAnimate
-              l={layer}
-              p={p}
-              patch={patch}
-              previewPhase={props.previewPhase}
-              onTiming={props.onTiming}
-            />
-          ))}
+        {music && (
+          <MusicPanel
+            project={p}
+            track={music}
+            onChange={setMusic}
+            onReplace={props.onReplaceMusic}
+            onRemove={props.onRemoveMusic}
+          />
+        )}
+        {!layer && !music && <CompositionSettings project={p} patch={patch} />}
+        {layer && tab === 'animate' && (
+          <AnimatePanel
+            layer={layer}
+            project={p}
+            patch={patch}
+            previewPhase={props.previewPhase}
+            onTiming={props.onTiming}
+          />
+        )}
+        {layer?.kind === 'chyron' && tab === 'design' && (
+          <ChyronDesign
+            key={layer.id}
+            view={styleOf(p, layer)}
+            setStyle={(values) => patch(chyronStylePatch(p, layer.id, values))}
+            presets={props.presets}
+            onApplyTemplate={(template) => props.onApplyTemplate(layer.id, template)}
+            onSavePreset={(name) => props.onSavePreset(name, layer.id)}
+            onRemovePreset={props.onRemovePreset}
+          />
+        )}
+        {layer?.kind === 'image' && tab === 'design' && (
+          <ImageDesign
+            l={layer}
+            p={p}
+            patch={patch}
+            onCrop={props.onCrop}
+            onRemoveBackground={props.onRemoveBackground}
+            onReplaceImage={props.onReplaceImage}
+          />
+        )}
+        {layer?.kind === 'shape' && tab === 'design' && (
+          <ShapeDesign l={layer} p={p} patch={patch} />
+        )}
       </div>
     </aside>
   )
@@ -531,7 +436,7 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
             label="Hold"
             value={p.hold}
             min={0}
-            max={12}
+            max={MAX_HOLD}
             step={0.1}
             unit="s"
             onChange={(hold) => patch({ hold })}
@@ -549,6 +454,11 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
               ]}
             />
           </div>
+          <p className="block-note">
+            Hold up to {MAX_HOLD} s. At this size and frame rate, WebM videos can be up to{' '}
+            {maxVideoSeconds(p)} s and ProRes {maxVideoSeconds(p, 'mov')} s; PNG sequences have no
+            limit.
+          </p>
         </>,
         () =>
           patch({
@@ -576,19 +486,29 @@ const palettes = [
 ]
 const paletteNames = ['Blue', 'Lime', 'Pink', 'Purple', 'Mint', 'Peach']
 
+/**
+ * Lettering, colours and placement of one chyron. `p` is the chyron's own view
+ * of the project and `patch` writes to wherever its style lives.
+ */
 function ChyronDesign({
-  project: p,
-  patch,
+  view: p,
+  setStyle: patch,
   presets,
   onApplyTemplate,
-  onApplyPreset,
   onSavePreset,
   onRemovePreset,
-}: PropertiesProps) {
+}: {
+  view: ChyronStyle
+  setStyle: (values: Partial<ChyronStyle>) => void
+  presets: SavedPreset[]
+  onApplyTemplate: (template: Template) => void
+  onSavePreset: (name: string) => boolean
+  onRemovePreset: (id: string) => void
+}) {
   const group = useGroups()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
-  const r = (label: string, key: keyof Project, min: number, max: number, step = 1, unit = '') => (
+  const r = (label: string, key: ChyronStyleKey, min: number, max: number, step = 1, unit = '') => (
     <NumberField
       label={label}
       value={p[key] as number}
@@ -596,7 +516,7 @@ function ChyronDesign({
       {...{ min, max, step, unit }}
     />
   )
-  const reset = (keys: (keyof Project)[]) => () =>
+  const reset = (keys: ChyronStyleKey[]) => () =>
     patch(Object.fromEntries(keys.map((k) => [k, DEFAULT_PROJECT[k]])))
   const tiles = p.mode === 'tiles'
   return (
@@ -630,7 +550,18 @@ function ChyronDesign({
             <ul className="saved-styles" aria-label="Your styles">
               {presets.map((preset) => (
                 <li key={preset.id}>
-                  <button className="saved-style" onClick={() => onApplyPreset(preset)}>
+                  <button
+                    className="saved-style"
+                    onClick={() =>
+                      onApplyTemplate({
+                        id: preset.id,
+                        name: preset.name,
+                        caption: '',
+                        background: '',
+                        patch: preset.project,
+                      })
+                    }
+                  >
                     <Layers3 size={16} aria-hidden="true" />
                     <span>{preset.name}</span>
                   </button>
@@ -682,6 +613,7 @@ function ChyronDesign({
         <>
           <Field label="Title">
             <textarea
+              data-title-input
               value={p.text}
               maxLength={160}
               rows={2}
@@ -770,7 +702,7 @@ function ChyronDesign({
             <Field label="Typeface">
               <select
                 value={p.font}
-                onChange={(e) => patch({ font: e.target.value as Project['font'] })}
+                onChange={(e) => patch({ font: e.target.value as ChyronStyle['font'] })}
               >
                 {FONT_NAMES.map((font) => (
                   <option key={font}>{font}</option>
@@ -780,7 +712,7 @@ function ChyronDesign({
             <Field label="Case">
               <select
                 value={p.textCase}
-                onChange={(e) => patch({ textCase: e.target.value as Project['textCase'] })}
+                onChange={(e) => patch({ textCase: e.target.value as ChyronStyle['textCase'] })}
               >
                 <option value="upper">ABC</option>
                 <option value="original">Abc</option>
@@ -964,217 +896,7 @@ function ChyronDesign({
   )
 }
 
-const CHYRON_MOTION: Record<Project['motion'], { name: string; Icon: Icon }> = {
-  fade: { name: 'Fade', Icon: Circle },
-  pop: { name: 'Pop', Icon: Sparkles },
-  slide: { name: 'Rise', Icon: MoveUp },
-  none: { name: 'Still', Icon: Clapperboard },
-  drop: { name: 'Drop', Icon: ArrowDownToLine },
-  bounce: { name: 'Bounce', Icon: ChevronsDown },
-  wave: { name: 'Wave', Icon: Waves },
-  elastic: { name: 'Elastic', Icon: MoveHorizontal },
-  'from-left': { name: 'From left', Icon: ArrowRightFromLine },
-  'from-right': { name: 'From right', Icon: ArrowLeftFromLine },
-  split: { name: 'Split', Icon: Split },
-  scatter: { name: 'Scatter', Icon: Shuffle },
-  flip: { name: 'Flip', Icon: FlipHorizontal2 },
-  spin: { name: 'Spin', Icon: RotateCw },
-  swing: { name: 'Swing', Icon: Bell },
-  cascade: { name: 'Cascade', Icon: Tornado },
-  zoom: { name: 'Zoom', Icon: ZoomIn },
-  stamp: { name: 'Stamp', Icon: Stamp },
-  slam: { name: 'Slam', Icon: Hammer },
-  shake: { name: 'Shake', Icon: Vibrate },
-  wipe: { name: 'Reveal', Icon: ScanLine },
-  typewriter: { name: 'Typewriter', Icon: Keyboard },
-  blink: { name: 'Blink', Icon: Lightbulb },
-  glitch: { name: 'Glitch', Icon: AudioWaveform },
-}
-const CHYRON_GROUPS: { title: string; items: Project['motion'][] }[] = [
-  { title: 'Simple', items: ['fade', 'pop', 'slide', 'none'] },
-  { title: 'Bouncy', items: ['drop', 'bounce', 'wave', 'elastic'] },
-  { title: 'Move', items: ['from-left', 'from-right', 'split', 'scatter'] },
-  { title: 'Turn', items: ['flip', 'spin', 'swing', 'cascade'] },
-  { title: 'Impact', items: ['zoom', 'stamp', 'slam', 'shake'] },
-  { title: 'Reveal', items: ['wipe', 'typewriter', 'blink', 'glitch'] },
-]
-
-/** In · Hold · Out for one layer. The same numbers the timeline clip shows. */
-function TimingFields({
-  layer,
-  project: p,
-  onTiming,
-}: {
-  layer: ChyronLayer | ImageLayer
-  project: Project
-  onTiming: (id: string, change: TimingChange) => void
-}) {
-  const t = layerTiming(layer, p)
-  const round = (n: number) => Math.round(n * 100) / 100
-  const free = (used: number) => round(Math.max(0, t.total - used))
-  return (
-    <div className="block">
-      <span className="block-label">Timing</span>
-      <NumberField
-        label="Starts at"
-        value={round(t.delay)}
-        min={0}
-        max={free(t.length + t.outLength + t.endDelay)}
-        step={0.1}
-        unit="s"
-        onChange={(delay) => onTiming(layer.id, { delay, endDelay: t.endDelay })}
-      />
-      <NumberField
-        label="In"
-        value={round(t.length)}
-        min={0.2}
-        max={Math.min(4, free(t.delay + t.outLength + t.endDelay))}
-        step={0.1}
-        unit="s"
-        onChange={(length) => onTiming(layer.id, { length })}
-      />
-      <NumberField
-        label="Hold"
-        value={round(t.hold)}
-        min={0}
-        max={free(t.delay + t.length + t.outLength)}
-        step={0.1}
-        unit="s"
-        onChange={(hold) =>
-          onTiming(layer.id, {
-            endDelay: round(Math.max(0, t.total - t.delay - t.length - hold - t.outLength)),
-            delay: t.delay,
-          })
-        }
-      />
-      <NumberField
-        label="Out"
-        value={round(t.outLength)}
-        min={0.2}
-        max={free(t.delay + t.length + t.endDelay)}
-        step={0.1}
-        unit="s"
-        onChange={(outLength) => onTiming(layer.id, { outLength, endDelay: t.endDelay })}
-      />
-      <p className="block-note">
-        Clip length {round(t.total)}s. To make every layer longer, change Hold under Composition ›
-        Timing.
-      </p>
-    </div>
-  )
-}
-
-function ChyronAnimate({
-  project: p,
-  patch,
-  layer,
-  previewPhase,
-  onTiming,
-}: {
-  project: Project
-  patch: Patch
-  layer: ChyronLayer
-  previewPhase: (phase: 'intro' | 'outro', returnToRest?: boolean) => void
-  onTiming: (id: string, change: TimingChange) => void
-}) {
-  return (
-    <div className="props-stack">
-      <div className="block">
-        <span className="block-label">In & out</span>
-        {CHYRON_GROUPS.map((g) => (
-          <div key={g.title} className="motion-group">
-            <span className="motion-group-title">{g.title}</span>
-            <Chips
-              label={`${g.title} animations`}
-              columns={4}
-              items={g.items.map((id) => ({ id, ...CHYRON_MOTION[id] }))}
-              value={p.motion}
-              onChange={(motion) => {
-                patch({ motion })
-                // Picking a style plays it right away.
-                if (motion !== 'none') previewPhase('intro', true)
-              }}
-            />
-          </div>
-        ))}
-        <p className="block-note">
-          Choosing a style plays it. The outro plays the intro in reverse; set its length under
-          Timing.
-        </p>
-      </div>
-      <div className="block">
-        <NumberField
-          label="Stagger"
-          value={p.stagger}
-          min={0}
-          max={0.8}
-          step={0.05}
-          onChange={(stagger) => patch({ stagger })}
-        />
-      </div>
-      <TimingFields layer={layer} project={p} onTiming={onTiming} />
-    </div>
-  )
-}
-
 /* ---------- Images ---------- */
-
-const MOTION: Record<ImageMotion, { name: string; out?: string; Icon: Icon }> = {
-  fade: { name: 'Fade', Icon: Circle },
-  pop: { name: 'Pop', Icon: Sparkles },
-  rise: { name: 'Rise', Icon: MoveUp },
-  none: { name: 'Cut', Icon: Scissors },
-  burst: { name: 'Burst', Icon: Zap },
-  slam: { name: 'Slam', Icon: Hammer },
-  drop: { name: 'Drop', Icon: ArrowDownToLine },
-  swing: { name: 'Swing', Icon: Bell },
-  'slide-left': { name: 'From left', out: 'To left', Icon: ArrowRightFromLine },
-  'slide-right': { name: 'From right', out: 'To right', Icon: ArrowLeftFromLine },
-  zoom: { name: 'Zoom', Icon: ZoomIn },
-  spin: { name: 'Spin', Icon: RotateCw },
-  wipe: { name: 'Wipe', Icon: ScanLine },
-  iris: { name: 'Iris', Icon: Aperture },
-  focus: { name: 'Focus', Icon: Focus },
-  flip: { name: 'Flip', Icon: FlipHorizontal2 },
-  glitch: { name: 'Glitch', Icon: AudioWaveform },
-  stretch: { name: 'Stretch', Icon: MoveVertical },
-  roll: { name: 'Roll', Icon: Disc3 },
-  unfold: { name: 'Unfold', Icon: FoldVertical },
-  bounce: { name: 'Bounce', Icon: ChevronsDown },
-  'from-top': { name: 'From top', out: 'To top', Icon: ArrowDownFromLine },
-  'from-bottom': { name: 'From bottom', out: 'To bottom', Icon: ArrowUpFromLine },
-  flicker: { name: 'Flicker', Icon: Lightbulb },
-}
-const MOTION_GROUPS: { title: string; items: ImageMotion[] }[] = [
-  { title: 'Simple', items: ['fade', 'pop', 'rise', 'none'] },
-  { title: 'Punchy', items: ['burst', 'slam', 'drop', 'bounce'] },
-  { title: 'Springy', items: ['swing', 'stretch', 'unfold', 'flip'] },
-  { title: 'Move', items: ['slide-left', 'slide-right', 'from-top', 'from-bottom'] },
-  { title: 'Turn', items: ['spin', 'roll', 'zoom', 'focus'] },
-  { title: 'Reveal', items: ['wipe', 'iris', 'glitch', 'flicker'] },
-]
-const EFFECTS: { id: HoldEffect; name: string; Icon: Icon }[] = [
-  { id: 'none', name: 'None', Icon: Circle },
-  { id: 'pulse', name: 'Pulse', Icon: Heart },
-  { id: 'float', name: 'Float', Icon: Waves },
-  { id: 'sway', name: 'Sway', Icon: Wind },
-  { id: 'kenburns', name: 'Ken Burns', Icon: ZoomIn },
-  { id: 'shine', name: 'Shine', Icon: Sun },
-  { id: 'rumble', name: 'Rumble', Icon: Activity },
-  { id: 'wiggle', name: 'Wiggle', Icon: Waypoints },
-  { id: 'heartbeat', name: 'Heartbeat', Icon: HeartPulse },
-  { id: 'orbit', name: 'Orbit', Icon: Orbit },
-  { id: 'glow', name: 'Glow', Icon: Sparkle },
-  { id: 'jelly', name: 'Jelly', Icon: Droplets },
-]
-const EASING_NAMES: Record<Easing, string> = {
-  auto: 'Signature',
-  smooth: 'Smooth',
-  snappy: 'Snappy',
-  bounce: 'Bounce',
-  elastic: 'Elastic',
-  linear: 'Linear',
-}
 
 const MASK_OPTIONS: { id: ImageMask; name: string; kind: ShapeKind; sides?: number }[] = [
   { id: 'none', name: 'Rectangle', kind: 'rect' },
@@ -1191,11 +913,15 @@ function ImageDesign({
   p,
   patch,
   onCrop,
+  onRemoveBackground,
+  onReplaceImage,
 }: {
   l: ImageLayer
   p: Project
   patch: Patch
   onCrop?: (id: string) => void
+  onRemoveBackground?: (id: string) => void
+  onReplaceImage?: (id: string) => void
 }) {
   const [squared, setSquared] = useState(false)
   const setMask = (mask: ImageMask) => {
@@ -1207,7 +933,8 @@ function ImageDesign({
   }
   const maskName = MASK_OPTIONS.find((m) => m.id === l.mask)?.name ?? 'Rectangle'
   const group = useGroups()
-  const set = (values: Partial<ImageLayer>) => patch({ layers: updateLayer(p, l.id, values) })
+  const set = (values: Partial<ImageLayer>) =>
+    patch({ layers: updateLayer(p, l.id, values as Partial<Layer>) })
   const r = (
     label: string,
     key: keyof ImageLayer,
@@ -1225,6 +952,48 @@ function ImageDesign({
   )
   return (
     <>
+      <div className="picture-actions" role="group" aria-label="Picture">
+        {onCrop && (
+          <button
+            className="button secondary sm"
+            onClick={() => onCrop(l.id)}
+            title="Crop (C) · or double-click the image"
+          >
+            <CropIcon size={14} aria-hidden="true" /> Crop
+          </button>
+        )}
+        {onRemoveBackground && (
+          <button
+            className="button secondary sm"
+            onClick={() => onRemoveBackground(l.id)}
+            title="Cut out the subject, or remove a colour"
+          >
+            <WandSparkles size={14} aria-hidden="true" /> Remove background
+          </button>
+        )}
+        {onReplaceImage && (
+          <button
+            className="icon-button sm"
+            aria-label="Replace image"
+            title="Replace image (keeps size, frame and animation)"
+            onClick={() => onReplaceImage(l.id)}
+          >
+            <Replace size={16} />
+          </button>
+        )}
+      </div>
+      {l.originalAssetId && (
+        <div className="picture-note">
+          <Eraser size={14} aria-hidden="true" />
+          <span>Background removed</span>
+          <button
+            className="button ghost sm"
+            onClick={() => set({ assetId: l.originalAssetId, originalAssetId: undefined })}
+          >
+            Restore original
+          </button>
+        </div>
+      )}
       {group(
         'place',
         'Position',
@@ -1313,15 +1082,6 @@ function ImageDesign({
             </p>
           )}
           <div className="button-row">
-            {onCrop && (
-              <button
-                className="button secondary sm"
-                onClick={() => onCrop(l.id)}
-                title="Or double-click the image"
-              >
-                <CropIcon size={14} aria-hidden="true" /> Crop
-              </button>
-            )}
             {isCropped(l) && (
               <button
                 className="button ghost sm"
@@ -1364,134 +1124,205 @@ function ImageDesign({
   )
 }
 
-function ImageAnimate({
-  l,
-  p,
-  patch,
-  previewPhase,
-  onTiming,
-}: {
-  l: ImageLayer
-  p: Project
-  patch: Patch
-  previewPhase: (phase: 'intro' | 'outro', returnToRest?: boolean) => void
-  onTiming: (id: string, change: TimingChange) => void
-}) {
-  const set = (values: Partial<ImageLayer>) => patch({ layers: updateLayer(p, l.id, values) })
-  const others = p.layers.filter((layer) => layer.kind === 'image' && layer.id !== l.id).length
+/* ---------- Shapes ---------- */
+
+const SHAPE_OPTIONS: {
+  id: LayerShape
+  name: string
+  kind: ShapeKind
+  sides?: number
+  radius?: number
+}[] = [
+  { id: 'rect', name: 'Rectangle', kind: 'rect', radius: 0.18 },
+  { id: 'circle', name: 'Circle', kind: 'ellipse' },
+  { id: 'arch', name: 'Arch', kind: 'arch' },
+  { id: 'triangle', name: 'Triangle', kind: 'triangle' },
+  { id: 'hexagon', name: 'Hexagon', kind: 'polygon', sides: 6 },
+  { id: 'star', name: 'Star', kind: 'star' },
+  { id: 'heart', name: 'Heart', kind: 'heart' },
+]
+
+function ShapeDesign({ l, p, patch }: { l: ShapeLayer; p: Project; patch: Patch }) {
+  const group = useGroups()
+  const set = (values: Partial<ShapeLayer>) =>
+    patch({ layers: updateLayer(p, l.id, values as Partial<Layer>) })
+  const r = (
+    label: string,
+    key: keyof ShapeLayer,
+    min: number,
+    max: number,
+    step = 1,
+    unit = '',
+  ) => (
+    <NumberField
+      label={label}
+      value={Math.min(max, l[key] as number)}
+      onChange={(v) => set({ [key]: v })}
+      {...{ min, max, step, unit }}
+    />
+  )
+  const round = (v: number) => Math.round(v * 10) / 10
+  // Height as a share of the canvas height.
+  const heightPercent = round(((l.width / 100) * p.width * l.aspect * 100) / p.height)
+  const name = SHAPE_OPTIONS.find((s) => s.id === l.shape)?.name ?? 'Shape'
   return (
-    <div className="props-stack">
-      <div className="block">
-        <span className="block-label">In</span>
-        {MOTION_GROUPS.map((g) => (
-          <div key={g.title} className="motion-group">
-            <span className="motion-group-title">{g.title}</span>
-            <Chips
-              label={`${g.title} intro styles`}
-              columns={4}
-              items={g.items.map((id) => ({ id, ...MOTION[id] }))}
-              value={l.intro}
-              onChange={(intro) => {
-                set({ intro })
-                previewPhase('intro', true)
-              }}
-            />
+    <>
+      {group(
+        'shape-fill',
+        'Shape & fill',
+        `${name} · ${l.gradient === 'none' ? l.fill.toUpperCase() : `${l.gradient} gradient`}`,
+        <>
+          <div className="mask-picker" role="group" aria-label="Shape">
+            {SHAPE_OPTIONS.map((m) => (
+              <button
+                key={m.id}
+                className={l.shape === m.id ? 'active' : ''}
+                aria-pressed={l.shape === m.id}
+                aria-label={m.name}
+                title={m.name}
+                onClick={() => set({ shape: m.id })}
+              >
+                <ShapeIcon
+                  preset={{ kind: m.kind, name: m.name, sides: m.sides, radius: m.radius }}
+                  size={20}
+                />
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="block">
-        <div className="pair-fields">
-          <Field label="Out">
-            <select
-              value={l.outro}
-              onChange={(e) => set({ outro: e.target.value as ImageLayer['outro'] })}
-            >
-              <option value="mirror">Reverse</option>
-              {MOTION_GROUPS.flatMap((g) => g.items).map((id) => (
-                <option key={id} value={id}>
-                  {MOTION[id].out ?? MOTION[id].name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Easing">
-            <select value={l.easing} onChange={(e) => set({ easing: e.target.value as Easing })}>
-              {EASINGS.map((id) => (
-                <option key={id} value={id}>
-                  {EASING_NAMES[id]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {(l.intro === 'burst' || l.outro === 'burst') && (
-          <Color
-            label="Burst sparks"
-            value={l.burstColor}
-            onChange={(burstColor) => set({ burstColor })}
+          <Segmented
+            label="Fill"
+            value={l.gradient}
+            onChange={(gradient: Gradient) => set({ gradient })}
+            items={[
+              { id: 'none', name: 'Solid' },
+              { id: 'linear', name: 'Linear' },
+              { id: 'radial', name: 'Radial' },
+            ]}
           />
-        )}
-      </div>
-      <TimingFields layer={l} project={p} onTiming={onTiming} />
-      <div className="block">
-        <span className="block-label">While on screen</span>
-        <Chips
-          label="While on screen"
-          items={EFFECTS}
-          value={l.emphasis}
-          onChange={(emphasis) => set({ emphasis })}
-        />
-        {l.emphasis !== 'none' && (
-          <>
-            <NumberField
-              label="Strength"
-              value={l.emphasisStrength}
-              min={0}
-              max={100}
-              unit="%"
-              onChange={(emphasisStrength) => set({ emphasisStrength })}
+          <div className="color-grid">
+            <Color
+              label={l.gradient === 'none' ? 'Fill' : 'From'}
+              value={l.fill}
+              onChange={(fill) => set({ fill })}
             />
-            {l.emphasis !== 'kenburns' && (
-              <NumberField
-                label="Cycle"
-                value={l.emphasisSpeed}
-                min={0.5}
-                max={8}
-                step={0.1}
-                unit="s"
-                onChange={(emphasisSpeed) => set({ emphasisSpeed })}
-              />
+            {l.gradient !== 'none' && (
+              <Color label="To" value={l.fill2} onChange={(fill2) => set({ fill2 })} />
             )}
-          </>
-        )}
-      </div>
-      {others > 0 && (
-        <button
-          className="button secondary full"
-          title="Give every image this intro, outro, easing, length and on-screen effect"
-          onClick={() =>
-            patch({
-              layers: p.layers.map((layer) =>
-                layer.kind === 'image' && layer.id !== l.id
-                  ? {
-                      ...layer,
-                      intro: l.intro,
-                      outro: l.outro,
-                      easing: l.easing,
-                      duration: l.duration,
-                      emphasis: l.emphasis,
-                      emphasisStrength: l.emphasisStrength,
-                      emphasisSpeed: l.emphasisSpeed,
-                      burstColor: l.burstColor,
-                    }
-                  : layer,
-              ),
-            })
-          }
-        >
-          <Copy size={16} /> Use this animation on {others} other image{others === 1 ? '' : 's'}
-        </button>
+          </div>
+          {l.gradient === 'linear' && r('Angle', 'gradientAngle', -180, 180, 1, '°')}
+        </>,
+        () => set({ gradient: 'none', fill: '#3e75f3', fill2: '#9075fc', gradientAngle: 0 }),
       )}
-    </div>
+      {group(
+        'place',
+        'Position',
+        `${round(l.width)}% × ${heightPercent}% · ${l.rotation}°`,
+        <>
+          <div className="chip-grid quick" role="group" aria-label="Quick placement">
+            <button
+              onClick={() =>
+                set({
+                  width: 90,
+                  aspect: (0.12 * p.height) / (0.9 * p.width),
+                  x: 50,
+                  y: 82,
+                  rotation: 0,
+                })
+              }
+            >
+              <RectangleHorizontal size={18} aria-hidden="true" />
+              <span>Lower bar</span>
+            </button>
+            <button
+              onClick={() =>
+                set({ width: 100, aspect: p.height / p.width, x: 50, y: 50, rotation: 0 })
+              }
+            >
+              <Maximize size={18} aria-hidden="true" />
+              <span>Fill</span>
+            </button>
+            <button onClick={() => set({ x: 50, y: 50 })}>
+              <Crosshair size={18} aria-hidden="true" />
+              <span>Center</span>
+            </button>
+            <button onClick={() => set({ aspect: 1 })}>
+              <Minimize size={18} aria-hidden="true" />
+              <span>Square</span>
+            </button>
+          </div>
+          <div className="pair-fields">
+            <Field label="Width (%)">
+              <NumberInput
+                value={round(l.width)}
+                min={2}
+                max={400}
+                step={0.5}
+                onChange={(width) => set({ width })}
+              />
+            </Field>
+            <Field label="Height (%)">
+              <NumberInput
+                value={heightPercent}
+                min={0.5}
+                max={400}
+                step={0.5}
+                onChange={(h) =>
+                  set({
+                    aspect: Math.min(100, Math.max(0.01, (h * p.height) / (l.width * p.width))),
+                  })
+                }
+              />
+            </Field>
+          </div>
+          {r('Rotation', 'rotation', -180, 180, 1, '°')}
+          {r('Opacity', 'opacity', 0, 100, 1, '%')}
+          <div className="pair-fields">
+            <Field label="X (%)">
+              <NumberInput
+                value={l.x}
+                min={-50}
+                max={150}
+                step={0.5}
+                onChange={(x) => set({ x })}
+              />
+            </Field>
+            <Field label="Y (%)">
+              <NumberInput
+                value={l.y}
+                min={-50}
+                max={150}
+                step={0.5}
+                onChange={(y) => set({ y })}
+              />
+            </Field>
+          </div>
+          <Toggle label="Mirror" checked={l.flipX} onChange={(flipX) => set({ flipX })} />
+        </>,
+      )}
+      {group(
+        'frame',
+        'Corners, border & shadow',
+        [
+          l.shape === 'rect' && l.radius ? `${l.radius}% round` : '',
+          l.border ? `${l.border}px border` : '',
+          l.shadow ? `${l.shadow}px shadow` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        <>
+          {l.shape === 'rect' && r('Round corners', 'radius', 0, 50, 1, '%')}
+          {r('Border', 'border', 0, 40, 1, 'px')}
+          {l.border > 0 && (
+            <Color
+              label="Border color"
+              value={l.borderColor}
+              onChange={(borderColor) => set({ borderColor })}
+            />
+          )}
+          {r('Shadow', 'shadow', 0, 80, 1, 'px')}
+        </>,
+        () => set({ radius: 0, border: 0, shadow: 0 }),
+      )}
+    </>
   )
 }

@@ -79,3 +79,9 @@ export function outline(text: string, size: number, fonts: Fonts, subtitle = fal
     top: box.y1,
   }
 }
+/** Fonts for every name, loaded in parallel. */
+export async function loadFontSet(names: Iterable<FontName>): Promise<Map<FontName, Fonts>> {
+  const unique = [...new Set(names)]
+  const loaded = await Promise.all(unique.map((name) => loadFonts(name)))
+  return new Map(unique.map((name, i) => [name, loaded[i]]))
+}

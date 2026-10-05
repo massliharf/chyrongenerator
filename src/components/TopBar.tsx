@@ -20,7 +20,19 @@ export function TopBar({ children, actions }: { children: ReactNode; actions?: R
   )
 }
 
-export function SaveStatus({ status, error = false }: { status: string; error?: boolean }) {
+/**
+ * Autosave state. With `onOpen` it is also the way to find out where the work
+ * is kept: clicking it explains the device storage and project files.
+ */
+export function SaveStatus({
+  status,
+  error = false,
+  onOpen,
+}: {
+  status: string
+  error?: boolean
+  onOpen?: () => void
+}) {
   const short = error
     ? 'Not saved'
     : /sav(ed|ing)/i.test(status)
@@ -28,11 +40,27 @@ export function SaveStatus({ status, error = false }: { status: string; error?: 
         ? 'Saving…'
         : 'Saved'
       : status
-  return (
-    <span className={`save-status ${error ? 'is-error' : ''}`} role="status" title={status}>
+  const content = (
+    <>
       <span className="save-status-dot" aria-hidden="true" />
       <span className="sr-only">{status}</span>
       <span aria-hidden="true">{short}</span>
+    </>
+  )
+  return onOpen ? (
+    <span role="status" className="save-status-wrap">
+      <button
+        className={`save-status is-button ${error ? 'is-error' : ''}`}
+        title={`${status} · Where is my work?`}
+        aria-label={`${status}. Where is my work?`}
+        onClick={onOpen}
+      >
+        {content}
+      </button>
+    </span>
+  ) : (
+    <span className={`save-status ${error ? 'is-error' : ''}`} role="status" title={status}>
+      {content}
     </span>
   )
 }

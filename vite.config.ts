@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     host: true,
   },
-  optimizeDeps: { exclude: ['@ffmpeg/ffmpeg'] },
+  optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', 'onnxruntime-web'] },
   build: {
     rollupOptions: {
       output: {

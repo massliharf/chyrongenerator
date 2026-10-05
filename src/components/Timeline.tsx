@@ -5,19 +5,36 @@ import {
   ChevronLast,
   Eye,
   EyeOff,
-  ImagePlus,
+  Image as ImageIcon,
   Images,
+  LetterText,
+  Music,
   Pause,
   Play,
+  Plus,
   Repeat2,
+  Shapes,
   Type,
   Upload,
   Lock,
   LockOpen,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
-import { duration, layerTiming, type Layer, type LayerTiming, type Project } from '../studio/model'
+import {
+  duration,
+  isStill,
+  layerTiming,
+  styleOf,
+  type Layer,
+  type LayerTiming,
+  type Project,
+} from '../studio/model'
+import { musicEnvelope, musicWindow } from '../studio/audio'
 import type { usePlayback } from '../studio/usePlayback'
-import { MenuButton } from './Menu'
+import { MenuButton, type MenuEntry } from './Menu'
+import { Waveform } from './MusicPanel'
+import { useAudioPeaks } from '../studio/useAudioPeaks'
 
 const KEY = 'chyron-studio:timeline'
 
@@ -39,6 +56,10 @@ export function Timeline({
   onToggleLock,
   onAddImages,
   onOpenGallery,
+  onAddChyron,
+  onAddShape,
+  onAddMusic,
+  onMusicChange,
   onTiming,
   onReorder,
 }: {
@@ -51,6 +72,11 @@ export function Timeline({
   onToggleLock?: (id: string) => void
   onAddImages: (files: File[]) => void
   onOpenGallery?: () => void
+  onAddChyron?: (kind: 'chyron' | 'text') => void
+  onAddShape?: () => void
+  /** Choose a music file (or replace the current one). */
+  onAddMusic?: () => void
+  onMusicChange?: (values: { delay?: number; muted?: boolean }) => void
   /** Drag results, in seconds: where the layer starts/ends and how long its intro and outro last. */
   onTiming: (id: string, timing: TimingChange) => void
   /** Move a layer to a new stack index (0 = back). */
@@ -65,6 +91,8 @@ export function Timeline({
     width: number
     t: LayerTiming
   } | null>(null)
+  const musicDrag = useRef<{ x: number; width: number; delay: number } | null>(null)
+  const peaks = useAudioPeaks(p.audio?.assetId)
   const snap = (seconds: number) => Math.round(seconds * p.fps) / p.fps
   const beginDrag = (e: React.PointerEvent<HTMLElement>, l: Layer, mode: DragMode) => {
     if (e.button !== 0) return
@@ -129,7 +157,62 @@ export function Timeline({
       /* Optional preference. */
     }
   }
-  const still = (l: Layer) => (l.kind === 'image' ? l.intro === 'none' : p.motion === 'none')
+  const still = (l: Layer) => isStill(l, p)
+  const addItems: MenuEntry[] = [
+    ...(onAddChyron
+      ? ([
+          {
+            label: 'Chyron',
+            Icon: Type,
+            hint: 'Title and subtitle in this style',
+            onSelect: () => onAddChyron('chyron'),
+          },
+          {
+            label: 'Text',
+            Icon: LetterText,
+            hint: 'Plain lettering',
+            onSelect: () => onAddChyron('text'),
+          },
+        ] as MenuEntry[])
+      : []),
+    ...(onAddShape
+      ? ([
+          {
+            label: 'Shape',
+            Icon: Shapes,
+            hint: 'Bar, badge or backdrop',
+            onSelect: onAddShape,
+          },
+        ] as MenuEntry[])
+      : []),
+    'separator',
+    ...(onOpenGallery
+      ? ([
+          {
+            label: 'Image from Media gallery',
+            Icon: Images,
+            onSelect: onOpenGallery,
+          },
+        ] as MenuEntry[])
+      : []),
+    {
+      label: 'Upload image',
+      Icon: Upload,
+      hint: 'PNG, JPEG, WebP or GIF',
+      onSelect: () => input.current?.click(),
+    },
+    ...(onAddMusic
+      ? ([
+          'separator',
+          {
+            label: p.audio ? 'Replace music' : 'Music',
+            Icon: Music,
+            hint: 'MP3, WAV, M4A, OGG or FLAC',
+            onSelect: onAddMusic,
+          },
+        ] as MenuEntry[])
+      : []),
+  ]
   const scrubber = (className: string) => (
     <input
       className={className}
@@ -204,41 +287,17 @@ export function Timeline({
           >
             <Repeat2 size={18} />
           </button>
-          {onOpenGallery ? (
-            <MenuButton
-              label="Add image"
-              className="button outline add-layer"
-              align="end"
-              placement="top"
-              title="Add a logo, photo or graphic"
-              items={[
-                {
-                  label: 'Choose from Media gallery',
-                  Icon: Images,
-                  onSelect: onOpenGallery,
-                },
-                {
-                  label: 'Upload from device',
-                  Icon: Upload,
-                  hint: 'PNG, JPEG, WebP or GIF',
-                  onSelect: () => input.current?.click(),
-                },
-              ]}
-            >
-              <ImagePlus size={18} aria-hidden="true" />
-              <span className="label">Add image</span>
-            </MenuButton>
-          ) : (
-            <button
-              className="button outline add-layer"
-              aria-label="Add image"
-              title="Add a logo, photo or graphic"
-              onClick={() => input.current?.click()}
-            >
-              <ImagePlus size={18} aria-hidden="true" />
-              <span className="label">Add image</span>
-            </button>
-          )}
+          <MenuButton
+            label="Add layer"
+            className="button outline add-layer"
+            align="end"
+            placement="top"
+            title="Add a chyron, text, shape, image or music"
+            items={addItems}
+          >
+            <Plus size={18} aria-hidden="true" />
+            <span className="label">Add</span>
+          </MenuButton>
           <input
             ref={input}
             type="file"
@@ -266,7 +325,7 @@ export function Timeline({
         </div>
         <ol className="layer-labels" aria-label="Layers, front to back">
           {layers.map((l, row) => {
-            const name = l.kind === 'chyron' ? 'Chyron' : l.name
+            const name = l.name
             return (
               <li
                 key={l.id}
@@ -308,7 +367,17 @@ export function Timeline({
                   aria-pressed={l.id === selected}
                   onClick={() => onSelect(l.id === selected ? null : l.id)}
                 >
-                  {l.kind === 'chyron' && <Type size={14} aria-hidden="true" />}
+                  {l.kind === 'chyron' ? (
+                    styleOf(p, l).mode === 'typography' && !styleOf(p, l).subtitlePill ? (
+                      <LetterText size={14} aria-hidden="true" />
+                    ) : (
+                      <Type size={14} aria-hidden="true" />
+                    )
+                  ) : l.kind === 'shape' ? (
+                    <Shapes size={14} aria-hidden="true" />
+                  ) : (
+                    <ImageIcon size={14} aria-hidden="true" />
+                  )}
                   <span>{name}</span>
                 </button>
                 {onToggleLock && (
@@ -350,7 +419,7 @@ export function Timeline({
                 onClick={() => onSelect(l.id)}
               >
                 <div
-                  className={`clip ${l.kind === 'chyron' ? 'title-clip' : 'image-clip'} ${l.visible ? '' : 'is-hidden'}`}
+                  className={`clip ${l.kind === 'chyron' ? 'title-clip' : l.kind === 'shape' ? 'shape-clip' : 'image-clip'} ${l.visible ? '' : 'is-hidden'}`}
                   style={{ marginLeft: pct(t.delay), width: pct(width) }}
                   title={`In ${t.length.toFixed(2)}s · Hold ${t.hold.toFixed(2)}s · Out ${t.outLength.toFixed(2)}s — drag to move`}
                   onPointerDown={(e) => beginDrag(e, l, 'move')}
@@ -368,7 +437,9 @@ export function Timeline({
                     style={{ width: `${inPct}%` }}
                   />
                   <span className="clip-hold">
-                    {l.kind === 'chyron' ? p.text.replace(/\n/g, ' ') || 'Chyron' : l.name}
+                    {l.kind === 'chyron'
+                      ? styleOf(p, l).text.replace(/\n/g, ' ') || l.name
+                      : l.name}
                   </span>
                   <span
                     className="clip-out"
@@ -407,6 +478,93 @@ export function Timeline({
             <span />
           </div>
         </div>
+        {p.audio && (
+          <>
+            <div
+              className={`layer-label music-label ${selected === 'audio' ? 'selected' : ''} ${p.audio.muted ? 'is-hidden' : ''}`}
+            >
+              <button
+                className="eye"
+                aria-label={`${p.audio.muted ? 'Unmute' : 'Mute'} music`}
+                aria-pressed={p.audio.muted}
+                title={p.audio.muted ? 'Unmute' : 'Mute'}
+                onClick={() => onMusicChange?.({ muted: !p.audio!.muted })}
+              >
+                {p.audio.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+              <button
+                className="layer-name"
+                aria-pressed={selected === 'audio'}
+                onClick={() => onSelect(selected === 'audio' ? null : 'audio')}
+              >
+                <Music size={14} aria-hidden="true" />
+                <span>{p.audio.name}</span>
+              </button>
+            </div>
+            <div className="tracks music-tracks">
+              {(() => {
+                const track = p.audio!
+                const span = musicWindow({ ...track, muted: false }, total)
+                const length = Math.max(0.001, span.end - span.start)
+                const envelope = musicEnvelope({ ...track, muted: false }, total)
+                const fadeIn = envelope.length ? envelope[1][0] - envelope[0][0] : 0
+                const fadeOut = envelope.length ? envelope[3][0] - envelope[2][0] : 0
+                return (
+                  <div
+                    className={`track ${selected === 'audio' ? 'selected' : ''}`}
+                    aria-hidden="true"
+                    onClick={() => onSelect('audio')}
+                  >
+                    <div
+                      className={`clip audio-clip ${track.muted ? 'is-hidden' : ''}`}
+                      style={{ marginLeft: pct(span.start), width: pct(length) }}
+                      title={`Music · starts at ${track.delay.toFixed(2)}s — drag to move`}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return
+                        e.stopPropagation()
+                        const box = (
+                          e.currentTarget.closest('.tracks') as HTMLElement
+                        ).getBoundingClientRect()
+                        e.currentTarget.setPointerCapture(e.pointerId)
+                        musicDrag.current = { x: e.clientX, width: box.width, delay: track.delay }
+                        onSelect('audio')
+                      }}
+                      onPointerMove={(e) => {
+                        const d = musicDrag.current
+                        if (!d) return
+                        const delay = snap(d.delay + ((e.clientX - d.x) / d.width) * total)
+                        onMusicChange?.({ delay: Math.max(0, Math.min(total - 0.1, delay)) })
+                      }}
+                      onPointerUp={() => (musicDrag.current = null)}
+                      onPointerCancel={() => (musicDrag.current = null)}
+                    >
+                      <Waveform
+                        peaks={peaks}
+                        length={track.length}
+                        from={track.trim}
+                        to={track.trim + length}
+                        loopFrom={track.trim}
+                      />
+                      {fadeIn > 0 && (
+                        <span
+                          className="clip-fade in"
+                          style={{ width: `${(fadeIn / length) * 100}%` }}
+                        />
+                      )}
+                      {fadeOut > 0 && (
+                        <span
+                          className="clip-fade out"
+                          style={{ width: `${(fadeOut / length) * 100}%` }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+              <div className="playhead" style={{ left: `${(playback.time / total) * 100}%` }} />
+            </div>
+          </>
+        )}
       </div>
     </section>
   )

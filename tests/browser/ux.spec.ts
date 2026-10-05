@@ -60,6 +60,10 @@ test('section disclosure, keyboard tabs and dialog focus', async ({ page }) => {
 test('custom dimensions, hex colors, typography and translucent exports', async ({
   page,
 }, testInfo) => {
+  // Project files download when the browser has no save dialog (Playwright cannot answer one).
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }),
+  )
   await page.goto('./')
   await page.getByLabel('Title', { exact: true }).fill('Aa\nStudio')
   await page.getByRole('button', { name: /^Typography/ }).click()

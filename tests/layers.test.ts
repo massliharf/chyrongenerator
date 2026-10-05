@@ -4,6 +4,7 @@ import {
   DEFAULT_PROJECT,
   IMAGE_MOTIONS,
   HOLD_EFFECTS,
+  MAX_HOLD,
   chyronLayer,
   duration,
   frameCount,
@@ -53,7 +54,7 @@ describe('layer schema', () => {
       ...DEFAULT_PROJECT,
       layers: [
         image({ width: 9999, intro: 'nope' as never, outro: 'glitch', emphasis: 'shine' }),
-        { kind: 'chyron', delay: 50, visible: false },
+        { kind: 'chyron', delay: 500, visible: false },
         { kind: 'chyron' },
         { kind: 'image', id: 'bad' },
         'junk',
@@ -65,12 +66,17 @@ describe('layer schema', () => {
     expect(l.intro).toBe(DEFAULT_IMAGE_LAYER.intro)
     expect(l.outro).toBe('glitch')
     expect(l.emphasis).toBe('shine')
-    expect(chyronLayer(p)).toMatchObject({ visible: false, delay: 10 })
+    // Delays reach as far as the longest hold allows.
+    expect(chyronLayer(p)).toMatchObject({ visible: false, delay: MAX_HOLD + 8 })
     expect(normalizeProject(JSON.parse(JSON.stringify(p)))).toEqual(p)
   })
-  it('adds a chyron layer when missing and rejects duplicate image ids', () => {
+  it('rejects duplicate image ids and allows compositions without a chyron', () => {
     const p = normalizeProject({ ...DEFAULT_PROJECT, layers: [image(), image()] })
-    expect(p.layers.map((l) => l.id)).toEqual(['logo', 'chyron'])
+    expect(p.layers.map((l) => l.id)).toEqual(['logo'])
+    // Projects from before layers existed were one chyron.
+    const { layers: _, ...old } = DEFAULT_PROJECT
+    void _
+    expect(normalizeProject(old).layers.map((l) => l.id)).toEqual(['chyron'])
   })
   it('counts image-only compositions as exportable artwork', () => {
     const hidden = normalizeProject({
@@ -109,13 +115,13 @@ describe('layer operations', () => {
     expect(fitWidth(DEFAULT_PROJECT, 1, 'contain')).toBe(100)
     expect(fitWidth(DEFAULT_PROJECT, 1, 'cover')).toBe(177.8)
   })
-  it('reorders, duplicates and removes layers but never the chyron', () => {
+  it('reorders, duplicates and removes layers, the chyron included', () => {
     const p = withImage()
     expect(moveLayer(p, 'logo', 'back').map((l) => l.id)).toEqual(['logo', 'chyron'])
     const copy = duplicateLayer(p, 'logo')
     expect(copy.layers).toHaveLength(3)
     expect(copy.layers[2].id).toBe(copy.id)
-    expect(removeLayer(p, 'chyron')).toHaveLength(2)
+    expect(removeLayer(p, 'chyron').map((l) => l.id)).toEqual(['logo'])
     expect(removeLayer(p, 'logo').map((l) => l.id)).toEqual(['chyron'])
   })
   it('snaps image centers and edges', () => {
