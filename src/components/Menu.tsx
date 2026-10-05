@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { Check, type LucideIcon } from 'lucide-react'
 
 export type MenuEntry =
@@ -118,57 +127,147 @@ export function MenuButton({
             role="menu"
             aria-label={label}
             ref={list}
-            onKeyDown={(e) => {
-              const buttons = Array.from(
-                e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
-              )
-              const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
-              let next: number | undefined
-              if (e.key === 'ArrowDown') next = (index + 1) % buttons.length
-              if (e.key === 'ArrowUp') next = (index + buttons.length - 1) % buttons.length
-              if (e.key === 'Home') next = 0
-              if (e.key === 'End') next = buttons.length - 1
-              if (next !== undefined) {
-                e.preventDefault()
-                buttons[next]?.focus()
-              }
-              if (e.key === 'Escape' || e.key === 'Tab') {
-                e.preventDefault()
-                e.stopPropagation()
-                close()
-              }
-              e.stopPropagation()
-            }}
+            onKeyDown={(e) => menuKeys(e, () => close())}
           >
-            {items.map((item, i) =>
-              item === 'separator' ? (
-                <hr key={`sep-${i}`} className="menu-separator" />
-              ) : (
-                <button
-                  key={item.label}
-                  type="button"
-                  role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
-                  aria-checked={item.checked}
-                  className={`menu-item ${item.danger ? 'is-danger' : ''} ${item.checked ? 'is-checked' : ''}`}
-                  disabled={item.disabled}
-                  onClick={() => {
-                    close(false)
-                    item.onSelect()
-                  }}
-                >
-                  {item.Icon && <item.Icon size={18} aria-hidden="true" />}
-                  <span className="menu-item-text">
-                    <span>{item.label}</span>
-                    {item.hint && <small>{item.hint}</small>}
-                  </span>
-                  {item.shortcut && <kbd>{item.shortcut}</kbd>}
-                  {item.checked && <Check size={16} className="menu-check" aria-hidden="true" />}
-                </button>
-              ),
-            )}
+            <MenuItems items={items} onPick={() => close(false)} />
           </div>
         </>
       )}
     </div>
+  )
+}
+
+/** ↑/↓, Home/End move between items; Escape and Tab close. Enter and Space press the item. */
+function menuKeys(e: KeyboardEvent<HTMLElement>, close: () => void) {
+  const buttons = Array.from(
+    e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+  )
+  const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+  let next: number | undefined
+  if (e.key === 'ArrowDown') next = (index + 1) % buttons.length
+  if (e.key === 'ArrowUp') next = (index + buttons.length - 1) % buttons.length
+  if (e.key === 'Home') next = 0
+  if (e.key === 'End') next = buttons.length - 1
+  if (next !== undefined) {
+    e.preventDefault()
+    buttons[next]?.focus()
+  }
+  if (e.key === 'Escape' || e.key === 'Tab') {
+    e.preventDefault()
+    close()
+  }
+  // Keys used inside a menu never reach the editor's shortcuts.
+  e.stopPropagation()
+}
+
+function MenuItems({ items, onPick }: { items: MenuEntry[]; onPick: () => void }) {
+  return items.map((item, i) =>
+    item === 'separator' ? (
+      <hr key={`sep-${i}`} className="menu-separator" />
+    ) : (
+      <button
+        key={item.label}
+        type="button"
+        role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+        aria-checked={item.checked}
+        className={`menu-item ${item.danger ? 'is-danger' : ''} ${item.checked ? 'is-checked' : ''}`}
+        disabled={item.disabled}
+        onClick={() => {
+          onPick()
+          item.onSelect()
+        }}
+      >
+        {item.Icon && <item.Icon size={18} aria-hidden="true" />}
+        <span className="menu-item-text">
+          <span>{item.label}</span>
+          {item.hint && <small>{item.hint}</small>}
+        </span>
+        {item.shortcut && <kbd>{item.shortcut}</kbd>}
+        {item.checked && <Check size={16} className="menu-check" aria-hidden="true" />}
+      </button>
+    ),
+  )
+}
+
+export type MenuPoint = { x: number; y: number; flipX?: number; flipY?: number }
+
+/**
+ * The same menu opened at the pointer (right-click) instead of under a button.
+ * Phones show it as an action sheet like every other menu. Focus returns to
+ * where it was when the menu closes.
+ */
+export function ContextMenu({
+  at,
+  items,
+  label,
+  title,
+  onClose,
+}: {
+  /**
+   * Viewport point the menu opens from. flipX / flipY are the edges it opens
+   * from when it has to open to the left or upwards (a button's other side).
+   */
+  at: MenuPoint
+  items: MenuEntry[]
+  /** Accessible name of the menu. */
+  label: string
+  /** Names what the actions apply to, above the items. */
+  title?: ReactNode
+  onClose: () => void
+}) {
+  const list = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState(at)
+  const opener = useRef<Element | null>(null)
+  const dismiss = useRef(onClose)
+  useEffect(() => {
+    dismiss.current = onClose
+  })
+  useLayoutEffect(() => {
+    const el = list.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    // Like system menus: open right and down, or left and up where there is no room.
+    const x = at.x + r.width > window.innerWidth - 8 ? (at.flipX ?? at.x) - r.width : at.x
+    const y = at.y + r.height > window.innerHeight - 8 ? (at.flipY ?? at.y) - r.height : at.y
+    setPos({
+      x: Math.max(8, Math.min(x, window.innerWidth - r.width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - r.height - 8)),
+    })
+  }, [at])
+  useEffect(() => {
+    opener.current = document.activeElement
+    list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+    const resize = () => dismiss.current()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+  const close = (refocus = true) => {
+    onClose()
+    if (refocus && opener.current instanceof HTMLElement) opener.current.focus()
+  }
+  return createPortal(
+    <>
+      <div
+        className="menu-scrim"
+        onPointerDown={() => close()}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          close()
+        }}
+      />
+      <div
+        ref={list}
+        className="menu context-menu"
+        role="menu"
+        aria-label={label}
+        style={{ '--menu-x': `${pos.x}px`, '--menu-y': `${pos.y}px` } as React.CSSProperties}
+        onKeyDown={(e) => menuKeys(e, () => close())}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {title && <div className="menu-title">{title}</div>}
+        <MenuItems items={items} onPick={() => close()} />
+      </div>
+    </>,
+    document.body,
   )
 }

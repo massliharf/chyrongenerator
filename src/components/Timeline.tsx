@@ -18,10 +18,12 @@ import {
   Upload,
   Lock,
   LockOpen,
+  MoreHorizontal,
   Volume2,
   VolumeX,
 } from 'lucide-react'
 import {
+  MAX_HOLD,
   duration,
   isStill,
   layerTiming,
@@ -32,8 +34,10 @@ import {
 } from '../studio/model'
 import { musicEnvelope, musicWindow } from '../studio/audio'
 import type { usePlayback } from '../studio/usePlayback'
-import { MenuButton, type MenuEntry } from './Menu'
+import { MenuButton, type MenuEntry, type MenuPoint } from './Menu'
+import { belowButton, MUSIC } from './layerMenu'
 import { Waveform } from './MusicPanel'
+import { NumberInput } from './Controls'
 import { useAudioPeaks } from '../studio/useAudioPeaks'
 
 const KEY = 'chyron-studio:timeline'
@@ -43,6 +47,8 @@ export interface TimingChange {
   length?: number
   outLength?: number
   endDelay?: number
+  /** A new composition hold: the whole clip gets longer or shorter. */
+  clipHold?: number
 }
 type DragMode = 'move' | 'start' | 'in' | 'out' | 'end'
 
@@ -62,6 +68,8 @@ export function Timeline({
   onMusicChange,
   onTiming,
   onReorder,
+  onLayerMenu,
+  onLength,
 }: {
   project: Project
   playback: ReturnType<typeof usePlayback>
@@ -81,6 +89,10 @@ export function Timeline({
   onTiming: (id: string, timing: TimingChange) => void
   /** Move a layer to a new stack index (0 = back). */
   onReorder: (id: string, index: number) => void
+  /** Open a layer's (or the music's) actions: right-click on its row, or its ⋯ button. */
+  onLayerMenu?: (id: string, at: MenuPoint) => void
+  /** A new video length in seconds (the hold grows or shrinks). */
+  onLength?: (seconds: number) => void
 }) {
   const [dragged, setDragged] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
@@ -158,6 +170,23 @@ export function Timeline({
     }
   }
   const still = (l: Layer) => isStill(l, p)
+  const rightClick = (id: string) => (e: React.MouseEvent) => {
+    if (!onLayerMenu) return
+    e.preventDefault()
+    onLayerMenu(id, { x: e.clientX, y: e.clientY })
+  }
+  const moreButton = (id: string, name: string) =>
+    onLayerMenu && (
+      <button
+        className="eye more"
+        aria-label={`Actions for ${name}`}
+        aria-haspopup="menu"
+        title="Move, hide, rename, duplicate, delete… (or right-click)"
+        onClick={(e) => onLayerMenu(id, belowButton(e.currentTarget))}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+    )
   const addItems: MenuEntry[] = [
     ...(onAddChyron
       ? ([
@@ -266,7 +295,7 @@ export function Timeline({
             )}
           </button>
           <button
-            className="icon-button transport-boundary"
+            className="icon-button transport-boundary is-end"
             aria-label="Go to end"
             title="Go to end"
             onClick={() => playback.seek(total)}
@@ -274,7 +303,24 @@ export function Timeline({
             <ChevronLast size={18} />
           </button>
           <span className="timecode">
-            {playback.time.toFixed(2)} <span>/ {total.toFixed(2)} s</span>
+            {playback.time.toFixed(2)}{' '}
+            {onLength ? (
+              // The video length, typed right here: the hold takes up the change.
+              <span className="timecode-length" title="Video length: type a new one">
+                <span aria-hidden="true">/</span>
+                <NumberInput
+                  label="Video length in seconds"
+                  value={Math.round(total * 100) / 100}
+                  min={Math.round(p.animationDuration * 200) / 100}
+                  max={Math.round((p.animationDuration * 2 + MAX_HOLD) * 100) / 100}
+                  step={0.1}
+                  onChange={onLength}
+                />
+                <span aria-hidden="true">s</span>
+              </span>
+            ) : (
+              <span>/ {total.toFixed(2)} s</span>
+            )}
           </span>
         </div>
         <div className="timeline-tools">
@@ -326,12 +372,22 @@ export function Timeline({
         <ol className="layer-labels" aria-label="Layers, front to back">
           {layers.map((l, row) => {
             const name = l.name
+            // Dropping moves the dragged layer to this row's place: dragged down,
+            // it lands below this layer; dragged up, above it.
+            const from = dragged ? layers.findIndex((d) => d.id === dragged) : -1
+            const drop =
+              dropIndex === row && dragged && dragged !== l.id
+                ? from < row
+                  ? 'drop-after'
+                  : 'drop-before'
+                : ''
             return (
               <li
                 key={l.id}
-                className={`layer-label ${l.id === selected ? 'selected' : ''} ${l.visible ? '' : 'is-hidden'} ${l.locked ? 'is-locked' : ''} ${dragged === l.id ? 'is-dragging' : ''} ${dropIndex === row && dragged && dragged !== l.id ? 'drop-target' : ''}`}
+                className={`layer-label ${l.id === selected ? 'selected' : ''} ${l.visible ? '' : 'is-hidden'} ${l.locked ? 'is-locked' : ''} ${dragged === l.id ? 'is-dragging' : ''} ${drop}`}
                 draggable
-                title="Drag to reorder"
+                title="Drag to reorder · Right-click for actions"
+                onContextMenu={rightClick(l.id)}
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = 'move'
                   e.dataTransfer.setData('text/plain', l.id)
@@ -395,6 +451,7 @@ export function Timeline({
                     {l.locked ? <Lock size={14} /> : <LockOpen size={14} />}
                   </button>
                 )}
+                {moreButton(l.id, name)}
               </li>
             )
           })}
@@ -417,6 +474,7 @@ export function Timeline({
                 className={`track ${l.id === selected ? 'selected' : ''}`}
                 aria-hidden="true"
                 onClick={() => onSelect(l.id)}
+                onContextMenu={rightClick(l.id)}
               >
                 <div
                   className={`clip ${l.kind === 'chyron' ? 'title-clip' : l.kind === 'shape' ? 'shape-clip' : 'image-clip'} ${l.visible ? '' : 'is-hidden'}`}
@@ -481,7 +539,8 @@ export function Timeline({
         {p.audio && (
           <>
             <div
-              className={`layer-label music-label ${selected === 'audio' ? 'selected' : ''} ${p.audio.muted ? 'is-hidden' : ''}`}
+              className={`layer-label music-label ${selected === MUSIC ? 'selected' : ''} ${p.audio.muted ? 'is-hidden' : ''}`}
+              onContextMenu={rightClick(MUSIC)}
             >
               <button
                 className="eye"
@@ -500,6 +559,7 @@ export function Timeline({
                 <Music size={14} aria-hidden="true" />
                 <span>{p.audio.name}</span>
               </button>
+              {moreButton(MUSIC, p.audio.name)}
             </div>
             <div className="tracks music-tracks">
               {(() => {
@@ -511,9 +571,10 @@ export function Timeline({
                 const fadeOut = envelope.length ? envelope[3][0] - envelope[2][0] : 0
                 return (
                   <div
-                    className={`track ${selected === 'audio' ? 'selected' : ''}`}
+                    className={`track ${selected === MUSIC ? 'selected' : ''}`}
                     aria-hidden="true"
-                    onClick={() => onSelect('audio')}
+                    onClick={() => onSelect(MUSIC)}
+                    onContextMenu={rightClick(MUSIC)}
                   >
                     <div
                       className={`clip audio-clip ${track.muted ? 'is-hidden' : ''}`}

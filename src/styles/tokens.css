@@ -187,9 +187,10 @@
   --color-bg-selected: rgb(115 115 115 / 0.15);
   --color-text-primary: #1a1a1a;
   --color-text-secondary: #616161;
-  --color-text-tertiary: #737373;
+  --color-text-tertiary: #6e6e6e; /* #737373 measured; darker to pass AA on control fills */
   --color-text-disabled: #a3a3a3;
   --color-text-inverse: #ffffff;
+  --color-text-inverse-action: var(--blue-300);
   --color-text-link: #1a1a1a;
   --color-text-on-action: #ffffff;
   --color-text-brand: #1a1a1a;
@@ -243,7 +244,7 @@
   --track-title-fg: #2f45b8;
   --track-title-line: rgb(79 105 242 / 0.35);
   --track-image-bg: rgb(23 203 141 / 0.1);
-  --track-image-fg: #0b7a54;
+  --track-image-fg: #0a7050;
   --track-image-line: rgb(23 203 141 / 0.4);
   /* Shapes use the Design category tone, music the Audio tone. */
   --track-shape-bg: rgb(204 126 128 / 0.12);
@@ -283,6 +284,7 @@
     --color-text-tertiary: #9a9a9a;
     --color-text-disabled: #5c5c5c;
     --color-text-inverse: #1a1a1a;
+    --color-text-inverse-action: var(--blue-700);
     --color-text-link: #f7f7f7;
     --color-text-on-action: #1a1a1a;
     --color-text-brand: #f7f7f7;
@@ -355,6 +357,7 @@
   --color-text-tertiary: #9a9a9a;
   --color-text-disabled: #5c5c5c;
   --color-text-inverse: #1a1a1a;
+  --color-text-inverse-action: var(--blue-700);
   --color-text-link: #f7f7f7;
   --color-text-on-action: #1a1a1a;
   --color-text-brand: #f7f7f7;

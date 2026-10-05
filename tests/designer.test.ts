@@ -227,3 +227,27 @@ describe('masks', () => {
     }
   })
 })
+
+describe('chyrons in the Designer', () => {
+  it('a redrawn chyron keeps its centre and its scale', async () => {
+    const { withChyronAsset, chyronFromTemplate } = await import('../src/designer/chyron')
+    const { createImage } = await import('../src/designer/model')
+    const { TEMPLATES } = await import('../src/studio/model')
+    const style = chyronFromTemplate(TEMPLATES[0])
+    expect(style.text).toBe('Your\nName')
+    expect(style.subtitle).toBe('ROLE')
+    // A 1000 × 400 picture shown at half size, centred at (600, 500).
+    const layer = { ...createImage(DEFAULT_DOC, 'a', 1000, 400, 'Chyron'), chyron: style }
+    const placed = { ...layer, x: 350, y: 400, w: 500, h: 200 }
+    const doc: DesignDoc = { ...DEFAULT_DOC, assets: { a: 'data:a' }, layers: [placed] }
+    // Longer words: a wider picture at the same scale, around the same centre.
+    const next = withChyronAsset(doc, layer.id, { id: 'b', src: 'data:b', width: 1600, height: 400 })
+    const out = next.layers[0] as typeof placed
+    expect(out.asset).toBe('b')
+    expect(next.assets.b).toBe('data:b')
+    expect([out.w, out.h]).toEqual([800, 200])
+    expect([out.x + out.w / 2, out.y + out.h / 2]).toEqual([600, 500])
+    expect(out.crop).toEqual({ x: 0, y: 0, w: 1600, h: 400 })
+    expect(out.chyron).toBe(style)
+  })
+})

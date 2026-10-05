@@ -281,7 +281,8 @@ export function ExportDialog({
           <div className="alert alert-success" role="status">
             <CheckCheck size={18} />
             <span>
-              Your export is ready. <strong>{(done.blob.size / 1024 / 1024).toFixed(1)} MB</strong>
+              Your export is ready: <strong>{done.filename}</strong>,{' '}
+              {(done.blob.size / 1024 / 1024).toFixed(1)} MB, in your downloads folder.
             </span>
           </div>
         )}
@@ -290,7 +291,7 @@ export function ExportDialog({
         <span className="dialog-footer-note">
           {progress
             ? 'Keeps going while you use other apps. You can cancel at any time.'
-            : 'Rendered on your device.'}
+            : 'Rendered on your device. Keeps going if you switch apps.'}
         </span>
         <span className="dialog-footer-spacer" />
         {progress ? (

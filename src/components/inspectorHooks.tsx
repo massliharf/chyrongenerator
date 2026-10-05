@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Section } from './Controls'
 
 /* Inspector helpers that are not components. */
@@ -11,7 +11,12 @@ const defaultOpen: Record<string, boolean> = {
   canvas: true,
   timing: true,
   'shape-fill': true,
+  'anim-in': true,
+  'anim-onscreen': true,
 }
+const REVEAL = 'chyron-studio:reveal-group'
+/** Open a section wherever it is shown (for links that jump to a setting). */
+export const revealGroup = (id: string) => window.dispatchEvent(new CustomEvent(REVEAL, { detail: id }))
 /** Collapsible sections whose open state is remembered on this device. */
 export function useGroups() {
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
@@ -22,8 +27,7 @@ export function useGroups() {
       return defaultOpen
     }
   })
-  const toggle = (id: string) => {
-    const next = { ...open, [id]: !open[id] }
+  const store = (next: Record<string, boolean>) => {
     setOpen(next)
     try {
       localStorage.setItem(OPEN_KEY, JSON.stringify(next))
@@ -31,6 +35,15 @@ export function useGroups() {
       /* Optional preference. */
     }
   }
+  const toggle = (id: string) => store({ ...open, [id]: !open[id] })
+  useEffect(() => {
+    const reveal = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      setOpen((current) => (current[id] ? current : { ...current, [id]: true }))
+    }
+    window.addEventListener(REVEAL, reveal)
+    return () => window.removeEventListener(REVEAL, reveal)
+  }, [])
   return (
     id: string,
     title: string,

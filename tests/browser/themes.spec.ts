@@ -2,10 +2,20 @@ import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
 const tags = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']
-const scan = async (page: Page, label: string) =>
-  (await new AxeBuilder({ page }).withTags(tags).analyze()).violations.map(
+const scan = async (page: Page, label: string) => {
+  // Dialogs and menus fade in; measure contrast once they are fully shown.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => {})),
+    ),
+  )
+  return (await new AxeBuilder({ page }).withTags(tags).analyze()).violations.map(
     (v) => `${label}: ${v.id} → ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`,
   )
+}
 
 for (const scheme of ['light', 'dark'] as const) {
   test.describe(`${scheme} theme`, () => {
@@ -47,15 +57,15 @@ for (const scheme of ['light', 'dark'] as const) {
 test('theme toggle switches, persists and follows the system until chosen', async ({ browser }) => {
   const page = await browser.newPage({ colorScheme: 'dark' })
   await page.goto('./')
-  const bg = () =>
-    page.evaluate(() => getComputedStyle(document.querySelector('.topbar')!).backgroundColor)
-  expect(await bg()).toBe('rgb(17, 17, 22)')
+  // The app background follows the theme; the top bar floats on it.
+  const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+  expect(await bg()).toBe('rgb(15, 15, 15)')
   await page.emulateMedia({ colorScheme: 'light' })
-  expect(await bg()).toBe('rgb(255, 255, 255)')
+  expect(await bg()).toBe('rgb(245, 245, 245)')
   await page.getByRole('button', { name: 'Switch to dark mode' }).first().click()
-  expect(await bg()).toBe('rgb(17, 17, 22)')
+  expect(await bg()).toBe('rgb(15, 15, 15)')
   await page.reload()
-  expect(await bg()).toBe('rgb(17, 17, 22)')
+  expect(await bg()).toBe('rgb(15, 15, 15)')
   await expect(page.getByRole('button', { name: 'Switch to light mode' }).first()).toBeVisible()
   await page.close()
 })

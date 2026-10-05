@@ -48,8 +48,10 @@ import {
 } from 'lucide-react'
 import { Color, Field, NumberField } from './Controls'
 import { Chips } from './InspectorParts'
+import { useGroups } from './inspectorHooks'
 import {
   EASINGS,
+  MAX_HOLD,
   PRIMARY_CHYRON,
   effectsFor,
   layerTiming,
@@ -167,68 +169,94 @@ const EASING_NAMES: Record<Easing, string> = {
   linear: 'Linear',
 }
 
-/** In · Hold · Out for one layer. The same numbers the timeline clip shows. */
-export function TimingFields({
+const round = (n: number) => Math.round(n * 100) / 100
+/** "1 s in · 2.4 s hold · 1 s out", as the Timing section summary. */
+const timingSummary = (layer: Layer, p: Project) => {
+  const t = layerTiming(layer, p)
+  return `${t.delay > 0 ? `from ${round(t.delay)} s · ` : ''}${round(t.length)} s in · ${round(t.hold)} s hold · ${round(t.outLength)} s out`
+}
+
+/**
+ * Starts at · In · Hold · Out for one layer: the same numbers the timeline clip
+ * shows. A Hold longer than the clip leaves room for makes the whole clip longer
+ * (every layer shares it), up to the composition's maximum hold.
+ */
+function TimingFields({
   layer,
   project: p,
   onTiming,
+  onClipTiming,
 }: {
   layer: Layer
   project: Project
   onTiming: (id: string, change: TimingChange) => void
+  onClipTiming?: () => void
 }) {
   const t = layerTiming(layer, p)
-  const round = (n: number) => Math.round(n * 100) / 100
   const free = (used: number) => round(Math.max(0, t.total - used))
+  const fits = free(t.delay + t.length + t.outLength)
   return (
-    <div className="block">
-      <span className="block-label">Timing</span>
-      <NumberField
-        label="Starts at"
-        value={round(t.delay)}
-        min={0}
-        max={free(t.length + t.outLength + t.endDelay)}
-        step={0.1}
-        unit="s"
-        onChange={(delay) => onTiming(layer.id, { delay, endDelay: t.endDelay })}
-      />
-      <NumberField
-        label="In"
-        value={round(t.length)}
-        min={0.2}
-        max={Math.min(4, free(t.delay + t.outLength + t.endDelay))}
-        step={0.1}
-        unit="s"
-        onChange={(length) => onTiming(layer.id, { length })}
-      />
-      <NumberField
-        label="Hold"
-        value={round(t.hold)}
-        min={0}
-        max={free(t.delay + t.length + t.outLength)}
-        step={0.1}
-        unit="s"
-        onChange={(hold) =>
-          onTiming(layer.id, {
-            endDelay: round(Math.max(0, t.total - t.delay - t.length - hold - t.outLength)),
-            delay: t.delay,
-          })
-        }
-      />
-      <NumberField
-        label="Out"
-        value={round(t.outLength)}
-        min={0.2}
-        max={free(t.delay + t.length + t.endDelay)}
-        step={0.1}
-        unit="s"
-        onChange={(outLength) => onTiming(layer.id, { outLength, endDelay: t.endDelay })}
-      />
+    <>
+      <div className="pair-fields">
+        <NumberField
+          label="Starts at"
+          value={round(t.delay)}
+          min={0}
+          max={free(t.length + t.outLength + t.endDelay)}
+          step={0.1}
+          unit="s"
+          onChange={(delay) => onTiming(layer.id, { delay, endDelay: t.endDelay })}
+        />
+        <NumberField
+          label="In"
+          value={round(t.length)}
+          min={0.2}
+          max={Math.min(4, free(t.delay + t.outLength + t.endDelay))}
+          step={0.1}
+          unit="s"
+          onChange={(length) => onTiming(layer.id, { length })}
+        />
+        <NumberField
+          label="Hold"
+          value={round(t.hold)}
+          min={0}
+          max={round(fits + Math.max(0, MAX_HOLD - p.hold))}
+          step={0.1}
+          unit="s"
+          onChange={(hold) =>
+            hold <= fits
+              ? onTiming(layer.id, {
+                  endDelay: round(Math.max(0, fits - hold)),
+                  delay: t.delay,
+                })
+              : // Longer than the clip: the clip grows by the difference.
+                onTiming(layer.id, {
+                  endDelay: 0,
+                  delay: t.delay,
+                  clipHold: round(p.hold + hold - fits),
+                })
+          }
+        />
+        <NumberField
+          label="Out"
+          value={round(t.outLength)}
+          min={0.2}
+          max={free(t.delay + t.length + t.endDelay)}
+          step={0.1}
+          unit="s"
+          onChange={(outLength) => onTiming(layer.id, { outLength, endDelay: t.endDelay })}
+        />
+      </div>
       <p className="block-note">
-        Clip length {round(t.total)}s. To make every layer longer, change Hold under Composition ›
-        Timing.
+        The clip is {round(t.total)} s. A longer Hold here makes the whole clip longer, for every
+        layer.
       </p>
-    </div>
+      {onClipTiming && (
+        <button className="button ghost sm" onClick={onClipTiming}>
+          Clip length and frame rate
+        </button>
+      )}
+    </>
   )
 }
 
@@ -244,8 +272,7 @@ function OnScreen({
 }) {
   const emphasis = value.emphasis ?? 'none'
   return (
-    <div className="block">
-      <span className="block-label">While on screen</span>
+    <>
       <Chips
         label="While on screen"
         items={effectsFor(kind).map((id) => ({ id, ...EFFECTS[id] }))}
@@ -284,9 +311,13 @@ function OnScreen({
       {kind === 'chyron' && (
         <p className="block-note">Letter wave and Ripple move one letter at a time.</p>
       )}
-    </div>
+    </>
   )
 }
+const effectSummary = (value: Partial<Emphasis>) =>
+  !value.emphasis || value.emphasis === 'none'
+    ? 'None'
+    : `${EFFECTS[value.emphasis].name} · ${value.emphasisStrength ?? 50}%`
 
 /**
  * One Animate panel for every layer: In, Out, Timing and While on screen.
@@ -298,17 +329,20 @@ export function AnimatePanel({
   patch,
   previewPhase,
   onTiming,
+  onClipTiming,
 }: {
   layer: Layer
   project: Project
   patch: Patch
   previewPhase: Preview
   onTiming: (id: string, change: TimingChange) => void
+  /** Show the composition's clip length (Hold) and frame rate. */
+  onClipTiming?: () => void
 }) {
   return layer.kind === 'chyron' ? (
-    <ChyronAnimate {...{ layer, p, patch, previewPhase, onTiming }} />
+    <ChyronAnimate {...{ layer, p, patch, previewPhase, onTiming, onClipTiming }} />
   ) : (
-    <ElementAnimate {...{ l: layer, p, patch, previewPhase, onTiming }} />
+    <ElementAnimate {...{ l: layer, p, patch, previewPhase, onTiming, onClipTiming }} />
   )
 }
 
@@ -318,13 +352,16 @@ function ChyronAnimate({
   patch,
   previewPhase,
   onTiming,
+  onClipTiming,
 }: {
   layer: ChyronLayer
   p: Project
   patch: Patch
   previewPhase: Preview
   onTiming: (id: string, change: TimingChange) => void
+  onClipTiming?: () => void
 }) {
+  const group = useGroups()
   const style = styleOf(p, layer)
   const setStyle = (values: Partial<ChyronStyle>) => patch(chyronStylePatch(p, layer.id, values))
   const others = p.layers.filter((l) => l.kind === 'chyron' && l.id !== layer.id).length
@@ -345,10 +382,12 @@ function ChyronAnimate({
     })
   }
   return (
-    <div className="props-stack">
-      <div className="block">
-        <span className="block-label">In</span>
-        {LETTER_GROUPS.map((g) => (
+    <div className="props-stack animate-stack">
+      {group(
+        'anim-in',
+        'In',
+        LETTER_MOTION[style.motion].name,
+        LETTER_GROUPS.map((g) => (
           <div key={g.title} className="motion-group">
             <span className="motion-group-title">{g.title}</span>
             <Chips
@@ -363,45 +402,60 @@ function ChyronAnimate({
               }}
             />
           </div>
-        ))}
-      </div>
-      <div className="block">
-        <Field label="Out">
-          <select
-            value={style.outro}
-            onChange={(e) => {
-              setStyle({ outro: e.target.value as ChyronStyle['outro'] })
-              previewPhase('outro', true)
-            }}
-          >
-            <option value="mirror">Reverse of In</option>
-            {LETTER_GROUPS.flatMap((g) => g.items)
-              .filter((id) => id !== 'none')
-              .map((id) => (
-                <option key={id} value={id}>
-                  {LETTER_MOTION[id].name}
-                </option>
-              ))}
-          </select>
-        </Field>
-        <NumberField
-          label="Stagger"
-          value={style.stagger}
-          min={0}
-          max={0.8}
-          step={0.05}
-          onChange={(stagger) => setStyle({ stagger })}
-        />
-        <p className="block-note">
-          Choosing a style plays it. Letters follow one another by the stagger.
-        </p>
-      </div>
-      <TimingFields layer={layer} project={p} onTiming={onTiming} />
-      <OnScreen
-        kind="chyron"
-        value={layer}
-        onChange={(values) => patch({ layers: updateLayer(p, layer.id, values) })}
-      />
+        )),
+      )}
+      {group(
+        'anim-out',
+        'Out',
+        `${style.outro === 'mirror' ? 'Reverse of In' : LETTER_MOTION[style.outro].name} · stagger ${style.stagger}`,
+        <>
+          <Field label="Out">
+            <select
+              value={style.outro}
+              onChange={(e) => {
+                setStyle({ outro: e.target.value as ChyronStyle['outro'] })
+                previewPhase('outro', true)
+              }}
+            >
+              <option value="mirror">Reverse of In</option>
+              {LETTER_GROUPS.flatMap((g) => g.items)
+                .filter((id) => id !== 'none')
+                .map((id) => (
+                  <option key={id} value={id}>
+                    {LETTER_MOTION[id].name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <NumberField
+            label="Stagger"
+            value={style.stagger}
+            min={0}
+            max={0.8}
+            step={0.05}
+            onChange={(stagger) => setStyle({ stagger })}
+          />
+          <p className="block-note">
+            Choosing a style plays it. Letters follow one another by the stagger.
+          </p>
+        </>,
+      )}
+      {group(
+        'anim-timing',
+        'Timing',
+        timingSummary(layer, p),
+        <TimingFields layer={layer} project={p} onTiming={onTiming} onClipTiming={onClipTiming} />,
+      )}
+      {group(
+        'anim-onscreen',
+        'While on screen',
+        effectSummary(layer),
+        <OnScreen
+          kind="chyron"
+          value={layer}
+          onChange={(values) => patch({ layers: updateLayer(p, layer.id, values) })}
+        />,
+      )}
       {others > 0 && (
         <button
           className="button secondary full"
@@ -422,13 +476,16 @@ function ElementAnimate({
   patch,
   previewPhase,
   onTiming,
+  onClipTiming,
 }: {
   l: ElementLayer
   p: Project
   patch: Patch
   previewPhase: Preview
   onTiming: (id: string, change: TimingChange) => void
+  onClipTiming?: () => void
 }) {
+  const group = useGroups()
   const set = (values: Partial<ElementLayer>) => patch({ layers: updateLayer(p, l.id, values) })
   const peers = p.layers.filter(
     (layer) => (layer.kind === 'image' || layer.kind === 'shape') && layer.id !== l.id,
@@ -437,10 +494,12 @@ function ElementAnimate({
   const kinds = new Set(peers.map((layer) => layer.kind))
   const noun = kinds.size > 1 ? 'layer' : kinds.has('shape') ? 'shape' : 'image'
   return (
-    <div className="props-stack">
-      <div className="block">
-        <span className="block-label">In</span>
-        {ELEMENT_GROUPS.map((g) => (
+    <div className="props-stack animate-stack">
+      {group(
+        'anim-in',
+        'In',
+        ELEMENT_MOTION[l.intro].name,
+        ELEMENT_GROUPS.map((g) => (
           <div key={g.title} className="motion-group">
             <span className="motion-group-title">{g.title}</span>
             <Chips
@@ -454,46 +513,61 @@ function ElementAnimate({
               }}
             />
           </div>
-        ))}
-      </div>
-      <div className="block">
-        <div className="pair-fields">
-          <Field label="Out">
-            <select
-              value={l.outro}
-              onChange={(e) => {
-                set({ outro: e.target.value as ElementLayer['outro'] })
-                previewPhase('outro', true)
-              }}
-            >
-              <option value="mirror">Reverse</option>
-              {ELEMENT_GROUPS.flatMap((g) => g.items).map((id) => (
-                <option key={id} value={id}>
-                  {ELEMENT_MOTION[id].out ?? ELEMENT_MOTION[id].name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Easing">
-            <select value={l.easing} onChange={(e) => set({ easing: e.target.value as Easing })}>
-              {EASINGS.map((id) => (
-                <option key={id} value={id}>
-                  {EASING_NAMES[id]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {(l.intro === 'burst' || l.outro === 'burst') && (
-          <Color
-            label="Burst sparks"
-            value={l.burstColor}
-            onChange={(burstColor) => set({ burstColor })}
-          />
-        )}
-      </div>
-      <TimingFields layer={l} project={p} onTiming={onTiming} />
-      <OnScreen kind={l.kind} value={l} onChange={set} />
+        )),
+      )}
+      {group(
+        'anim-out',
+        'Out',
+        `${l.outro === 'mirror' ? 'Reverse' : (ELEMENT_MOTION[l.outro].out ?? ELEMENT_MOTION[l.outro].name)} · ${EASING_NAMES[l.easing]}`,
+        <>
+          <div className="pair-fields">
+            <Field label="Out">
+              <select
+                value={l.outro}
+                onChange={(e) => {
+                  set({ outro: e.target.value as ElementLayer['outro'] })
+                  previewPhase('outro', true)
+                }}
+              >
+                <option value="mirror">Reverse</option>
+                {ELEMENT_GROUPS.flatMap((g) => g.items).map((id) => (
+                  <option key={id} value={id}>
+                    {ELEMENT_MOTION[id].out ?? ELEMENT_MOTION[id].name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Easing">
+              <select value={l.easing} onChange={(e) => set({ easing: e.target.value as Easing })}>
+                {EASINGS.map((id) => (
+                  <option key={id} value={id}>
+                    {EASING_NAMES[id]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          {(l.intro === 'burst' || l.outro === 'burst') && (
+            <Color
+              label="Burst sparks"
+              value={l.burstColor}
+              onChange={(burstColor) => set({ burstColor })}
+            />
+          )}
+        </>,
+      )}
+      {group(
+        'anim-timing',
+        'Timing',
+        timingSummary(l, p),
+        <TimingFields layer={l} project={p} onTiming={onTiming} onClipTiming={onClipTiming} />,
+      )}
+      {group(
+        'anim-onscreen',
+        'While on screen',
+        effectSummary(l),
+        <OnScreen kind={l.kind} value={l} onChange={set} />,
+      )}
       {others > 0 && (
         <button
           className="button secondary full"

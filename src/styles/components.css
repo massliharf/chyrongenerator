@@ -478,11 +478,20 @@ fieldset.form-grid {
 .chip-grid.quick {
   grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)) !important;
 }
+/* Quick actions are parameter chips: icon and label side by side, 32 px. */
 .chip-grid.quick > button {
-  min-height: 52px;
-  gap: var(--space-1);
+  grid-auto-flow: column;
+  justify-content: center;
+  align-items: center;
+  min-height: var(--control-md);
+  gap: var(--space-1-5);
+  padding: 0 var(--space-2);
   font: var(--text-caption);
   white-space: nowrap;
+}
+.chip-grid.quick > button > svg {
+  width: 16px;
+  height: 16px;
 }
 .chip-row {
   display: flex;
@@ -552,7 +561,7 @@ fieldset.form-grid {
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  min-height: 44px;
+  min-height: 36px;
   padding: 0 var(--space-2) 0 var(--space-4);
   text-align: start;
 }
@@ -613,6 +622,8 @@ fieldset.form-grid {
   inset-inline-start: 0;
   z-index: calc(var(--z-dropdown) + 1);
   display: grid;
+  /* As wide as the longest item, so hints stay on one line where they can. */
+  width: max-content;
   min-width: 224px;
   max-width: min(320px, calc(100vw - 32px));
   max-height: min(420px, 70dvh);
@@ -680,6 +691,34 @@ fieldset.form-grid {
   margin: var(--space-1) 0;
   border: 0;
   background: var(--color-border-default);
+}
+/* A menu opened at the pointer (right-click). Phones get the action sheet below. */
+@media (min-width: 768px) {
+  .menu.context-menu {
+    position: fixed;
+    inset: var(--menu-y) auto auto var(--menu-x);
+    min-width: 232px;
+    max-height: calc(100dvh - 16px);
+  }
+}
+/* Names what the actions apply to. */
+.menu-title {
+  overflow: hidden;
+  padding: var(--space-1) var(--space-2) var(--space-1-5);
+  margin-bottom: var(--space-1);
+  font: var(--text-overline);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-bottom: var(--border-width-thin) solid var(--color-border-default);
+}
+/* Shortcut hints mean nothing without a keyboard. */
+@media (hover: none) and (pointer: coarse) {
+  .menu-item kbd {
+    display: none;
+  }
 }
 /* Phones: menus become action sheets. */
 @media (max-width: 767px) {
@@ -870,7 +909,7 @@ fieldset.form-grid {
   color: inherit;
 }
 .toast .button.ghost {
-  color: var(--blue-300);
+  color: var(--color-text-inverse-action);
 }
 .toast-danger {
   color: var(--color-danger-text);
@@ -1009,4 +1048,14 @@ fieldset.form-grid {
 .split-button .button.primary:disabled + .menu-wrap .split-button-toggle,
 .split-button .split-button-toggle:disabled {
   border-inline-start-color: var(--color-border-default);
+}
+
+/* A wrapper that leaves its children in the parent's layout. */
+.contents {
+  display: contents;
+}
+@media (pointer: coarse) {
+  .section-trigger {
+    min-height: var(--touch-target-min);
+  }
 }

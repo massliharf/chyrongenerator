@@ -1,22 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
-  FolderOpen,
-  SquareDashed,
-  Image as ImageIcon,
   Layers as LayersIcon,
   Lock,
   LockOpen,
-  Shapes,
-  Type,
-  Upload,
-  ClipboardPaste,
   X,
 } from 'lucide-react'
-import { SHAPES, TEXT_PRESETS, isShape, type DesignDoc, type Layer, type TextPreset } from './model'
+import { SHAPES, isShape, type DesignDoc, type Layer } from './model'
 import type { DropZone } from './ops'
 import { clipGroups, drawThumb } from './render'
 import { shapePath } from './shapes'
@@ -50,181 +43,6 @@ function Thumb({ layer, version }: { layer: Layer; version: number }) {
     if (ref.current) drawThumb(ref.current, layer)
   }, [layer, version])
   return <canvas ref={ref} width={56} height={56} className="dz-layer-thumb" aria-hidden="true" />
-}
-
-/** A trigger with a panel anchored below it; closes on outside click or Escape. */
-function Popover({
-  label,
-  icon,
-  children,
-}: {
-  label: string
-  icon: ReactNode
-  children: (close: () => void) => ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  const wrap = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const down = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false)
-    }
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        setOpen(false)
-        trigger.current?.focus()
-      }
-    }
-    window.addEventListener('pointerdown', down)
-    window.addEventListener('keydown', key, true)
-    wrap.current?.querySelector<HTMLButtonElement>('.dz-popover button')?.focus()
-    return () => {
-      window.removeEventListener('pointerdown', down)
-      window.removeEventListener('keydown', key, true)
-    }
-  }, [open])
-  return (
-    <div className="dz-add-item" ref={wrap}>
-      <button
-        ref={trigger}
-        className={`dz-add-tile ${open ? 'is-open' : ''}`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => setOpen(!open)}
-      >
-        {icon}
-        <span>{label}</span>
-      </button>
-      {open && (
-        <div className="dz-popover" role="dialog" aria-label={label}>
-          {children(() => setOpen(false))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ---------- Add bar ---------- */
-
-export interface AddActions {
-  onUpload: () => void
-  onGallery: () => void
-  onText: (preset: TextPreset) => void
-  onShape: (preset: ShapePreset) => void
-  onFrame: (preset: ShapePreset) => void
-}
-
-function AddBar({ onUpload, onGallery, onText, onShape, onFrame }: AddActions) {
-  return (
-    <div className="dz-addbar" role="group" aria-label="Add to design">
-      <Popover label="Image" icon={<ImageIcon size={18} aria-hidden="true" />}>
-        {(close) => (
-          <div className="dz-pop-list">
-            <button
-              className="dz-pop-row"
-              onClick={() => {
-                close()
-                onUpload()
-              }}
-            >
-              <Upload size={16} aria-hidden="true" />
-              <span>
-                Upload from device
-                <small>PNG, JPEG, WebP, GIF · I</small>
-              </span>
-            </button>
-            <button
-              className="dz-pop-row"
-              onClick={() => {
-                close()
-                onGallery()
-              }}
-            >
-              <FolderOpen size={16} aria-hidden="true" />
-              <span>
-                Media gallery
-                <small>Hosts and backgrounds</small>
-              </span>
-            </button>
-            <p className="dz-pop-note">
-              <ClipboardPaste size={14} aria-hidden="true" /> You can also drop or paste images on
-              the artboard.
-            </p>
-          </div>
-        )}
-      </Popover>
-      <Popover label="Text" icon={<Type size={18} aria-hidden="true" />}>
-        {(close) => (
-          <div className="dz-pop-list">
-            {(Object.keys(TEXT_PRESETS) as TextPreset[]).map((k) => (
-              <button
-                key={k}
-                className={`dz-pop-text is-${k}`}
-                onClick={() => {
-                  close()
-                  onText(k)
-                }}
-              >
-                {TEXT_PRESETS[k].label}
-              </button>
-            ))}
-            <p className="dz-pop-note">Or press T and click on the artboard.</p>
-          </div>
-        )}
-      </Popover>
-      <Popover label="Shape" icon={<Shapes size={18} aria-hidden="true" />}>
-        {(close) => (
-          <>
-            <div className="dz-shape-grid">
-              {SHAPES.map((p) => (
-                <button
-                  key={p.name}
-                  className="dz-shape-tile"
-                  title={p.name}
-                  onClick={() => {
-                    close()
-                    onShape(p)
-                  }}
-                >
-                  <ShapeIcon preset={p} />
-                  <span>{p.name}</span>
-                </button>
-              ))}
-            </div>
-            <p className="dz-pop-note">R and O draw rectangles and ellipses directly.</p>
-          </>
-        )}
-      </Popover>
-      <Popover label="Frame" icon={<SquareDashed size={18} aria-hidden="true" />}>
-        {(close) => (
-          <>
-            <div className="dz-shape-grid is-frames">
-              {SHAPES.map((p) => (
-                <button
-                  key={p.name}
-                  className="dz-shape-tile"
-                  title={`${p.name} frame`}
-                  onClick={() => {
-                    close()
-                    onFrame(p)
-                  }}
-                >
-                  <ShapeIcon preset={p} />
-                  <span>{p.name}</span>
-                </button>
-              ))}
-            </div>
-            <p className="dz-pop-note">
-              Frames are masks waiting for a picture. Drop a photo on one, or drag an image layer
-              onto it.
-            </p>
-          </>
-        )}
-      </Popover>
-    </div>
-  )
 }
 
 /* ---------- Layers ---------- */
@@ -277,7 +95,10 @@ function LayersList({
       <div className="dz-empty-layers">
         <LayersIcon size={24} strokeWidth={1.5} aria-hidden="true" />
         <strong>No layers yet</strong>
-        <span>Add an image, text, shape or frame above, or drop files on the artboard.</span>
+        <span>
+          Use the bar under the artboard to add an image, text, shape, frame or chyron, or drop
+          files on the artboard.
+        </span>
       </div>
     )
 
@@ -310,7 +131,9 @@ function LayersList({
             : 'Empty frame · drop an image'
           : isMask
             ? `Mask · ${clipCount} inside`
-            : KIND_LABEL[l.kind]
+            : l.kind === 'image' && l.chyron
+              ? 'Chyron'
+              : KIND_LABEL[l.kind]
     const canInto = dragId !== null && dragId !== l.id
     return (
       <li
@@ -465,11 +288,10 @@ function LayersList({
 
 /* ---------- Panel ---------- */
 
-export function LeftPanel(props: ListProps & AddActions & { onClose: () => void }) {
+export function LeftPanel(props: ListProps & { onClose: () => void }) {
   const { doc } = props
   return (
-    <aside className="dz-left" aria-label="Add and layers">
-      <AddBar {...props} />
+    <aside className="dz-left" aria-label="Layers">
       <div className="dz-left-head">
         <h2>
           Layers {doc.layers.length > 0 && <span className="count-badge">{doc.layers.length}</span>}

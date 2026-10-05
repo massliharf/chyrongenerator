@@ -10,6 +10,9 @@ import {
   AlignVerticalDistributeCenter,
   ArrowLeftRight,
   Circle,
+  Clapperboard,
+  Eraser,
+  WandSparkles,
   Copy,
   Crop as CropIcon,
   FlipHorizontal2,
@@ -60,6 +63,15 @@ import {
 import type { Align } from './ops'
 import { maskBaseOf } from './render'
 import { ShapeIcon } from './LeftPanel'
+import { Composition } from '../components/Composition'
+import {
+  DEFAULT_PROJECT,
+  TEMPLATES,
+  applyTemplate,
+  applyTemplateToStyle,
+  restTime,
+  type ChyronStyle,
+} from '../studio/model'
 
 export interface InspectorActions {
   /** Live edit of the selection; consecutive edits merge into one undo step. */
@@ -82,7 +94,13 @@ export interface InspectorActions {
   fitToMask: (id: string) => void
   fillFrame: (frameId: string, source: 'upload' | 'gallery') => void
   replaceImage: () => void
+  /** Cut out the subject or a colour of the selected image (opens the dialog). */
+  removeBackground: () => void
+  /** Put back the picture from before its background was removed. */
+  restoreOriginal: () => void
   fitToArtboard: (mode: 'fit' | 'fill') => void
+  /** New words or look for the selected chyron; its picture is drawn again. */
+  updateChyron: (values: Partial<ChyronStyle>) => void
 }
 
 function Segmented<T extends string>({
@@ -162,6 +180,80 @@ function AlignBar({ actions, multi }: { actions: InspectorActions; multi: boolea
         </>
       )}
     </div>
+  )
+}
+
+/* ---------- Chyron ---------- */
+
+const chyronSamples = TEMPLATES.map((t) =>
+  applyTemplate({ ...DEFAULT_PROJECT, width: 1280, height: 720, text: 'Aa', subtitle: '' }, t),
+)
+
+/** A chyron's words and look, the same choices as in the Chyron editor. */
+function ChyronSection({
+  style,
+  actions,
+  open,
+  toggle,
+}: {
+  style: ChyronStyle
+  actions: InspectorActions
+  open: boolean
+  toggle: () => void
+}) {
+  const set = actions.updateChyron
+  return (
+    <Section
+      title="Chyron"
+      summary={style.text.replace(/\n/g, ' ').slice(0, 32)}
+      open={open}
+      onToggle={toggle}
+    >
+      <Field label="Title">
+        <textarea
+          data-chyron-title
+          rows={2}
+          value={style.text}
+          maxLength={200}
+          onChange={(e) => set({ text: e.target.value })}
+        />
+      </Field>
+      <Toggle
+        label="Subtitle"
+        checked={style.subtitlePill}
+        onChange={(subtitlePill) => set({ subtitlePill })}
+      />
+      {style.subtitlePill && (
+        <Field label="Subtitle text">
+          <input
+            value={style.subtitle}
+            maxLength={80}
+            placeholder="Role, name or detail"
+            onChange={(e) => set({ subtitle: e.target.value })}
+          />
+        </Field>
+      )}
+      <span className="field-label">Style</span>
+      <div className="style-grid">
+        {TEMPLATES.map((t, i) => (
+          <button
+            key={t.id}
+            className="style-card"
+            title={t.caption}
+            aria-label={`Apply ${t.name} style`}
+            onClick={() => set(applyTemplateToStyle(style, t))}
+          >
+            <span className="style-art" style={{ background: t.background }}>
+              <Composition project={chyronSamples[i]} time={restTime(chyronSamples[i])} thumbnail />
+            </span>
+            <span className="style-name">{t.name}</span>
+          </button>
+        ))}
+      </div>
+      <p className="block-note">
+        Lettering from the Chyron editor: the picture is drawn again as you type.
+      </p>
+    </Section>
   )
 }
 
@@ -832,6 +924,13 @@ function ImageSection({
         >
           <CropIcon size={14} aria-hidden="true" /> Crop
         </button>
+        <button
+          className="button secondary sm"
+          onClick={actions.removeBackground}
+          title="Cut out the subject, or remove a colour. Runs on this device."
+        >
+          <WandSparkles size={14} aria-hidden="true" /> Remove background
+        </button>
         <button className="button secondary sm" onClick={actions.replaceImage}>
           <Replace size={14} aria-hidden="true" /> Replace
         </button>
@@ -841,6 +940,15 @@ function ImageSection({
           </button>
         )}
       </div>
+      {l.originalAsset && (
+        <div className="picture-note dz-picture-note">
+          <Eraser size={14} aria-hidden="true" />
+          <span>Background removed</span>
+          <button className="button ghost sm" onClick={actions.restoreOriginal}>
+            Restore original
+          </button>
+        </div>
+      )}
       <NumberField
         label="Corner radius"
         value={l.radius}
@@ -1086,7 +1194,9 @@ export function Inspector({
       : l?.kind === 'text'
         ? Type
         : l?.kind === 'image'
-          ? ImageIcon
+          ? l.chyron
+            ? Clapperboard
+            : ImageIcon
           : l?.kind === 'ellipse'
             ? Circle
             : Square
@@ -1181,6 +1291,15 @@ export function Inspector({
           </>
         ) : (
           <>
+            {/* A chyron's words come first: they are what is edited most. */}
+            {l.kind === 'image' && l.chyron && (
+              <ChyronSection
+                style={l.chyron}
+                actions={actions}
+                open={open.kind}
+                toggle={() => toggle('kind')}
+              />
+            )}
             <div className="panel-block">
               <AlignBar actions={actions} multi={false} />
             </div>
@@ -1202,7 +1321,7 @@ export function Inspector({
                 toggle={() => toggle('kind')}
               />
             )}
-            {l.kind === 'image' && (
+            {l.kind === 'image' && !l.chyron && (
               <>
                 <ImageSection
                   l={l}

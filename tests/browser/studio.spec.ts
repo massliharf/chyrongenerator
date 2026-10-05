@@ -29,7 +29,8 @@ test('portrait 720p defaults and linked intro/outro previews', async ({ page }, 
   await page.getByRole('button', { name: 'Flip', exact: true }).click()
   // The preview plays the intro, then returns to the rest frame.
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
-  await expect(page.locator('.timecode')).toHaveText('2.20 / 4.40 s')
+  await expect(page.locator('.timecode')).toContainText('2.20')
+  await expect(page.getByLabel('Video length in seconds')).toHaveValue('4.4')
   expect(await alphaVisible(canvas)).toBe(true)
   await page.screenshot({ path: testInfo.outputPath('motion-720p.png') })
   await page.keyboard.press('Escape')
@@ -41,14 +42,15 @@ test('portrait 720p defaults and linked intro/outro previews', async ({ page }, 
   // Choosing the current style again replays it.
   await page.getByRole('button', { name: 'Flip', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Play animation', exact: true })).toBeVisible()
-  await expect(page.locator('.timecode')).toHaveText(/ \/ 5\.40 s$/)
+  await expect(page.getByLabel('Video length in seconds')).toHaveValue('5.4')
   // A phase preview plays once even when full-clip looping is enabled.
   await expect(page.getByRole('button', { name: 'Loop playback' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
   await page.getByRole('button', { name: 'Go to end', exact: true }).click()
-  await expect(page.locator('.timecode')).toHaveText('5.40 / 5.40 s')
+  await expect(page.locator('.timecode')).toContainText('5.40')
+  await expect(page.getByLabel('Video length in seconds')).toHaveValue('5.4')
   expect(await alphaVisible(canvas)).toBe(false)
   await page.getByRole('button', { name: 'Go to start', exact: true }).click()
   await page.getByRole('button', { name: 'Play animation', exact: true }).click()

@@ -54,14 +54,13 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   await expect(rows.nth(0)).toContainText('showdown-logo')
   await expect(rows.nth(1)).toContainText('Chyron')
   await expect(rows.nth(2)).toContainText('affidavit')
-  // A new image opens selected, on its Animate tab, with its name in the header.
+  // A new image opens selected, on its Design tab (Crop, Remove background), with its name.
   await expect(rows.nth(0)).toHaveClass(/selected/)
-  await expect(page.getByRole('tab', { name: 'Animate', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: 'Design', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
   await expect(page.getByLabel('Layer name', { exact: true })).toHaveValue('showdown-logo')
-  await page.getByRole('tab', { name: 'Design', exact: true }).click()
 
   // The photo covers the frame: the canvas corner is opaque at rest.
   const cornerAlpha = () =>
@@ -81,9 +80,11 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   const after = Number(await page.getByLabel('X (%)').inputValue())
   expect(after).toBeGreaterThan(before + 5)
 
-  // Advanced motion and a staggered start.
+  // Advanced motion and a staggered start. Out and Timing open from their summaries.
   await page.getByRole('tab', { name: 'Animate', exact: true }).click()
   await page.getByRole('button', { name: 'Burst', exact: true }).click()
+  await page.getByRole('button', { name: /^Out/ }).click()
+  await page.getByRole('button', { name: /^Timing/ }).click()
   await page.getByRole('combobox', { name: 'Out', exact: true }).selectOption('slide-right')
   await page.getByLabel('Starts at', { exact: true }).fill('0.3')
   await page.getByLabel('Starts at', { exact: true }).press('Tab')
@@ -232,12 +233,15 @@ test('timeline drag, reorder, shortcuts, shared animation and live previews', as
   const labels = page.locator('.layer-label')
   await expect(labels).toHaveCount(3)
   await page.getByRole('button', { name: 'Dismiss notification' }).click()
+  await page.getByRole('tab', { name: 'Animate', exact: true }).click()
+  await page.getByRole('button', { name: /^Timing/ }).click()
 
   // Choosing a style plays it, then returns to the fully visible rest frame.
   await page.getByRole('button', { name: 'Slam', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Pause animation' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Play animation' })).toBeVisible()
-  await expect(page.locator('.timecode')).toHaveText('2.20 / 4.40 s')
+  await expect(page.locator('.timecode')).toContainText('2.20')
+  await expect(page.getByLabel('Video length in seconds')).toHaveValue('4.4')
 
   // Drag the start of the logo's bar to the right: its delay follows the pointer, snapped to frames.
   const delay = page.getByLabel('Starts at', { exact: true })

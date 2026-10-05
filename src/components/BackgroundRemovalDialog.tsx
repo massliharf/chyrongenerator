@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { Check, Eye, LoaderCircle, Pipette, Sparkles, X } from 'lucide-react'
 import { NumberField, Toggle } from './Controls'
 import { Segmented } from './InspectorParts'
-import { putAsset, readAsset } from '../studio/assets'
 import {
   MODEL_BYTES,
   applyMatte,
@@ -15,8 +14,6 @@ import {
   type Matte,
   type Pixels,
 } from '../studio/cutout'
-import type { ImageLayer } from '../studio/model'
-import { generateId } from '../utils/id'
 
 type Mode = 'subject' | 'color'
 const PREVIEW = 1024
@@ -42,18 +39,32 @@ async function pixelsOf(blob: Blob, max = 0): Promise<Pixels> {
   return { data, width, height }
 }
 
+/** The picture to cut out; editors pass their original, even after an earlier cut-out. */
+export interface CutoutSource {
+  blob: Blob
+  name: string
+}
+/** The cut-out: a PNG the size of the source. */
+export interface CutoutResult {
+  blob: Blob
+  name: string
+  width: number
+  height: number
+}
+
 /**
  * Remove an image's background, on this device. "Subject" finds the person or
  * object with a bundled model; "Colour" removes a flat colour. The result is a
- * new PNG; the original stays stored so it can be restored.
+ * new PNG the editor stores next to the original, so it can be restored.
+ * Used by the Chyron editor and the Designer alike.
  */
 export function BackgroundRemovalDialog({
-  layer,
+  load,
   onApply,
   onClose,
 }: {
-  layer: ImageLayer
-  onApply: (assetId: string) => void
+  load: () => Promise<CutoutSource>
+  onApply: (result: CutoutResult) => void | Promise<void>
   onClose: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -72,8 +83,8 @@ export function BackgroundRemovalDialog({
   const [tolerance, setTolerance] = useState(25)
   const [feather, setFeather] = useState(20)
   const [connected, setConnected] = useState(true)
-  // Work on the original even when the background was removed before.
-  const assetId = layer.originalAssetId ?? layer.assetId
+  // Loaded once, when the dialog opens.
+  const loader = useRef(load)
 
   useEffect(() => {
     dialog.current?.showModal()
@@ -82,8 +93,7 @@ export function BackgroundRemovalDialog({
     let disposed = false
     void (async () => {
       try {
-        const stored = await readAsset(assetId)
-        if (!stored) throw new Error('This image is no longer stored. Upload it again.')
+        const stored = await loader.current()
         const preview = await pixelsOf(stored.blob, PREVIEW)
         if (disposed) return
         setSource({ blob: stored.blob, name: stored.name, preview })
@@ -96,7 +106,7 @@ export function BackgroundRemovalDialog({
     return () => {
       disposed = true
     }
-  }, [assetId])
+  }, [])
   // Find the subject once; the edge controls only reshape the result.
   useEffect(() => {
     if (mode !== 'subject' || !source || map) return
@@ -184,15 +194,12 @@ export function BackgroundRemovalDialog({
         ),
       )
       c.width = c.height = 0
-      const id = generateId()
-      await putAsset({
-        id,
-        name: `${source.name.replace(/\.[a-z0-9]+$/i, '')} cutout.png`.slice(0, 80),
+      await onApply({
         blob,
+        name: `${source.name.replace(/\.[a-z0-9]+$/i, '')} cutout.png`.slice(0, 80),
         width: out.width,
         height: out.height,
       })
-      onApply(id)
       dialog.current?.close()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The cut-out could not be saved.')
@@ -266,10 +273,11 @@ export function BackgroundRemovalDialog({
                 onChange={setSoftness}
               />
               <NumberField
-                label="Shrink · grow"
+                label="Shrink or grow the edge"
                 value={shift}
                 min={-50}
                 max={50}
+                hint="Below 0 trims the edge in; above 0 keeps more around the subject"
                 onChange={setShift}
               />
             </>

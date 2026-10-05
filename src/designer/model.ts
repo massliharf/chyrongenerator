@@ -1,4 +1,5 @@
 import { generateId } from '../utils/id'
+import type { ChyronStyle } from '../studio/model'
 
 /**
  * Designer document model. Every layer is a box (x, y = unrotated top-left,
@@ -106,6 +107,10 @@ export interface ImageLayer extends BaseLayer {
   filters: Filters
   stroke: string
   strokeWidth: number
+  /** A chyron drawn by the Chyron editor's lettering; its picture follows this style. */
+  chyron?: ChyronStyle
+  /** The picture before its background was removed, for Restore original. */
+  originalAsset?: string
 }
 
 export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'heart' | 'arch'
@@ -394,7 +399,11 @@ export function fileStem(name: string) {
 
 /** Removes asset data no layer points at any more. */
 export function pruneAssets(doc: DesignDoc): DesignDoc {
-  const used = new Set(doc.layers.flatMap((l) => (l.kind === 'image' ? [l.asset] : [])))
+  const used = new Set(
+    doc.layers.flatMap((l) =>
+      l.kind === 'image' ? [l.asset, ...(l.originalAsset ? [l.originalAsset] : [])] : [],
+    ),
+  )
   const keys = Object.keys(doc.assets)
   if (keys.every((k) => used.has(k))) return doc
   return {

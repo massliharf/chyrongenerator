@@ -81,6 +81,24 @@ svg {
   outline: var(--border-width-thick) solid var(--color-border-focus);
   outline-offset: var(--space-0-5);
 }
+/*
+ * Focus rings are for finding your place with the keyboard.
+ * - Surfaces that only take focus to receive shortcuts (a stage, a canvas
+ *   wrapper: tabindex="-1", nothing to press) never show one.
+ * - After a click, keys drive shortcuts (nudge, [ ], Space) on what was clicked,
+ *   so rings wait until Tab is pressed (see utils/inputModality.ts).
+ * Text fields always show where typing goes.
+ */
+[tabindex='-1']:not(button, a, input, select, textarea, [role]):focus-visible,
+:root[data-input='pointer']
+  :focus-visible:not(
+    input:not([type='range'], [type='checkbox'], [type='radio'], [type='color'], [type='file']),
+    textarea,
+    select,
+    [contenteditable]
+  ) {
+  outline: none;
+}
 ::selection {
   color: var(--color-text-on-action);
   background: var(--color-action-primary-bg);

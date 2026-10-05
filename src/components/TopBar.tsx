@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ChevronDown, HardDrive } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 
 /**
@@ -47,6 +48,8 @@ export function SaveStatus({
       <span aria-hidden="true">{short}</span>
     </>
   )
+  // As a button it says where the work is, and looks like something to open.
+  const where = error ? 'Not saved' : short === 'Saved' ? 'Saved on this device' : short
   return onOpen ? (
     <span role="status" className="save-status-wrap">
       <button
@@ -55,7 +58,12 @@ export function SaveStatus({
         aria-label={`${status}. Where is my work?`}
         onClick={onOpen}
       >
-        {content}
+        <span className="save-status-dot" aria-hidden="true" />
+        <HardDrive className="save-status-icon" size={16} aria-hidden="true" />
+        <span className="save-status-text" aria-hidden="true">
+          {where}
+        </span>
+        <ChevronDown className="save-status-chevron" size={14} aria-hidden="true" />
       </button>
     </span>
   ) : (

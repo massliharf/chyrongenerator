@@ -7,9 +7,6 @@ import {
   ArrowDownToLine,
   ArrowLeftRight,
   ArrowUp,
-  ChevronDown,
-  ChevronUp,
-  Copy,
   Crop as CropIcon,
   Crosshair,
   Eraser,
@@ -60,7 +57,7 @@ import {
   type ShapeLayer,
   type Template,
 } from '../studio/model'
-import { chyronStylePatch, fitWidth, moveLayer, updateLayer } from '../studio/layers'
+import { chyronStylePatch, fitWidth, updateLayer } from '../studio/layers'
 import { useProjectImages } from '../studio/useImages'
 import { cropToRatio, FULL_CROP, isCropped, SQUARE_MASKS, withCrop } from '../studio/crop'
 import { maxVideoSeconds } from '../studio/export'
@@ -71,8 +68,8 @@ import type { TimingChange } from './Timeline'
 
 export type PropertiesTab = 'design' | 'animate'
 type Patch = (patch: Partial<Project>) => void
-/** Selection id of the music track. */
-export const MUSIC = 'audio'
+import { MUSIC } from './layerMenu'
+export { MUSIC }
 
 /* ---------- Panel ---------- */
 
@@ -92,8 +89,10 @@ export interface PropertiesProps {
   onSavePreset: (name: string, id: string) => boolean
   onRemovePreset: (id: string) => void
   onTiming: (id: string, change: TimingChange) => void
-  onDelete: (id: string) => void
-  onDuplicate: (id: string) => void
+  /** Show the composition's clip length (Hold) and frame rate. */
+  onClipTiming?: () => void
+  /** Every action for a layer or the music track, as in the timeline and on the canvas. */
+  layerMenu: (id: string) => MenuEntry[]
   /** Start cropping an image layer on the canvas. */
   onCrop?: (id: string) => void
   onRemoveBackground?: (id: string) => void
@@ -106,7 +105,6 @@ export function Properties(props: PropertiesProps) {
   const { project: p, patch, selected, tab, onTab } = props
   const layer = p.layers.find((l) => l.id === selected)
   const music = selected === MUSIC && p.audio ? p.audio : null
-  const index = layer ? p.layers.indexOf(layer) : -1
   const images = useProjectImages(p)
   const setMusic = (values: Partial<AudioTrack>) =>
     p.audio && patch({ audio: { ...p.audio, ...values } })
@@ -151,58 +149,11 @@ export function Properties(props: PropertiesProps) {
         ) : (
           <h2 className="inspector-title">Composition</h2>
         )}
-        {layer && (
+        {(layer || music) && (
           <MenuButton
-            label="Layer actions"
+            label={music ? 'Music actions' : 'Layer actions'}
             align="end"
-            items={
-              [
-                {
-                  label: 'Bring forward',
-                  Icon: ChevronUp,
-                  shortcut: ']',
-                  disabled: index === p.layers.length - 1,
-                  onSelect: () => patch({ layers: moveLayer(p, layer.id, 1) }),
-                },
-                {
-                  label: 'Send backward',
-                  Icon: ChevronDown,
-                  shortcut: '[',
-                  disabled: index === 0,
-                  onSelect: () => patch({ layers: moveLayer(p, layer.id, -1) }),
-                },
-                ...(layer.kind === 'image'
-                  ? ([
-                      'separator',
-                      {
-                        label: 'Crop',
-                        Icon: CropIcon,
-                        shortcut: 'C',
-                        onSelect: () => props.onCrop?.(layer.id),
-                      },
-                      {
-                        label: 'Remove background',
-                        Icon: WandSparkles,
-                        onSelect: () => props.onRemoveBackground?.(layer.id),
-                      },
-                    ] as MenuEntry[])
-                  : []),
-                'separator',
-                {
-                  label: 'Duplicate layer',
-                  Icon: Copy,
-                  shortcut: '⌘ D',
-                  onSelect: () => props.onDuplicate(layer.id),
-                },
-                {
-                  label: 'Delete layer',
-                  Icon: Trash2,
-                  shortcut: 'Del',
-                  danger: true,
-                  onSelect: () => props.onDelete(layer.id),
-                },
-              ] as MenuEntry[]
-            }
+            items={props.layerMenu(music ? MUSIC : layer!.id)}
           >
             <MoreHorizontal size={20} />
           </MenuButton>
@@ -258,6 +209,7 @@ export function Properties(props: PropertiesProps) {
             patch={patch}
             previewPhase={props.previewPhase}
             onTiming={props.onTiming}
+            onClipTiming={props.onClipTiming}
           />
         )}
         {layer?.kind === 'chyron' && tab === 'design' && (
@@ -423,15 +375,25 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
         'Timing',
         `${total.toFixed(1)} s · ${frameCount(p)} frames`,
         <>
-          <NumberField
-            label="Transition"
-            value={p.animationDuration}
-            min={0.2}
-            max={4}
-            step={0.1}
-            unit="s"
-            onChange={(animationDuration) => patch({ animationDuration })}
-          />
+          {/* The video's length: in, hold and out. Typing a length sets the hold. */}
+          <div data-clip-length className="contents">
+            <NumberField
+              label="Length"
+              value={Math.round(total * 100) / 100}
+              min={Math.round(p.animationDuration * 200) / 100}
+              max={Math.round((p.animationDuration * 2 + MAX_HOLD) * 100) / 100}
+              step={0.1}
+              unit="s"
+              onChange={(length) =>
+                patch({
+                  hold:
+                    Math.round(
+                      Math.max(0, Math.min(MAX_HOLD, length - p.animationDuration * 2)) * 100,
+                    ) / 100,
+                })
+              }
+            />
+          </div>
           <NumberField
             label="Hold"
             value={p.hold}
@@ -440,6 +402,15 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
             step={0.1}
             unit="s"
             onChange={(hold) => patch({ hold })}
+          />
+          <NumberField
+            label="Transition"
+            value={p.animationDuration}
+            min={0.2}
+            max={4}
+            step={0.1}
+            unit="s"
+            onChange={(animationDuration) => patch({ animationDuration })}
           />
           <div className="inline-control">
             <span className="field-label">Frame rate</span>
@@ -455,9 +426,9 @@ function CompositionSettings({ project: p, patch }: { project: Project; patch: P
             />
           </div>
           <p className="block-note">
-            Hold up to {MAX_HOLD} s. At this size and frame rate, WebM videos can be up to{' '}
-            {maxVideoSeconds(p)} s and ProRes {maxVideoSeconds(p, 'mov')} s; PNG sequences have no
-            limit.
+            Length is the transition in, the hold and the transition out; the hold goes up to{' '}
+            {MAX_HOLD} s. At this size and frame rate, WebM videos can be up to {maxVideoSeconds(p)}{' '}
+            s and ProRes {maxVideoSeconds(p, 'mov')} s; PNG sequences have no limit.
           </p>
         </>,
         () =>
@@ -952,33 +923,35 @@ function ImageDesign({
   )
   return (
     <>
-      <div className="picture-actions" role="group" aria-label="Picture">
+      {/* The picture's own tools, each with its name: what a new image needs first. */}
+      <div
+        className="picture-actions chip-grid quick picture-tools"
+        role="group"
+        aria-label="Picture"
+      >
         {onCrop && (
-          <button
-            className="button secondary sm"
-            onClick={() => onCrop(l.id)}
-            title="Crop (C) · or double-click the image"
-          >
-            <CropIcon size={14} aria-hidden="true" /> Crop
+          <button onClick={() => onCrop(l.id)} title="Crop (C) · or double-click the image">
+            <CropIcon size={18} aria-hidden="true" />
+            <span>Crop</span>
           </button>
         )}
         {onRemoveBackground && (
           <button
-            className="button secondary sm"
             onClick={() => onRemoveBackground(l.id)}
-            title="Cut out the subject, or remove a colour"
+            title="Cut out the subject, or remove a colour. Runs on this device."
           >
-            <WandSparkles size={14} aria-hidden="true" /> Remove background
+            <WandSparkles size={18} aria-hidden="true" />
+            <span>Remove background</span>
           </button>
         )}
         {onReplaceImage && (
           <button
-            className="icon-button sm"
             aria-label="Replace image"
-            title="Replace image (keeps size, frame and animation)"
+            title="Pick another picture; size, frame and animation stay"
             onClick={() => onReplaceImage(l.id)}
           >
-            <Replace size={16} />
+            <Replace size={18} aria-hidden="true" />
+            <span>Replace</span>
           </button>
         )}
       </div>

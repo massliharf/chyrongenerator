@@ -102,7 +102,7 @@ export function MusicPanel({
   return (
     <div className="props-stack music-panel">
       <div className="block">
-        <span className="block-label">Song · {clock(track.length)}</span>
+        <span className="block-label">Song · {clock(track.length)} long</span>
         <div
           className="music-overview"
           role="slider"
@@ -131,15 +131,18 @@ export function MusicPanel({
           />
         </div>
         <NumberField
-          label="Song starts at"
+          label="Play the song from"
           value={track.trim}
           min={0}
           max={Math.max(0, track.length - 0.1)}
           step={0.1}
           unit="s"
-          hint={clock(track.trim)}
           onChange={(trim) => onChange({ trim })}
         />
+        <p className="block-note">
+          Plays from {clock(track.trim)}. Drag the highlighted part of the song to choose another
+          part.
+        </p>
       </div>
       <div className="block">
         <span className="block-label">In the clip</span>
@@ -191,8 +194,8 @@ export function MusicPanel({
           onChange={(muted) => onChange({ muted })}
         />
         <p className="block-note">
-          Plays {round(used)}s of the song. WebM and ProRes exports include the music; a PNG
-          sequence adds it as music.wav.
+          Plays {round(used)}s of the song; drag its bar in the timeline to move it. WebM and ProRes
+          exports include the music; a PNG sequence adds it as music.wav.
         </p>
       </div>
       <div className="button-row music-actions">

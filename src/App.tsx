@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -25,7 +25,8 @@ import { MUSIC, Properties, type PropertiesTab } from './components/Properties'
 import { Timeline, type TimingChange } from './components/Timeline'
 import { ExportDialog } from './components/ExportDialog'
 import { AppNav, type Workspace } from './components/WorkspaceNav'
-import { MenuButton } from './components/Menu'
+import { ContextMenu, MenuButton, type MenuPoint } from './components/Menu'
+import { layerMenu, type LayerCommands } from './components/layerMenu'
 import { SaveStatus, TopBar } from './components/TopBar'
 import { StorageDialog } from './components/StorageDialog'
 import { BackgroundRemovalDialog } from './components/BackgroundRemovalDialog'
@@ -35,6 +36,7 @@ import DesignerWorkspace from './designer/DesignerWorkspace'
 import {
   DEFAULT_AUDIO,
   DEFAULT_PROJECT,
+  MAX_HOLD,
   PRIMARY_CHYRON,
   applyTemplateToStyle,
   applyTemplate,
@@ -56,6 +58,8 @@ import {
 import {
   collectUnusedAssets,
   importImageFile,
+  putAsset,
+  readAsset,
   referencedAssets,
   restoreEmbeddedAssets,
 } from './studio/assets'
@@ -82,6 +86,8 @@ import {
   type SavedFile,
 } from './studio/projectFile'
 import { generateId } from './utils/id'
+import { usingPointer } from './utils/inputModality'
+import { revealGroup } from './components/inspectorHooks'
 import { MediaGalleryModal } from './components/MediaGalleryModal'
 import { fetchGalleryFile, type GalleryItem } from './studio/galleryData'
 
@@ -120,6 +126,8 @@ function ChyronEditor({ active }: { active: boolean }) {
   }
   const [lastSaved, setLastSaved] = useState<SavedFile | null>(null)
   const [help, setHelp] = useState(false)
+  /** A layer's menu opened by right-click, at the pointer. */
+  const [contextMenu, setContextMenu] = useState<{ id: string; at: MenuPoint } | null>(null)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const importInput = useRef<HTMLInputElement>(null)
   const musicInput = useRef<HTMLInputElement>(null)
@@ -176,6 +184,7 @@ function ChyronEditor({ active }: { active: boolean }) {
     }
     if (change.length !== undefined && transition)
       next.animationDuration = Math.max(0.2, Math.min(4, change.length))
+    if (change.clipHold !== undefined) next.hold = Math.max(0, Math.min(MAX_HOLD, change.clipHold))
     patch(next)
   }
   const closeHelp = () => {
@@ -186,6 +195,15 @@ function ChyronEditor({ active }: { active: boolean }) {
     setSelection(id)
     setTab(nextTab)
     setFocusCanvas(false)
+  }
+  /** Crop an image on the canvas. On phones the canvas scrolls into view first. */
+  const startCrop = (id: string) => {
+    setSelection(id)
+    setCropId(id)
+    if (compactViewport)
+      requestAnimationFrame(() =>
+        stage.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+      )
   }
   const addImages = async (files: File[]) => {
     let next: Project = project
@@ -210,7 +228,8 @@ function ChyronEditor({ active }: { active: boolean }) {
     }
     if (last) {
       patch({ layers: next.layers })
-      select(last, 'animate')
+      // Design first: placement, Crop and Remove background are what a new picture needs.
+      select(last)
     }
     const added = imageLayers(next).length - imageLayers(project).length
     const id = last
@@ -221,7 +240,7 @@ function ChyronEditor({ active }: { active: boolean }) {
         label: 'Crop',
         run: () => {
           select(id)
-          setCropId(id)
+          startCrop(id)
         },
       })
   }
@@ -286,14 +305,14 @@ function ChyronEditor({ active }: { active: boolean }) {
   }
   const removeLayerById = (id: string) => {
     if (id === MUSIC) {
-      patch({ audio: undefined })
+      patch({ audio: undefined }, true)
       setSelection(null)
       setNotice('Music removed. Undo to bring it back.')
       return
     }
     const layer = project.layers.find((l) => l.id === id)
     if (!layer) return
-    patch({ layers: removeLayer(project, id) })
+    patch({ layers: removeLayer(project, id) }, true)
     setSelection(null)
     setNotice(`${layer.name} removed. Undo to bring it back.`)
   }
@@ -301,7 +320,7 @@ function ChyronEditor({ active }: { active: boolean }) {
     const layer = project.layers.find((l) => l.id === id)
     const next = duplicateLayer(project, id)
     if (next.id) {
-      patch({ layers: next.layers })
+      patch({ layers: next.layers }, true)
       setSelection(next.id)
     } else if (layer) setNotice(LIMIT_MESSAGE[layer.kind])
   }
@@ -312,6 +331,68 @@ function ChyronEditor({ active }: { active: boolean }) {
       field?.focus()
       field?.select()
     })
+  /** Composition settings with the video length selected, ready to type. */
+  const showClipTiming = () => {
+    setSelection(null)
+    setFocusCanvas(false)
+    // Once the composition panel is up: open its Timing section, then the field.
+    requestAnimationFrame(() => {
+      revealGroup('timing')
+      requestAnimationFrame(() => {
+        const field = document.querySelector<HTMLInputElement>('[data-clip-length] input')
+        field?.scrollIntoView({ block: 'nearest' })
+        field?.focus()
+        field?.select()
+      })
+    })
+  }
+  /** Select a layer's name in Properties, ready to type a new one. */
+  const focusName = (id: string) => {
+    setSelection(id)
+    setFocusCanvas(false)
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLInputElement>('.inspector-title-input')
+      field?.focus()
+      field?.select()
+    })
+  }
+  const toggleLayer = (id: string, key: 'visible' | 'locked') => {
+    const layer = project.layers.find((l) => l.id === id)
+    if (layer) patch({ layers: updateLayer(project, id, { [key]: !layer[key] }) }, true)
+  }
+  const commands: LayerCommands = {
+    move: (id, to) => patch({ layers: moveLayer(project, id, to) }, true),
+    toggleVisible: (id) => toggleLayer(id, 'visible'),
+    toggleLock: (id) => toggleLayer(id, 'locked'),
+    rename: focusName,
+    duplicate: duplicateById,
+    remove: removeLayerById,
+    editText: (id) => {
+      select(id)
+      focusTitle()
+    },
+    crop: startCrop,
+    removeBackground: (id) => {
+      playback.pause()
+      setCutoutId(id)
+    },
+    replaceImage: (id) => {
+      replaceTarget.current = id
+      replaceInput.current?.click()
+    },
+    replaceMusic: () => musicInput.current?.click(),
+    toggleMute: () =>
+      project.audio && patch({ audio: { ...project.audio, muted: !project.audio.muted } }),
+  }
+  const menuFor = (id: string) => layerMenu(project, id, commands)
+  // Empty once its layer is gone (undo, new composition): the menu closes.
+  const contextItems = contextMenu ? menuFor(contextMenu.id) : []
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  /** Right-click: select the layer and open its menu at the pointer. */
+  const openLayerMenu = (id: string, at: MenuPoint) => {
+    setSelection(id)
+    setContextMenu({ id, at })
+  }
   const handleSelectGalleryItem = async (item: GalleryItem) => {
     try {
       setNotice(`Adding ${item.name}…`)
@@ -379,11 +460,29 @@ function ChyronEditor({ active }: { active: boolean }) {
       const element = event.target as HTMLElement
       const typing =
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable
-      if (exportOpen || help || storageOpen || cutoutId) return
+      if (exportOpen || help || storageOpen || cutoutId || contextItems.length) return
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
         void saveProject(event.shiftKey)
         return
+      }
+      // Space plays and pauses from anywhere, also right after clicking a button or
+      // a layer. It still types in text fields, and presses a control reached with
+      // Tab, as keyboard users expect.
+      if (event.code === 'Space' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const writing =
+          element.isContentEditable ||
+          element.tagName === 'TEXTAREA' ||
+          (element instanceof HTMLInputElement &&
+            !['range', 'checkbox', 'radio', 'button', 'color', 'file'].includes(element.type))
+        const control = element.closest(
+          'button, a, summary, input, select, [role=tab], [role=slider], [role=switch]',
+        )
+        if (!writing && !element.closest('[role=menu], dialog') && (!control || usingPointer())) {
+          event.preventDefault()
+          if (!event.repeat) playback.toggle()
+          return
+        }
       }
       if (typing) return
       if ((event.key === 'Delete' || event.key === 'Backspace') && selected) {
@@ -397,20 +496,24 @@ function ChyronEditor({ active }: { active: boolean }) {
         duplicateById(layer.id)
         return
       }
+      // [ and ] move the layer one step; with Shift ({ and }) all the way.
+      // Layouts that type brackets with Option or AltGr (Turkish, German…) work too.
+      if (layer && !event.metaKey && ['[', ']', '{', '}'].includes(event.key)) {
+        event.preventDefault()
+        const up = event.key === ']' || event.key === '}'
+        const all = event.shiftKey || event.key === '{' || event.key === '}'
+        commands.move(layer.id, all ? (up ? 'front' : 'back') : up ? 1 : -1)
+        return
+      }
       if (!event.metaKey && !event.ctrlKey && !event.altKey && layer) {
-        if (event.key === ']' || event.key === '[') {
-          event.preventDefault()
-          patch({ layers: moveLayer(project, layer.id, event.key === ']' ? 1 : -1) })
-          return
-        }
         if (event.key.toLowerCase() === 'h') {
           event.preventDefault()
-          patch({ layers: updateLayer(project, layer.id, { visible: !layer.visible }) })
+          commands.toggleVisible(layer.id)
           return
         }
         if (event.key.toLowerCase() === 'c' && selectedImage) {
           event.preventDefault()
-          setCropId(selectedImage.id)
+          startCrop(selectedImage.id)
           return
         }
       }
@@ -430,10 +533,6 @@ function ChyronEditor({ active }: { active: boolean }) {
         return
       }
       if (element.closest('button, a, summary, [role=tab], [role=menu], [role=slider]')) return
-      if (event.code === 'Space') {
-        event.preventDefault()
-        playback.toggle()
-      }
       if (event.key === 'ArrowRight') {
         event.preventDefault()
         playback.seek(playback.time + 1 / project.fps)
@@ -797,10 +896,8 @@ function ChyronEditor({ active }: { active: boolean }) {
                 onSelect={setSelection}
                 cropping={cropId !== null && cropId === selected}
                 onCropChange={setCropId}
-                onEditText={(id) => {
-                  select(id)
-                  focusTitle()
-                }}
+                onEditText={commands.editText}
+                onLayerMenu={openLayerMenu}
               />
               {guides && <div className="safe-guides" />}
               {!hasArtwork(project) && (
@@ -816,14 +913,17 @@ function ChyronEditor({ active }: { active: boolean }) {
             playback={playback}
             selected={selected}
             onSelect={setSelection}
-            onToggleVisible={(id) => {
-              const layer = project.layers.find((l) => l.id === id)
-              if (layer) patch({ layers: updateLayer(project, id, { visible: !layer.visible }) })
-            }}
-            onToggleLock={(id) => {
-              const layer = project.layers.find((l) => l.id === id)
-              if (layer) patch({ layers: updateLayer(project, id, { locked: !layer.locked }) })
-            }}
+            onToggleVisible={commands.toggleVisible}
+            onToggleLock={commands.toggleLock}
+            onLayerMenu={openLayerMenu}
+            onLength={(length) =>
+              patch({
+                hold:
+                  Math.round(
+                    Math.max(0, Math.min(MAX_HOLD, length - project.animationDuration * 2)) * 100,
+                  ) / 100,
+              })
+            }
             onAddImages={(files) => void addImages(files)}
             onOpenGallery={() => setGalleryOpen(true)}
             onAddChyron={addChyron}
@@ -838,7 +938,7 @@ function ChyronEditor({ active }: { active: boolean }) {
               const layer = project.layers.find((l) => l.id === id)
               if (!layer) return
               layers.splice(Math.min(layers.length, Math.max(0, index)), 0, layer)
-              patch({ layers })
+              patch({ layers }, true)
             }}
           />
         </main>
@@ -846,20 +946,10 @@ function ChyronEditor({ active }: { active: boolean }) {
           <Properties
             project={project}
             patch={patch}
-            onCrop={(id) => {
-              setSelection(id)
-              setCropId(id)
-            }}
-            onRemoveBackground={(id) => {
-              playback.pause()
-              setCutoutId(id)
-            }}
-            onReplaceImage={(id) => {
-              replaceTarget.current = id
-              replaceInput.current?.click()
-            }}
-            onDelete={removeLayerById}
-            onDuplicate={duplicateById}
+            onCrop={commands.crop}
+            onRemoveBackground={commands.removeBackground}
+            onReplaceImage={commands.replaceImage}
+            layerMenu={menuFor}
             onReplaceMusic={() => musicInput.current?.click()}
             onRemoveMusic={() => removeLayerById(MUSIC)}
             selected={selected}
@@ -872,9 +962,23 @@ function ChyronEditor({ active }: { active: boolean }) {
             onSavePreset={savePreset}
             onRemovePreset={removePreset}
             onTiming={setLayerTiming}
+            onClipTiming={showClipTiming}
           />
         </div>
       </div>
+      {contextMenu && contextItems.length > 0 && (
+        <ContextMenu
+          at={contextMenu.at}
+          label={contextMenu.id === MUSIC ? 'Music actions' : 'Layer actions'}
+          title={
+            contextMenu.id === MUSIC
+              ? project.audio?.name
+              : project.layers.find((l) => l.id === contextMenu.id)?.name
+          }
+          items={contextItems}
+          onClose={closeContextMenu}
+        />
+      )}
       {exportOpen && (
         <ExportDialog project={project} time={playback.time} onClose={() => setExportOpen(false)} />
       )}
@@ -889,8 +993,15 @@ function ChyronEditor({ active }: { active: boolean }) {
       )}
       {cutoutLayer && (
         <BackgroundRemovalDialog
-          layer={cutoutLayer}
-          onApply={(assetId) => {
+          load={async () => {
+            // Always from the original, even after an earlier cut-out.
+            const stored = await readAsset(cutoutLayer.originalAssetId ?? cutoutLayer.assetId)
+            if (!stored) throw new Error('This image is no longer stored. Upload it again.')
+            return stored
+          }}
+          onApply={async (result) => {
+            const assetId = generateId()
+            await putAsset({ id: assetId, ...result })
             patch({
               layers: updateLayer(project, cutoutLayer.id, {
                 assetId,
@@ -968,6 +1079,10 @@ function ChyronEditor({ active }: { active: boolean }) {
                 to lengthen the transition, drag a name to reorder.
               </li>
               <li>
+                <strong>Right-click a layer</strong> on the canvas or in the timeline (or use its ⋯)
+                to move it forward or back, hide, lock, rename, duplicate or delete it.
+              </li>
+              <li>
                 <strong>Pick a style to see it.</strong> Every animation plays as soon as you choose
                 it; pick it again to replay.
               </li>
@@ -980,9 +1095,11 @@ function ChyronEditor({ active }: { active: boolean }) {
                 ['Esc', 'Composition settings'],
                 ['⌘/Ctrl D', 'Duplicate layer'],
                 ['[ ]', 'Send backward / bring forward'],
+                ['⇧ [ ]', 'Send to back / bring to front'],
                 ['H', 'Hide / show layer'],
                 ['C', 'Crop image'],
                 ['Del', 'Delete layer'],
+                ['Right-click', 'Every action for that layer'],
                 ['⌘/Ctrl Z', 'Undo (⇧ to redo)'],
                 ['⌘/Ctrl S', 'Save project file (⇧ to choose where)'],
                 ['Arrows on canvas', 'Nudge (⇧ for 4×)'],

@@ -10,6 +10,7 @@ import {
   Copy,
   CornerDownRight,
   Crop,
+  WandSparkles,
   Download,
   Eye,
   EyeOff,
@@ -37,7 +38,7 @@ import {
   X,
   ChevronUp,
 } from 'lucide-react'
-import { MenuButton, type MenuEntry } from '../components/Menu'
+import { ContextMenu, MenuButton, type MenuEntry } from '../components/Menu'
 import { MediaGalleryModal } from '../components/MediaGalleryModal'
 import { SaveStatus, TopBar } from '../components/TopBar'
 import { fetchGalleryFile, type GalleryItem } from '../studio/galleryData'
@@ -45,12 +46,17 @@ import { saveBlob } from '../studio/export'
 import { generateId } from '../utils/id'
 import { DesignerCanvas, type Tool, type View } from './DesignerCanvas'
 import { DesignerExportDialog } from './ExportDialog'
+import { BackgroundRemovalDialog } from '../components/BackgroundRemovalDialog'
 import { center, clampCrop, unionBounds, type Point } from './geometry'
 import { Inspector, type InspectorActions } from './Inspector'
 import { LeftPanel } from './LeftPanel'
+import { AddBar } from './AddBar'
+import { renderChyron, withChyronAsset } from './chyron'
+import type { ChyronStyle } from '../studio/model'
 import {
   CROP_RATIOS,
   createFrame,
+  createImage,
   createShape,
   createText,
   isShape,
@@ -80,6 +86,7 @@ import {
   releaseAll,
   removeLayers,
   reorder,
+  readAsDataURL,
   replaceImage,
   updateLayers,
 } from './ops'
@@ -100,83 +107,6 @@ interface Clip {
   assets: Record<string, string>
 }
 
-function ContextMenu({
-  at,
-  items,
-  onClose,
-}: {
-  at: { x: number; y: number }
-  items: MenuEntry[]
-  onClose: () => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState(at)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    setPos({
-      x: Math.min(at.x, window.innerWidth - r.width - 8),
-      y: Math.min(at.y, window.innerHeight - r.height - 8),
-    })
-    el.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
-  }, [at])
-  return (
-    <>
-      <div
-        className="dz-context-scrim"
-        onPointerDown={onClose}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          onClose()
-        }}
-      />
-      <div
-        ref={ref}
-        className="menu dz-context-menu"
-        role="menu"
-        style={{ left: pos.x, top: pos.y }}
-        onKeyDown={(e) => {
-          const buttons = Array.from(
-            e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
-          )
-          const i = buttons.indexOf(document.activeElement as HTMLButtonElement)
-          if (e.key === 'ArrowDown') buttons[(i + 1) % buttons.length]?.focus()
-          if (e.key === 'ArrowUp') buttons[(i - 1 + buttons.length) % buttons.length]?.focus()
-          if (e.key === 'Escape' || e.key === 'Tab') onClose()
-          e.preventDefault()
-          if (e.key === 'Enter' || e.key === ' ')
-            (document.activeElement as HTMLButtonElement)?.click()
-          e.stopPropagation()
-        }}
-      >
-        {items.map((item, i) =>
-          item === 'separator' ? (
-            <hr key={i} className="menu-separator" />
-          ) : (
-            <button
-              key={item.label}
-              role="menuitem"
-              className={`menu-item ${item.danger ? 'is-danger' : ''}`}
-              disabled={item.disabled}
-              onClick={() => {
-                onClose()
-                item.onSelect()
-              }}
-            >
-              {item.Icon && <item.Icon size={16} aria-hidden="true" />}
-              <span className="menu-item-text">
-                <span>{item.label}</span>
-              </span>
-              {item.shortcut && <kbd>{item.shortcut}</kbd>}
-            </button>
-          ),
-        )}
-      </div>
-    </>
-  )
-}
-
 export default function DesignerWorkspace({ active }: { active: boolean }) {
   const editor = useDesignDoc()
   const { doc, commit } = editor
@@ -186,12 +116,15 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
   const [view, setView] = useState<View>({ zoom: 0.5, panX: 0, panY: 0 })
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
   const [cropId, setCropId] = useState<string | null>(null)
+  /** The image whose background is being removed. */
+  const [cutoutId, setCutoutId] = useState<string | null>(null)
   const [cropRatio, setCropRatioId] = useState('free')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [leftOpen, setLeftOpen] = useState(false)
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; hit: string | null } | null>(
     null,
   )
+  const closeMenu = useCallback(() => setMenu(null), [])
   const [gallery, setGallery] = useState<'add' | 'replace' | 'frame' | null>(null)
   const pendingFrame = useRef<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -322,6 +255,65 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     insert(placeAtCenter(createFrame(doc, p)))
     setNotice('Frame added. Drop a photo on it, or double-click it to choose one.')
   }
+  /* ---------- Chyrons ---------- */
+  const chyronJob = useRef<{ id: string; style: ChyronStyle } | null>(null)
+  const chyronTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const addChyron = async (style: ChyronStyle) => {
+    try {
+      const asset = await renderChyron(style)
+      const d = editor.current.current
+      const layer: ImageLayer = {
+        ...createImage(d, asset.id, asset.width, asset.height, 'Chyron'),
+        chyron: style,
+      }
+      const placed = placeAtCenter(layer)
+      flushLive()
+      commit((x) => addLayer({ ...x, assets: { ...x.assets, [asset.id]: asset.src } }, placed))
+      setSelection([placed.id])
+      setTool('select')
+      setLeftOpen(false)
+      setNotice('Chyron added. Type its words on the right, or double-click it.')
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'The chyron could not be drawn.')
+    }
+  }
+  /**
+   * New words or look for a chyron. The style changes at once (one undo step
+   * while typing); the picture is drawn again a moment later and slots into the
+   * same step. A result that no longer matches (undone, typed over) is dropped.
+   */
+  const updateChyron = (id: string, values: Partial<ChyronStyle>) => {
+    const layer = editor.current.current.layers.find((l) => l.id === id)
+    if (layer?.kind !== 'image' || !layer.chyron) return
+    const style: ChyronStyle = { ...layer.chyron, ...values }
+    live((d) => updateLayers(d, [id], { chyron: style } as Partial<Layer>))
+    chyronJob.current = { id, style }
+    clearTimeout(chyronTimer.current)
+    if (!style.text.trim() && !(style.subtitlePill && style.subtitle.trim())) return
+    chyronTimer.current = setTimeout(async () => {
+      try {
+        const asset = await renderChyron(style)
+        if (chyronJob.current?.style !== style) return
+        editor.preview((d) => {
+          const current = d.layers.find((l) => l.id === id)
+          return current?.kind === 'image' && current.chyron === style
+            ? withChyronAsset(d, id, asset)
+            : d
+        })
+      } catch (e) {
+        setNotice(e instanceof Error ? e.message : 'The chyron could not be drawn.')
+      }
+    }, 150)
+  }
+  /** A chyron's words are typed in the panel: double-click selects them there. */
+  const editChyronWords = (id: string) => {
+    setSelection([id])
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLTextAreaElement>('[data-chyron-title]')
+      field?.focus()
+      field?.select()
+    })
+  }
   const isEmptyFrame = (d: DesignDoc, id: string | null | undefined) => {
     const l = d.layers.find((x) => x.id === id)
     return !!l && !l.clip && !!l.maskOnly && isShape(l) && groupIds(d.layers, l.id).length === 1
@@ -431,7 +423,9 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
   const copy = (cut = false) => {
     if (!selected.length) return
     const assets: Record<string, string> = {}
-    for (const l of selected) if (l.kind === 'image') assets[l.asset] = doc.assets[l.asset]
+    for (const l of selected)
+      if (l.kind === 'image')
+        for (const id of [l.asset, l.originalAsset]) if (id) assets[id] = doc.assets[id]
     clipboard.current = { layers: structuredClone(selected), assets }
     if (cut) {
       commit((d) => removeLayers(d, sel))
@@ -460,10 +454,35 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     return true
   }
 
+  /* ---------- Remove background ---------- */
+  const removeBackground = (id = single?.id) => {
+    const l = doc.layers.find((x): x is ImageLayer => x.id === id && x.kind === 'image')
+    if (!l) return
+    // A chyron is already lettering on transparency.
+    if (l.chyron) return setNotice('Chyrons have no background to remove.')
+    if (l.locked) return setNotice('Unlock the layer to remove its background.')
+    flushLive()
+    setSelection([l.id])
+    setCutoutId(l.id)
+  }
+  const cutoutLayer = doc.layers.find(
+    (l): l is ImageLayer => l.id === cutoutId && l.kind === 'image',
+  )
+  const restoreOriginal = (id: string) =>
+    commit((d) =>
+      updateLayers(d, [id], (l) =>
+        l.kind === 'image' && l.originalAsset
+          ? ({ asset: l.originalAsset, originalAsset: undefined } as Partial<Layer>)
+          : {},
+      ),
+    )
+
   /* ---------- Crop ---------- */
   const startCrop = (id = single?.id) => {
     const l = doc.layers.find((x): x is ImageLayer => x.id === id && x.kind === 'image')
     if (!l) return
+    // A chyron's picture is redrawn from its words, so it is edited, not cropped.
+    if (l.chyron) return editChyronWords(l.id)
     if (l.locked) return setNotice('Unlock the layer to crop it.')
     flushLive()
     cropSnapshot.current = l
@@ -599,6 +618,9 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       setNotice('Masked. Select the mask layer below to move or reshape it.')
     },
     replaceImage: () => setGallery('replace'),
+    removeBackground: () => removeBackground(),
+    restoreOriginal: () => single && restoreOriginal(single.id),
+    updateChyron: (values) => single && updateChyron(single.id, values),
     updateLayer: (id, values) => live((d) => updateLayers(d, [id], values)),
     select: (ids) => setSelection(ids),
     releaseAll: (id) => {
@@ -944,8 +966,20 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
                     },
                   ]
                 : []),
-            ...(single.kind === 'image'
-              ? [{ label: 'Crop', Icon: Crop, shortcut: 'C', onSelect: () => startCrop(single.id) }]
+            ...(single.kind === 'image' && !single.chyron
+              ? [
+                  {
+                    label: 'Crop',
+                    Icon: Crop,
+                    shortcut: 'C',
+                    onSelect: () => startCrop(single.id),
+                  },
+                  {
+                    label: 'Remove background',
+                    Icon: WandSparkles,
+                    onSelect: () => removeBackground(single.id),
+                  },
+                ]
               : []),
           ] as MenuEntry[])
         : []),
@@ -1081,11 +1115,6 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
             if (zone === 'into') setNotice('Masked. Drag it out of the group to release.')
           }}
           onContextMenu={(at, id) => setMenu({ at, hit: id })}
-          onUpload={() => uploadInput.current?.click()}
-          onGallery={() => setGallery('add')}
-          onText={addText}
-          onShape={addShape}
-          onFrame={addFrame}
           onClose={() => setLeftOpen(false)}
         />
 
@@ -1131,10 +1160,19 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
                 aria-label="Crop image"
                 aria-pressed={!!cropId}
                 title="Crop (C)"
-                disabled={single?.kind !== 'image'}
+                disabled={single?.kind !== 'image' || !!single.chyron}
                 onClick={() => (cropId ? applyCrop() : startCrop())}
               >
                 <Crop size={18} />
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Remove background"
+                title="Remove background: cut out the subject or a colour, on this device"
+                disabled={single?.kind !== 'image' || !!single.chyron || !!cropId}
+                onClick={() => removeBackground()}
+              >
+                <WandSparkles size={18} />
               </button>
             </div>
             <div className="canvas-tools">
@@ -1252,23 +1290,15 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
               setNotice('Placed in frame. Double-click to adjust the picture inside.')
             }}
           />
-          {!doc.layers.length && editor.ready && (
-            <div className="dz-empty-hint" role="note">
-              <strong>Start with an image, text or a shape</strong>
-              <span>
-                Drop or paste images here, or use Image, Text, Shape and Frame on the left. Press ?
-                for shortcuts.
-              </span>
-              <div className="dz-button-row">
-                <button className="button primary sm" onClick={() => uploadInput.current?.click()}>
-                  Upload image
-                </button>
-                <button className="button secondary sm" onClick={() => addText('heading')}>
-                  Add heading
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Everything that can be added floats over the artboard. */}
+          <AddBar
+            onUpload={() => uploadInput.current?.click()}
+            onGallery={() => setGallery('add')}
+            onText={addText}
+            onShape={addShape}
+            onFrame={addFrame}
+            onChyron={(style) => void addChyron(style)}
+          />
         </main>
 
         <div className="inspector-slot">
@@ -1318,8 +1348,41 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
         }}
       />
 
-      {menu && <ContextMenu at={menu.at} items={contextItems()} onClose={() => setMenu(null)} />}
+      {menu && (
+        <ContextMenu
+          at={menu.at}
+          label={menu.hit ? 'Layer actions' : 'Canvas actions'}
+          items={contextItems()}
+          onClose={closeMenu}
+        />
+      )}
       {exportOpen && <DesignerExportDialog doc={doc} onClose={() => setExportOpen(false)} />}
+      {cutoutLayer && (
+        <BackgroundRemovalDialog
+          load={async () => {
+            // Always from the original, even after an earlier cut-out.
+            const src = doc.assets[cutoutLayer.originalAsset ?? cutoutLayer.asset]
+            if (!src) throw new Error('This image is no longer in the design. Add it again.')
+            return { blob: await (await fetch(src)).blob(), name: cutoutLayer.name }
+          }}
+          onApply={async (result) => {
+            const id = generateId()
+            const src = await readAsDataURL(result.blob)
+            flushLive()
+            commit((d) => ({
+              ...updateLayers(d, [cutoutLayer.id], (l) =>
+                l.kind === 'image'
+                  ? ({ asset: id, originalAsset: l.originalAsset ?? l.asset } as Partial<Layer>)
+                  : {},
+              ),
+              assets: { ...d.assets, [id]: src },
+            }))
+            setCutoutId(null)
+            setNotice('Background removed. Restore the original from the Image section any time.')
+          }}
+          onClose={() => setCutoutId(null)}
+        />
+      )}
       <MediaGalleryModal
         open={gallery !== null}
         onClose={() => {

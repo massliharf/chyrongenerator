@@ -487,47 +487,6 @@
   caret-color: var(--designer-select);
 }
 
-.dz-empty-hint {
-  position: absolute;
-  left: 50%;
-  bottom: var(--space-8);
-  z-index: 2;
-  display: grid;
-  justify-items: center;
-  gap: var(--space-1);
-  width: min(420px, calc(100% - 32px));
-  padding: var(--space-4) var(--space-5);
-  text-align: center;
-  background: var(--color-bg-surface-raised);
-  border: var(--border-width-thin) solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-  transform: translateX(-50%);
-}
-.dz-empty-hint strong {
-  font: var(--text-heading-xs);
-}
-.dz-empty-hint span {
-  font: var(--text-caption);
-  color: var(--color-text-secondary);
-}
-.dz-empty-hint .dz-button-row {
-  margin-top: var(--space-2);
-}
-
-/* ---------- Context menu ---------- */
-.dz-context-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-dropdown);
-}
-.dz-context-menu {
-  position: fixed;
-  top: 0;
-  min-width: 232px;
-  max-height: calc(100dvh - 16px);
-}
-
 /* ---------- Inspector bits ---------- */
 .dz-align-bar {
   display: flex;
@@ -672,35 +631,44 @@
   }
 }
 
-/* ---------- Left panel: add bar ---------- */
+/* ---------- Floating add bar ---------- */
+/* Everything that can be added, in one pill floating over the artboard. */
 .dz-addbar {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-1);
-  flex: none;
-  padding: var(--space-2);
-  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-4);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  max-width: calc(100% - var(--space-4));
+  padding: var(--space-1);
+  background: var(--color-bg-surface-raised);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  translate: -50% 0;
 }
-.dz-addbar {
-  position: relative;
-}
-/* Popovers span the add bar so they never leave the panel. */
 .dz-add-item {
   min-width: 0;
 }
 .dz-add-tile {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-1);
-  width: 100%;
-  padding: var(--space-2) var(--space-1) var(--space-1-5);
-  font: var(--text-label-sm);
-  font-size: 0.6875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: var(--control-md);
+  padding: 0 var(--space-3);
+  font: var(--text-caption);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
   color: var(--color-text-secondary);
   border-radius: var(--radius-md);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
+}
+.dz-add-tile > svg {
+  flex: none;
 }
 .dz-add-tile:hover,
 .dz-add-tile.is-open {
@@ -710,17 +678,54 @@
 .dz-add-tile.is-open {
   background: var(--color-bg-selected);
 }
+.dz-addbar-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--space-1);
+  background: var(--color-border-default);
+}
+/* Choices open above the bar, centred on it. */
 .dz-popover {
   position: absolute;
-  top: calc(100% - var(--space-1));
-  inset-inline: var(--space-2);
+  left: 50%;
+  bottom: calc(100% + var(--space-2));
   z-index: calc(var(--z-dropdown) + 1);
+  width: min(300px, calc(100vw - 32px));
+  max-height: min(70dvh, 520px);
+  overflow-y: auto;
   padding: var(--space-2);
   background: var(--color-bg-surface-raised);
   border: var(--border-width-thin) solid var(--color-border-default);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
+  translate: -50% 0;
   animation: menu-in var(--duration-normal) var(--ease-enter);
+}
+.dz-popover.is-wide {
+  width: min(372px, calc(100vw - 32px));
+}
+.dz-chyron-grid {
+  margin-bottom: var(--space-1);
+}
+@media (pointer: coarse) {
+  .dz-add-tile {
+    height: var(--touch-target-min);
+  }
+}
+/* Narrow screens: icons only (each still has its name for assistive tech). */
+@media (max-width: 520px) {
+  .dz-add-tile > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .dz-add-tile {
+    padding: 0 var(--space-3);
+  }
 }
 .dz-pop-list {
   display: grid;
@@ -950,4 +955,9 @@ button.dz-layer-twisty:hover {
   .dz-mask-shapes {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+/* Inside an inspector section the note lines up with the fields. */
+.dz-picture-note {
+  margin: 0;
 }

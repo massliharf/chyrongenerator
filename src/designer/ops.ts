@@ -311,7 +311,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-function readAsDataURL(file: Blob): Promise<string> {
+export function readAsDataURL(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
     r.onload = () => resolve(r.result as string)

@@ -17,7 +17,7 @@ interface History {
   lastAt: number
 }
 type Action =
-  | { type: 'patch'; patch: Partial<Project>; at: number }
+  | { type: 'patch'; patch: Partial<Project>; at: number; step?: boolean }
   | { type: 'replace'; project: Project }
   | { type: 'undo' }
   | { type: 'redo' }
@@ -69,12 +69,15 @@ function reducer(state: History, action: Action): History {
   if (JSON.stringify(present) === JSON.stringify(state.present)) return state
   const key = action.type === 'patch' ? Object.keys(action.patch).sort().join(',') : ''
   const at = action.type === 'patch' ? action.at : 0
-  const group = key && key === state.lastKey && at - state.lastAt < 600
+  // Quick edits of the same kind (a drag, typing) undo together; a step
+  // (delete, reorder, duplicate…) is always one undo of its own.
+  const step = action.type === 'patch' && action.step
+  const group = !step && key && key === state.lastKey && at - state.lastAt < 600
   return {
     present,
     past: group ? state.past : [...state.past.slice(-79), state.present],
     future: [],
-    lastKey: key,
+    lastKey: step ? '' : key,
     lastAt: at,
   }
 }
@@ -113,7 +116,9 @@ export function useProject() {
   }, [history.present])
   return {
     project: history.present,
-    patch: (patch: Partial<Project>) => dispatch({ type: 'patch', patch, at: Date.now() }),
+    /** step: never merge this change into the previous undo (for one-off commands). */
+    patch: (patch: Partial<Project>, step = false) =>
+      dispatch({ type: 'patch', patch, at: Date.now(), step }),
     replace: (project: Project) => dispatch({ type: 'replace', project }),
     undo: () => dispatch({ type: 'undo' }),
     redo: () => dispatch({ type: 'redo' }),

@@ -80,6 +80,7 @@ export const Composition = memo(function Composition({
   cropping = false,
   onCropChange,
   onEditText,
+  onLayerMenu,
 }: {
   project: Project
   time: number
@@ -96,6 +97,8 @@ export const Composition = memo(function Composition({
   onCropChange?: (id: string | null) => void
   /** Double-clicking a chyron edits its words. */
   onEditText?: (id: string) => void
+  /** Right-clicking a layer opens its actions at the pointer. */
+  onLayerMenu?: (id: string, at: { x: number; y: number }) => void
 }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const drag = useRef<Gesture | null>(null)
@@ -479,6 +482,13 @@ export const Composition = memo(function Composition({
           onSelect?.(layer.id)
           if (layer.kind === 'image') onCropChange?.(layer.id)
           else if (layer.kind === 'chyron') onEditText?.(layer.id)
+        }}
+        onContextMenu={(e) => {
+          if (!interactive || cropping || !onLayerMenu) return
+          const hit = hitTest({ x: e.clientX, y: e.clientY })
+          if (!hit) return
+          e.preventDefault()
+          onLayerMenu(hit, { x: e.clientX, y: e.clientY })
         }}
       />
       {interactive && isDragging && activeSnap.x && (
