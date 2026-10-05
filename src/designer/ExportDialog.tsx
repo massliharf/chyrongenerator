@@ -13,6 +13,7 @@ import { NumberField, Toggle } from '../components/Controls'
 import { saveBlob } from '../studio/export'
 import { fileStem, pruneAssets, type DesignDoc } from './model'
 import { renderArtboard } from './render'
+import { SAVVY_TYPE, savvyName } from '../utils/savvyFile'
 
 type Format = 'png' | 'jpeg' | 'webp' | 'json'
 const FORMATS: {
@@ -46,7 +47,7 @@ const FORMATS: {
   {
     id: 'json',
     title: 'Design file',
-    badge: '.design.json',
+    badge: '.savvy',
     copy: 'Every layer and image, editable later.',
     Icon: FileJson,
   },
@@ -88,8 +89,8 @@ export function DesignerExportDialog({ doc, onClose }: { doc: DesignDoc; onClose
       let blob: Blob
       let filename: string
       if (format === 'json') {
-        blob = new Blob([JSON.stringify(pruneAssets(doc))], { type: 'application/json' })
-        filename = `${fileStem(doc.name)}.design.json`
+        blob = new Blob([JSON.stringify(pruneAssets(doc))], { type: SAVVY_TYPE })
+        filename = savvyName(fileStem(doc.name))
       } else {
         await document.fonts?.ready
         const canvas = renderArtboard(doc, scale, { transparent: alpha })

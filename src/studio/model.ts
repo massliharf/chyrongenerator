@@ -868,7 +868,7 @@ export function parseProject(json: string): Project {
     !('text' in raw) ||
     typeof raw.text !== 'string'
   ) {
-    throw new Error('Choose a Chyron Studio project (.chyron.json).')
+    throw new Error('Choose a Chyron Studio project (.savvy).')
   }
   return normalizeProject(raw)
 }

@@ -171,7 +171,7 @@ test('actual PNG, SVG, sequence, VP9 alpha and ProRes exports', async ({ page },
   expect(Object.keys(archive).filter((name) => name.endsWith('.png'))).toHaveLength(
     frameCount(project),
   )
-  expect(Object.keys(archive)).toContain('project.chyron.json')
+  expect(Object.keys(archive)).toContain('project.savvy')
   for (const format of ['WebM', 'ProRes 4444']) {
     const probe = JSON.parse(
       execFileSync(

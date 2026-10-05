@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Download, FileJson, FolderOpen, HardDrive, ShieldCheck, X } from 'lucide-react'
 import { fileStem, imageLayers, type Project } from '../studio/model'
 import { canChooseLocation, type SavedFile } from '../studio/projectFile'
+import { savvyName } from '../utils/savvyFile'
 
 const mb = (bytes: number) =>
   bytes < 1024 * 1024
@@ -117,7 +118,7 @@ export function StorageDialog({
           <div>
             <h3>Project files</h3>
             <p>
-              <strong>Save project file</strong> writes one <code>.chyron.json</code> with every
+              <strong>Save project file</strong> writes one <code>.savvy</code> file with every
               image and the music inside, so it opens complete on any computer with{' '}
               <strong>Open project file</strong>.{' '}
               {choose
@@ -129,7 +130,7 @@ export function StorageDialog({
                 ? lastSaved.picked
                   ? `Last saved as ${lastSaved.filename}, in the folder you chose.`
                   : `Last saved as ${lastSaved.filename} in your downloads folder.`
-                : `Not saved to a file yet. It will be named ${fileStem(project.name)}.chyron.json.`}
+                : `Not saved to a file yet. It will be named ${savvyName(fileStem(project.name))}.`}
             </p>
             <div className="button-row">
               <button className="button primary sm" onClick={() => onSave(false)}>

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 
 test('the Designer adds from a floating bar, chyrons included, and redraws them as you type', async ({
   page,
@@ -59,4 +60,60 @@ test('the Designer removes an image background and can restore the original', as
   await expect(designer.getByText('Background removed', { exact: true })).toBeVisible()
   await designer.getByRole('button', { name: 'Restore original' }).click()
   await expect(designer.getByText('Background removed', { exact: true })).toHaveCount(0)
+})
+
+test('projects save as .savvy and open in the editor they belong to', async ({
+  page,
+}, testInfo) => {
+  // Save to the downloads folder rather than through the browser's save dialog.
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }),
+  )
+  await page.goto('./')
+  await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
+  const chyron = page.locator('.chyron-root')
+  const designer = page.locator('.designer-root')
+
+  // The Chyron editor saves a .savvy file.
+  let saving = page.waitForEvent('download')
+  await chyron.getByRole('button', { name: 'Project menu' }).click()
+  await page.getByRole('menuitem', { name: /Save project file/ }).click()
+  const chyronFile = await saving
+  expect(chyronFile.suggestedFilename()).toBe('untitled-chyron.savvy')
+  const chyronPath = testInfo.outputPath('untitled-chyron.savvy')
+  await chyronFile.saveAs(chyronPath)
+
+  // So does the Designer.
+  await page.getByRole('button', { name: 'Designer' }).first().click()
+  await designer
+    .getByRole('toolbar', { name: 'Add to design' })
+    .getByRole('button', { name: 'Text' })
+    .click()
+  await designer.getByRole('dialog', { name: 'Text' }).getByRole('button').first().click()
+  saving = page.waitForEvent('download')
+  await designer.getByRole('button', { name: 'Design menu' }).click()
+  await page.getByRole('menuitem', { name: /Save design file/ }).click()
+  const designFile = await saving
+  expect(designFile.suggestedFilename()).toBe('untitled-design.savvy')
+  const designPath = testInfo.outputPath('untitled-design.savvy')
+  await designFile.saveAs(designPath)
+
+  // A Chyron project opened in the Designer goes to the Chyron editor.
+  await designer.locator('input[type=file][accept*=".savvy"]').setInputFiles(chyronPath)
+  await expect(page.locator('[data-workspace="chyron"]')).toBeVisible()
+  await expect(page.getByText('Opened untitled-chyron.savvy.')).toBeVisible()
+
+  // A design opened in the Chyron editor goes to the Designer.
+  await chyron.locator('.topbar input[type=file]').setInputFiles(designPath)
+  await expect(page.locator('[data-workspace="designer"]')).toBeVisible()
+  await expect(designer.getByText('Design opened. Undo to go back.')).toBeVisible()
+
+  // Files from earlier versions still open.
+  await page.getByRole('button', { name: 'Chyron' }).first().click()
+  await chyron.locator('.topbar input[type=file]').setInputFiles({
+    name: 'old.chyron.json',
+    mimeType: 'application/json',
+    buffer: readFileSync(chyronPath),
+  })
+  await expect(page.getByText('Opened old.chyron.json.')).toBeVisible()
 })

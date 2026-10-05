@@ -205,7 +205,7 @@ export async function exportProject(
         entry.push(data, true)
       }
       const assets = imageLayers(p).length || p.audio ? await embedAssets(p) : undefined
-      add('project.chyron.json', strToU8(JSON.stringify({ ...p, assets }, null, 2)))
+      add('project.savvy', strToU8(JSON.stringify({ ...p, assets }, null, 2)))
       if (music) add('music.wav', music)
       const withMusic = music ? ' -i music.wav -c:a pcm_s16le' : ''
       add(

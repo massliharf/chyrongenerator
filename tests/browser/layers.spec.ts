@@ -125,7 +125,7 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   expect([...decode(frames[0])].filter((_, i) => i % 4 === 3).every((a) => a === 0)).toBe(true)
   expect([...decode(frames.at(-1)!)].filter((_, i) => i % 4 === 3).every((a) => a === 0)).toBe(true)
   expect(pixel(decode(frames[Math.floor(count / 2)]), 720, 1, 1)[3]).toBe(255)
-  const packed = JSON.parse(new TextDecoder().decode(archive['project.chyron.json']))
+  const packed = JSON.parse(new TextDecoder().decode(archive['project.savvy']))
   expect(Object.keys(packed.assets)).toHaveLength(2)
 
   // SVG embeds both images.
@@ -139,7 +139,7 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   await page.getByRole('button', { name: 'Project menu' }).click()
   const saving = page.waitForEvent('download')
   await page.getByRole('menuitem', { name: /Save project file/ }).click()
-  const projectPath = testInfo.outputPath('layers.chyron.json')
+  const projectPath = testInfo.outputPath('layers.savvy')
   await (await saving).saveAs(projectPath)
   const saved = JSON.parse(readFileSync(projectPath, 'utf8'))
   expect(saved.layers).toHaveLength(3)
@@ -167,7 +167,7 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
   await page.getByRole('menuitem', { name: /New composition/ }).click()
   await expect.poll(cornerAlpha).toBe(0)
   await page.locator('.topbar input[type=file]').setInputFiles(projectPath)
-  await expect(page.getByText(/^Opened .*\.chyron\.json\.$/)).toBeVisible()
+  await expect(page.getByText(/^Opened .*\.savvy\.$/)).toBeVisible()
   await expect.poll(cornerAlpha).toBe(255)
 
   // Mobile layout keeps working with layers.

@@ -88,6 +88,14 @@ import {
 import { generateId } from './utils/id'
 import { usingPointer } from './utils/inputModality'
 import { revealGroup } from './components/inspectorHooks'
+import {
+  SAVVY_ACCEPT,
+  isSavvyFile,
+  onSavvyHandOff,
+  savvyKind,
+  sendSavvyFile,
+  subscribeSavvyFiles,
+} from './utils/savvyFile'
 import { MediaGalleryModal } from './components/MediaGalleryModal'
 import { fetchGalleryFile, type GalleryItem } from './studio/galleryData'
 
@@ -393,6 +401,38 @@ function ChyronEditor({ active }: { active: boolean }) {
     setSelection(id)
     setContextMenu({ id, at })
   }
+  /** Opens a .savvy project file (or an older .json); Designer files go to the Designer. */
+  const openProject = async (file: File) => {
+    try {
+      if (file.size > 400 * 1024 * 1024)
+        throw new Error('Choose a project file smaller than 400 MB.')
+      const json = await file.text()
+      let raw: unknown
+      try {
+        raw = JSON.parse(json)
+      } catch {
+        throw new Error('Choose a Chyron Studio project (.savvy).')
+      }
+      if (savvyKind(raw) === 'design') {
+        sendSavvyFile('design', file)
+        return
+      }
+      const imported = parseProject(json)
+      await restoreEmbeddedAssets((raw as { assets?: unknown }).assets)
+      forgetProjectFile()
+      setLastSaved(null)
+      replace(imported)
+      setSelection(PRIMARY_CHYRON)
+      playback.seek(restTime(imported))
+      setNotice(`Opened ${file.name}.`)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to open this file.')
+    }
+  }
+  const openProjectRef = useRef(openProject)
+  openProjectRef.current = openProject
+  // Project files opened in another editor that belong here.
+  useEffect(() => subscribeSavvyFiles('chyron', (file) => void openProjectRef.current(file)), [])
   const handleSelectGalleryItem = async (item: GalleryItem) => {
     try {
       setNotice(`Adding ${item.name}…`)
@@ -652,7 +692,7 @@ function ChyronEditor({ active }: { active: boolean }) {
                 label: 'Save project file',
                 Icon: ArrowDownToLine,
                 shortcut: '⌘ S',
-                hint: 'One .chyron.json with every image and the music',
+                hint: 'One .savvy file with every image and the music',
                 onSelect: () => void saveProject(),
               },
               ...(canChooseLocation()
@@ -709,27 +749,11 @@ function ChyronEditor({ active }: { active: boolean }) {
           type="file"
           ref={importInput}
           hidden
-          accept=".json,.chyron.json"
+          accept={SAVVY_ACCEPT}
           onChange={async (e) => {
             const input = e.currentTarget,
               file = input.files?.[0]
-            if (!file) return
-            try {
-              if (file.size > 400 * 1024 * 1024)
-                throw new Error('Choose a project file smaller than 400 MB.')
-              const json = await file.text()
-              const imported = parseProject(json)
-              const raw = JSON.parse(json) as { assets?: unknown }
-              await restoreEmbeddedAssets(raw.assets)
-              forgetProjectFile()
-              setLastSaved(null)
-              replace(imported)
-              setSelection(PRIMARY_CHYRON)
-              playback.seek(restTime(imported))
-              setNotice(`Opened ${file.name}.`)
-            } catch (error) {
-              setNotice(error instanceof Error ? error.message : 'Unable to open this file.')
-            }
+            if (file) await openProject(file)
             input.value = ''
           }}
         />
@@ -861,11 +885,14 @@ function ChyronEditor({ active }: { active: boolean }) {
               e.preventDefault()
               setDropping(false)
               const all = Array.from(e.dataTransfer.files)
+              const projectFile = all.find(isSavvyFile)
+              if (projectFile) return void openProject(projectFile)
               const files = all.filter((f) => f.type.startsWith('image/'))
               const song = all.find((f) => f.type.startsWith('audio/'))
               if (song) void addMusic(song)
               if (files.length) void addImages(files)
-              else if (!song) setNotice('Drop a PNG, JPEG, WebP or GIF image, or a music file.')
+              else if (!song)
+                setNotice('Drop a PNG, JPEG, WebP or GIF image, a music file or a .savvy project.')
             }}
           >
             {dropping && (
@@ -1150,6 +1177,15 @@ function App() {
       /* Current session still works. */
     }
   }
+  // A project file opened in the other editor switches to the one it belongs to.
+  const changeRef = useRef(changeWorkspace)
+  useEffect(() => {
+    changeRef.current = changeWorkspace
+  })
+  useEffect(
+    () => onSavvyHandOff((kind) => changeRef.current(kind === 'design' ? 'designer' : 'chyron')),
+    [],
+  )
   return (
     <div className="app-shell">
       <AppNav current={workspace} onChange={changeWorkspace} />

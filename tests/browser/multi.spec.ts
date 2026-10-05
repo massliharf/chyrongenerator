@@ -147,7 +147,7 @@ test('the save status explains where work is kept', async ({ page }) => {
   await page.getByRole('button', { name: /Where is my work/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Where is my work?' })
   await expect(dialog).toContainText("this browser's storage on this device")
-  await expect(dialog).toContainText('.chyron.json')
+  await expect(dialog).toContainText('.savvy')
   await expect(dialog.getByRole('button', { name: 'Save project file' })).toBeVisible()
   await dialog.getByRole('button', { name: 'Done' }).click()
   await expect(dialog).toBeHidden()

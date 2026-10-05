@@ -1,9 +1,10 @@
 import { embedAssets } from './assets'
 import { fileStem, imageLayers, type Project } from './model'
 import { saveBlob } from './export'
+import { SAVVY_TYPE, savvyName } from '../utils/savvyFile'
 
 /**
- * Project files: one .chyron.json with every image and the music embedded, so
+ * Project files: one .savvy file with every image and the music embedded, so
  * it reopens complete on any device. Where the browser can show a save dialog
  * (Chrome, Edge), you pick the folder once and later saves go to the same file;
  * elsewhere the file downloads to the browser's downloads folder.
@@ -49,10 +50,8 @@ export async function saveProjectFile(p: Project, choose = false): Promise<Saved
       missing = true
     }
   }
-  const blob = new Blob([JSON.stringify({ ...p, assets }, null, 2)], {
-    type: 'application/json',
-  })
-  const filename = `${fileStem(p.name)}.chyron.json`
+  const blob = new Blob([JSON.stringify({ ...p, assets }, null, 2)], { type: SAVVY_TYPE })
+  const filename = savvyName(fileStem(p.name))
   const show = picker()
   if (show) {
     try {
@@ -60,9 +59,7 @@ export async function saveProjectFile(p: Project, choose = false): Promise<Saved
         handle = await show({
           suggestedName: filename,
           id: 'chyron-projects',
-          types: [
-            { description: 'Chyron Studio project', accept: { 'application/json': ['.json'] } },
-          ],
+          types: [{ description: 'Chyron Studio project', accept: { [SAVVY_TYPE]: ['.savvy'] } }],
         })
       const writable = await handle.createWritable()
       await writable.write(blob)

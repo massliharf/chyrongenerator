@@ -47,6 +47,15 @@ import { generateId } from '../utils/id'
 import { DesignerCanvas, type Tool, type View } from './DesignerCanvas'
 import { DesignerExportDialog } from './ExportDialog'
 import { BackgroundRemovalDialog } from '../components/BackgroundRemovalDialog'
+import {
+  SAVVY_ACCEPT,
+  SAVVY_TYPE,
+  isSavvyFile,
+  savvyKind,
+  savvyName,
+  sendSavvyFile,
+  subscribeSavvyFiles,
+} from '../utils/savvyFile'
 import { center, clampCrop, unionBounds, type Point } from './geometry'
 import { Inspector, type InspectorActions } from './Inspector'
 import { LeftPanel } from './LeftPanel'
@@ -321,7 +330,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
 
   const addFiles = async (files: File[], at?: Point, frameId: string | null = null) => {
     const images = files.filter((f) => f.type.startsWith('image/'))
-    const json = files.find((f) => f.name.endsWith('.json'))
+    const json = files.find(isSavvyFile)
     if (!images.length && json) return openFile(json)
     if (!images.length) return setNotice('Drop a PNG, JPEG, WebP or GIF image.')
     let next = editor.current.current
@@ -377,10 +386,19 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     }
   }
 
+  /** Opens a .savvy design (or an older .design.json); Chyron projects go to the Chyron editor. */
   const openFile = async (file: File) => {
     try {
       if (file.size > 300 * 1024 * 1024) throw new Error('Choose a design file under 300 MB.')
-      const next = parseDoc(await file.text())
+      const text = await file.text()
+      let raw: unknown = null
+      try {
+        raw = JSON.parse(text)
+      } catch {
+        /* parseDoc explains. */
+      }
+      if (savvyKind(raw) === 'chyron') return sendSavvyFile('chyron', file)
+      const next = parseDoc(text)
       commit(next)
       setSelection([])
       fit(next)
@@ -391,8 +409,8 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
   }
   const saveFile = () =>
     saveBlob(
-      new Blob([JSON.stringify(pruneAssets(doc))], { type: 'application/json' }),
-      `${fileStem(doc.name)}.design.json`,
+      new Blob([JSON.stringify(pruneAssets(doc))], { type: SAVVY_TYPE }),
+      savvyName(fileStem(doc.name)),
     )
 
   const onGallery = async (item: GalleryItem) => {
@@ -410,6 +428,10 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
 
   const addFilesRef = useRef(addFiles)
   addFilesRef.current = addFiles
+  const openFileRef = useRef(openFile)
+  openFileRef.current = openFile
+  // Design files opened in another editor that belong here.
+  useEffect(() => subscribeSavvyFiles('design', (file) => void openFileRef.current(file)), [])
   useEffect(() => {
     if (!editor.ready) return
     return subscribeDesignerInbox((items) => {
@@ -1340,7 +1362,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
         ref={openInput}
         type="file"
         hidden
-        accept=".json,.design.json,application/json"
+        accept={SAVVY_ACCEPT}
         onChange={(e) => {
           const f = e.currentTarget.files?.[0]
           e.currentTarget.value = ''
