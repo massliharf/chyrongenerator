@@ -1,14 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  Layers as LayersIcon,
-  Lock,
-  LockOpen,
-  X,
-} from 'lucide-react'
+import { ChevronDown, Eye, EyeOff, Layers as LayersIcon, Lock, LockOpen, X } from 'lucide-react'
 import { isShape, type DesignDoc, type Layer, type ShapePreset } from './model'
 import type { DropZone } from './ops'
 import { clipGroups, drawThumb } from './render'
@@ -205,7 +196,8 @@ function LayersList({
               })
             }}
           >
-            {collapsed.has(l.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            {/* One chevron that turns, pointing down while the group is open. */}
+            <ChevronDown size={14} strokeWidth={2.25} aria-hidden="true" />
           </button>
         ) : (
           <span className="dz-layer-twisty" aria-hidden="true" />

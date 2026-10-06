@@ -819,15 +819,22 @@
   text-overflow: ellipsis;
   color: var(--color-text-tertiary);
 }
+/* The mask group's chevron: a small button whose centre the group's line runs into. */
 .dz-layer-twisty {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin-inline: -4px -2px;
-  color: var(--color-text-tertiary);
-  border-radius: var(--radius-xs);
+  width: 20px;
+  height: 20px;
+  margin-inline: -4px;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+}
+.dz-layer-twisty > svg {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.dz-layer-twisty[aria-expanded='false'] > svg {
+  transform: rotate(-90deg);
 }
 button.dz-layer-twisty:hover {
   color: var(--color-text-primary);
@@ -851,10 +858,14 @@ button.dz-layer-twisty:hover {
 .dz-group::before {
   content: '';
   position: absolute;
-  top: 10px;
-  bottom: 22px;
-  left: 17px;
+  /* From the first picture inside down to just above the chevron, on its centre line,
+     drawn over the rows' backgrounds (the gutter it runs in is empty). */
+  z-index: 1;
+  top: 12px;
+  bottom: 38px;
+  left: 13.25px;
   width: 1.5px;
+  pointer-events: none;
   background: color-mix(in srgb, var(--designer-mask) 45%, transparent);
   border-radius: var(--radius-full);
 }
