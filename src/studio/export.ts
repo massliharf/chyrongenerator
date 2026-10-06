@@ -131,6 +131,20 @@ export function exportAvailability(format: ExportFormat, p: Project): string | n
 
 const frameName = (i: number) => `frame-${String(i).padStart(5, '0')}.png`
 
+/**
+ * What went wrong in the encoder, in words people can act on. The encoder
+ * reports its own failures as plain text ("memory access out of bounds").
+ */
+export function encoderError(error: unknown): Error {
+  if (error instanceof Error && !/out of bounds|memory|Aborted/i.test(error.message)) return error
+  const text = error instanceof Error ? error.message : String(error)
+  return new Error(
+    /out of bounds|memory|Aborted|OOM/i.test(text)
+      ? 'The browser ran out of memory while encoding this video. Try a shorter video or a smaller size, or export a PNG sequence.'
+      : `Video encoding failed (${text.slice(0, 120)}). Try again, or export a PNG sequence.`,
+  )
+}
+
 export async function exportProject(
   p: Project,
   format: ExportFormat,
@@ -233,42 +247,22 @@ export async function exportProject(
         filename: `${name}-png-sequence.zip`,
       }
     }
-    const [{ FFmpeg }, { default: coreURL }, { default: wasmURL }] = await Promise.all([
+    const [{ FFmpeg, FFFSType }, { default: coreURL }, { default: wasmURL }] = await Promise.all([
       import('@ffmpeg/ffmpeg'),
       import('@ffmpeg/core?url'),
       import('@ffmpeg/core/wasm?url'),
     ])
     checkAbort(signal)
-    const ffmpeg = new FFmpeg()
-    cancelEncoder = () => ffmpeg.terminate()
     const prores = format === 'mov'
     const ext = prores ? 'mov' : 'webm'
     const output = `output.${ext}`
     const codecName = prores ? 'ProRes 4444' : 'VP9'
-    let log = ''
-    ffmpeg.on('log', (event) => {
-      log = (log + '\n' + event.message).slice(-4000)
-    })
     // Each segment is rendered (40 % of its share) then encoded (60 %).
     const perSegment = prores ? count : segmentFrames(p)
     const segments = Math.ceil(count / perSegment)
     let segment = 0
     const report = (fraction: number, label: string) =>
       progress({ progress: 0.03 + (0.95 * (segment + fraction)) / segments, label })
-    ffmpeg.on('progress', (event) =>
-      report(
-        0.4 + Math.min(1, Math.max(0, event.progress || 0)) * 0.6,
-        `Encoding ${codecName} with alpha…${segments > 1 ? ` (part ${segment + 1} of ${segments})` : ''}`,
-      ),
-    )
-    const run = async (args: string[]) => {
-      const result = await ffmpeg.exec(args)
-      checkAbort(signal)
-      if (result !== 0) {
-        console.error(log)
-        throw new Error('Video encoding failed. Try 720p or export a PNG sequence.')
-      }
-    }
     const codec = prores
       ? ['-c:v', 'prores_ks', '-profile:v', '4', '-pix_fmt', 'yuva444p10le', '-alpha_bits', '16']
       : [
@@ -285,79 +279,130 @@ export async function exportProject(
         ]
     // libopus crashes in this FFmpeg build; Vorbis is WebM's other standard audio codec.
     const audioCodec = prores ? ['-c:a', 'pcm_s16le'] : ['-c:a', 'libvorbis', '-q:a', '6']
-    try {
-      progress({ progress: 0.01, label: 'Loading the video encoder (about 32 MB)…' })
-      await ffmpeg.load({
+    /**
+     * A fresh encoder. Its memory (2 GB at most) holds the frames and the file
+     * being made; ending it gives all of that back, so every part of a long
+     * WebM starts with an empty encoder.
+     */
+    let core: { coreURL: string; wasmURL: string } | null = null
+    const encoder = async () => {
+      const ffmpeg = new FFmpeg()
+      cancelEncoder = () => ffmpeg.terminate()
+      let log = ''
+      ffmpeg.on('log', (event) => {
+        log = (log + '\n' + event.message).slice(-4000)
+      })
+      ffmpeg.on('progress', (event) =>
+        report(
+          0.4 + Math.min(1, Math.max(0, event.progress || 0)) * 0.6,
+          `Encoding ${codecName} with alpha…${segments > 1 ? ` (part ${segment + 1} of ${segments})` : ''}`,
+        ),
+      )
+      core ??= {
         coreURL: new URL(coreURL, window.location.href).href,
         wasmURL: new URL(wasmURL, window.location.href).href,
-      })
-      checkAbort(signal)
-      if (music) await ffmpeg.writeFile('music.wav', music)
-      const parts: string[] = []
-      for (; segment < segments; segment++) {
-        const first = segment * perSegment
-        const last = Math.min(count, first + perSegment)
-        for (let i = first; i < last; i++) {
-          checkAbort(signal)
-          await ffmpeg.writeFile(frameName(i), await framePng(i))
-          report(((i - first + 1) / (last - first)) * 0.4, `Preparing frame ${i + 1} of ${count}`)
-          await yieldToBrowser()
-        }
-        const single = segments === 1
-        const target = single ? output : `part-${segment}.${ext}`
-        await run([
-          '-framerate',
-          String(p.fps),
-          '-start_number',
-          String(first),
-          '-i',
-          'frame-%05d.png',
-          ...(single && music ? ['-i', 'music.wav', '-map', '0:v', '-map', '1:a'] : []),
-          '-frames:v',
-          String(last - first),
-          ...codec,
-          ...(single && music ? audioCodec : []),
-          '-threads',
-          '1',
-          '-y',
-          target,
-        ])
-        for (let i = first; i < last; i++) await ffmpeg.deleteFile(frameName(i))
-        parts.push(target)
       }
-      if (segments > 1) {
+      await ffmpeg.load(core)
+      checkAbort(signal)
+      const run = async (args: string[]) => {
+        const result = await ffmpeg.exec(args)
+        checkAbort(signal)
+        if (result !== 0) {
+          console.error(log)
+          throw new Error('Video encoding failed. Try 720p or export a PNG sequence.')
+        }
+      }
+      return { ffmpeg, run }
+    }
+    const take = async (ffmpeg: InstanceType<typeof FFmpeg>, file: string) => {
+      const bytes = await ffmpeg.readFile(file)
+      if (typeof bytes === 'string') throw new Error('The encoder returned an invalid file.')
+      return new Blob([new Uint8Array(bytes)], { type: prores ? 'video/quicktime' : 'video/webm' })
+    }
+    progress({ progress: 0.01, label: 'Loading the video encoder (about 32 MB)…' })
+    try {
+      const single = segments === 1
+      // Finished parts wait outside the encoder, as Blobs.
+      const parts: Blob[] = []
+      for (; segment < segments; segment++) {
+        const { ffmpeg, run } = await encoder()
+        try {
+          if (single && music) await ffmpeg.writeFile('music.wav', music)
+          const first = segment * perSegment
+          const last = Math.min(count, first + perSegment)
+          for (let i = first; i < last; i++) {
+            checkAbort(signal)
+            await ffmpeg.writeFile(frameName(i), await framePng(i))
+            report(((i - first + 1) / (last - first)) * 0.4, `Preparing frame ${i + 1} of ${count}`)
+            await yieldToBrowser()
+          }
+          await run([
+            '-framerate',
+            String(p.fps),
+            '-start_number',
+            String(first),
+            '-i',
+            'frame-%05d.png',
+            ...(single && music ? ['-i', 'music.wav', '-map', '0:v', '-map', '1:a'] : []),
+            '-frames:v',
+            String(last - first),
+            ...codec,
+            ...(single && music ? audioCodec : []),
+            '-threads',
+            '1',
+            '-y',
+            output,
+          ])
+          parts.push(await take(ffmpeg, output))
+        } finally {
+          ffmpeg.terminate()
+          cancelEncoder = undefined
+        }
+      }
+      let video = parts[0]
+      if (!single) {
         segment = segments - 1
         progress({ progress: 0.98, label: 'Joining the parts…' })
-        await ffmpeg.writeFile(
-          'parts.txt',
-          strToU8(parts.map((part) => `file '${part}'`).join('\n') + '\n'),
-        )
-        await run([
-          '-f',
-          'concat',
-          '-safe',
-          '0',
-          '-i',
-          'parts.txt',
-          ...(music ? ['-i', 'music.wav', '-map', '0:v', '-map', '1:a', ...audioCodec] : []),
-          '-c:v',
-          'copy',
-          '-y',
-          output,
-        ])
-        for (const part of parts) await ffmpeg.deleteFile(part)
+        const { ffmpeg, run } = await encoder()
+        try {
+          // The parts are read straight from their Blobs; only the joined video takes encoder memory.
+          await ffmpeg.createDir('/parts')
+          await ffmpeg.mount(
+            FFFSType.WORKERFS,
+            { blobs: parts.map((data, i) => ({ name: `part-${i}.${ext}`, data })) },
+            '/parts',
+          )
+          if (music) await ffmpeg.writeFile('music.wav', music)
+          await ffmpeg.writeFile(
+            'parts.txt',
+            strToU8(parts.map((_, i) => `file '/parts/part-${i}.${ext}'`).join('\n') + '\n'),
+          )
+          await run([
+            '-f',
+            'concat',
+            '-safe',
+            '0',
+            '-i',
+            'parts.txt',
+            ...(music ? ['-i', 'music.wav', '-map', '0:v', '-map', '1:a', ...audioCodec] : []),
+            '-c:v',
+            'copy',
+            '-y',
+            output,
+          ])
+          video = await take(ffmpeg, output)
+        } finally {
+          ffmpeg.terminate()
+          cancelEncoder = undefined
+        }
       }
-      const bytes = await ffmpeg.readFile(output)
-      if (typeof bytes === 'string') throw new Error('The encoder returned an invalid file.')
       return {
-        blob: new Blob([new Uint8Array(bytes)], {
-          type: prores ? 'video/quicktime' : 'video/webm',
-        }),
+        blob: video,
         filename: prores ? `${name}-prores4444.mov` : `${name}-alpha.webm`,
       }
-    } finally {
-      ffmpeg.terminate()
-      cancelEncoder = undefined
+    } catch (error) {
+      if (signal.aborted) throw error
+      throw encoderError(error)
     }
   } finally {
     canvas.width = 0

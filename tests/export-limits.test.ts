@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROJECT, frameCount, normalizeProject } from '../src/studio/model'
 import {
+  encoderError,
   exportAvailability,
   maxVideoSeconds,
   segmentFrames,
@@ -33,5 +34,21 @@ describe('video export limits', () => {
     const order: number[] = []
     await Promise.all([1, 2, 3].map((n) => yieldToBrowser().then(() => order.push(n))))
     expect(order).toEqual([1, 2, 3])
+  })
+})
+
+describe('encoder errors', () => {
+  it('explain running out of memory instead of failing silently', () => {
+    // The encoder reports its own crashes as plain text, not as Errors.
+    expect(encoderError('RuntimeError: memory access out of bounds').message).toMatch(
+      /ran out of memory.*PNG sequence/,
+    )
+    expect(encoderError(new Error('Aborted(OOM)')).message).toMatch(/ran out of memory/)
+    expect(encoderError('something else').message).toMatch(
+      /^Video encoding failed \(something else\)/,
+    )
+    // Our own messages pass through unchanged.
+    const own = new Error('Video encoding failed. Try 720p or export a PNG sequence.')
+    expect(encoderError(own)).toBe(own)
   })
 })
