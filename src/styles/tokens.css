@@ -2,7 +2,7 @@
  * Magnific Design System — tokens (v1.0)
  * Primitive → Semantic → Component. Components reference semantic or component
  * tokens only; primitives are never used directly outside this file.
- * Brand: Chyron Studio keeps its blue brand, so the Magnific "Blue" family fills
+ * Brand: Savvy Editor keeps its blue brand, so the Magnific "Blue" family fills
  * the action role. Swap the four --brand-* lines to re-brand (e.g. to Iris).
  */
 :root {

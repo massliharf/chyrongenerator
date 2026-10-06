@@ -88,7 +88,7 @@ export function StorageDialog({
             </p>
             <p className="storage-meta">
               {stored.length ? `${stored.join(' and ')} stored with it` : 'No images or music yet'}
-              {usage !== null ? ` · ${mb(usage)} used by Chyron Studio in this browser` : ''}
+              {usage !== null ? ` · ${mb(usage)} used by Savvy Editor in this browser` : ''}
             </p>
             {persisted === false && (
               <button

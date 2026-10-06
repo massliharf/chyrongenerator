@@ -1,8 +1,8 @@
-# Chyron Studio
+# Savvy Editor
 
 A browser-based motion graphics editor rebuilt from the original Chyron Generator. Create animated tile titles and expressive typography, then export them with a real alpha channel.
 
-![Chyron Studio](docs/studio-preview.png)
+![Savvy Editor](docs/studio-preview.png)
 
 ## Run locally
 
@@ -92,7 +92,7 @@ Press **?** inside the Designer for the full shortcut list. Code lives in `src/d
 
 ## What’s new in 2.5 — Image layers
 
-Chyron Studio now builds complete motion graphics: stack logos, photos and your chyron in one project, animate each one, and export the result with alpha. Graphics like the SHOWDOWN intermission bumper or an Affidavit card no longer need a separate editor.
+Savvy Editor now builds complete motion graphics: stack logos, photos and your chyron in one project, animate each one, and export the result with alpha. Graphics like the SHOWDOWN intermission bumper or an Affidavit card no longer need a separate editor.
 
 - **Add images** with the **Image** button in the canvas toolbar, the new **Layers** tab, or by dropping files onto the canvas. PNG, JPEG, WebP and GIF are supported, up to 25 MB each; images larger than 4096 px are downscaled. PNG transparency is preserved. Up to 12 images per composition.
 - **Smart placement.** A JPEG shaped like the canvas arrives full-bleed at the back of the stack with a soft fade. Everything else arrives centered on top with Pop.

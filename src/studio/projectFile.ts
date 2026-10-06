@@ -59,7 +59,7 @@ export async function saveProjectFile(p: Project, choose = false): Promise<Saved
         handle = await show({
           suggestedName: filename,
           id: 'chyron-projects',
-          types: [{ description: 'Chyron Studio project', accept: { [SAVVY_TYPE]: ['.savvy'] } }],
+          types: [{ description: 'Savvy Editor project', accept: { [SAVVY_TYPE]: ['.savvy'] } }],
         })
       const writable = await handle.createWritable()
       await writable.write(blob)

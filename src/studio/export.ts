@@ -215,7 +215,7 @@ export async function exportProject(
       add(
         'README.txt',
         strToU8(
-          `Chyron Studio — RGBA PNG sequence\n${p.width} × ${p.height}, ${p.fps} fps, ${count} frames, ${seconds.toFixed(3)} seconds.\nImport frame-00000.png as an image sequence at ${p.fps} fps.\nAll frames use straight/unassociated alpha. The preview background is never included.\n${music ? 'music.wav is the music track, trimmed and faded exactly as in the editor, and as long as the frames.\n' : ''}\nConvert to ProRes 4444 with FFmpeg:\nffmpeg -framerate ${p.fps} -i frame-%05d.png${withMusic} -c:v prores_ks -profile:v 4 -pix_fmt yuva444p10le -alpha_bits 16 chyron-alpha.mov\n`,
+          `Savvy Editor — RGBA PNG sequence\n${p.width} × ${p.height}, ${p.fps} fps, ${count} frames, ${seconds.toFixed(3)} seconds.\nImport frame-00000.png as an image sequence at ${p.fps} fps.\nAll frames use straight/unassociated alpha. The preview background is never included.\n${music ? 'music.wav is the music track, trimmed and faded exactly as in the editor, and as long as the frames.\n' : ''}\nConvert to ProRes 4444 with FFmpeg:\nffmpeg -framerate ${p.fps} -i frame-%05d.png${withMusic} -c:v prores_ks -profile:v 4 -pix_fmt yuva444p10le -alpha_bits 16 chyron-alpha.mov\n`,
         ),
       )
       for (let i = 0; i < count; i++) {

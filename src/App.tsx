@@ -533,7 +533,7 @@ function ChyronEditor({ active }: { active: boolean }) {
       try {
         raw = JSON.parse(json)
       } catch {
-        throw new Error('Choose a Chyron Studio project (.savvy).')
+        throw new Error('Choose a Savvy Editor project (.savvy).')
       }
       const kind = savvyKind(raw)
       if (kind === 'design' || kind === 'hero') {

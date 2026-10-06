@@ -26,7 +26,7 @@ export function AppNav({
   return (
     <nav className="app-nav" aria-label="Workspaces">
       <span className="app-brand">
-        <img className="brand-logo" src={logo} alt="Chyron Studio" width={32} height={32} />
+        <img className="brand-logo" src={logo} alt="Savvy Editor" width={32} height={32} />
       </span>
       <ul className="app-nav-list">
         {WORKSPACES.map(({ id, label, Icon, end }) => (

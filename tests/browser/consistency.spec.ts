@@ -32,7 +32,7 @@ test('selection handles, guides and the logo look the same in every editor', asy
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
   // The logo is the show's glasses icon, loaded.
   const logo = page.locator('.app-brand img')
-  await expect(logo).toHaveAttribute('alt', 'Chyron Studio')
+  await expect(logo).toHaveAttribute('alt', 'Savvy Editor')
   expect(await logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
   // Chyron editor: the chyron is selected.
