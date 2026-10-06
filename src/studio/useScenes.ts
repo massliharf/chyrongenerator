@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadFontSet, type Fonts } from './fonts'
-import { chyronLayers, styleOf, type FontName, type Project } from './model'
+import { chyronLayers, styleOf, textLayers, type FontName, type Project } from './model'
 import { buildScenes, type SceneMap } from './renderer'
 
 /**
@@ -8,7 +8,15 @@ import { buildScenes, type SceneMap } from './renderer'
  * every chyron's font has loaded, `ready` is false and the previous scenes stay.
  */
 export function useScenes(p: Project, retry = 0) {
-  const fontKey = [...new Set(chyronLayers(p).map((l) => styleOf(p, l).font))].sort().join('|')
+  // Text layers draw from the same typefaces, so they wait for them too.
+  const fontKey = [
+    ...new Set([
+      ...chyronLayers(p).map((l) => styleOf(p, l).font),
+      ...textLayers(p).map((l) => l.font),
+    ]),
+  ]
+    .sort()
+    .join('|')
   const [fonts, setFonts] = useState<{ key: string; map: Map<FontName, Fonts> } | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {

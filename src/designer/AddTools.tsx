@@ -291,6 +291,26 @@ export function FrameChoices({
   )
 }
 
+/** Text presets: a heading, a subheading or body text. */
+export function TextChoices({
+  onPick,
+  note,
+}: {
+  onPick: (preset: TextPreset) => void
+  note?: string
+}) {
+  return (
+    <div className="dz-pop-list">
+      {(Object.keys(TEXT_PRESETS) as TextPreset[]).map((k) => (
+        <button key={k} className={`dz-pop-text is-${k}`} onClick={() => onPick(k)}>
+          {TEXT_PRESETS[k].label}
+        </button>
+      ))}
+      {note && <p className="dz-pop-note">{note}</p>}
+    </div>
+  )
+}
+
 /** One look for every "add" icon in the editors' top toolbars. */
 export function AddButton({
   label,
@@ -343,21 +363,13 @@ export function AddTools({
         icon={<Type size={18} />}
       >
         {(close) => (
-          <div className="dz-pop-list">
-            {(Object.keys(TEXT_PRESETS) as TextPreset[]).map((k) => (
-              <button
-                key={k}
-                className={`dz-pop-text is-${k}`}
-                onClick={() => {
-                  close()
-                  onText(k)
-                }}
-              >
-                {TEXT_PRESETS[k].label}
-              </button>
-            ))}
-            <p className="dz-pop-note">Or press T and click on the artboard.</p>
-          </div>
+          <TextChoices
+            onPick={(k) => {
+              close()
+              onText(k)
+            }}
+            note="Or press T and click on the artboard."
+          />
         )}
       </AddPopover>
       <AddPopover

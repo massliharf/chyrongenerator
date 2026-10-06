@@ -90,7 +90,7 @@ export type HoldEffect = (typeof HOLD_EFFECTS)[number]
 /** Effects that move letters one by one: chyrons and text only. */
 export const LETTER_EFFECTS: HoldEffect[] = ['wave', 'ripple']
 /** On-screen effects each layer kind offers. */
-export const effectsFor = (kind: 'chyron' | 'image' | 'shape'): HoldEffect[] =>
+export const effectsFor = (kind: 'chyron' | 'image' | 'shape' | 'text'): HoldEffect[] =>
   HOLD_EFFECTS.filter((e) =>
     kind === 'chyron'
       ? e !== 'kenburns'
@@ -214,7 +214,28 @@ export interface ShapeLayer extends ElementBase {
   /** Linear gradient direction in degrees (0 = left to right). */
   gradientAngle: number
 }
-export type ElementLayer = ImageLayer | ShapeLayer
+export const TEXT_ALIGNS = ['left', 'center', 'right'] as const
+export type TextAlign = (typeof TEXT_ALIGNS)[number]
+/**
+ * Plain text in a box, as in the Designer: words wrap at the box's width and
+ * the box grows with them. It moves, animates and stacks like an image or a
+ * shape; chyrons keep their own lettering and styles.
+ */
+export interface TextLayer extends ElementBase {
+  kind: 'text'
+  text: string
+  font: FontName
+  /** Letter size as a percentage of the composition's width, so it follows a resize. */
+  size: number
+  color: string
+  align: TextAlign
+  /** Line spacing as a multiple of the letter size. */
+  lineHeight: number
+  /** Extra space between letters, in ems. */
+  letterSpacing: number
+  uppercase: boolean
+}
+export type ElementLayer = ImageLayer | ShapeLayer | TextLayer
 export type Layer = ChyronLayer | ElementLayer
 export type LayerKind = Layer['kind']
 /** The first chyron. Its style lives on the project. */
@@ -255,6 +276,21 @@ export const DEFAULT_IMAGE_LAYER: Omit<ImageLayer, 'id' | 'assetId' | 'aspect' |
   brightness: 100,
   contrast: 100,
   saturation: 100,
+}
+export const DEFAULT_TEXT_LAYER: Omit<TextLayer, 'id' | 'name'> = {
+  ...DEFAULT_ELEMENT,
+  kind: 'text',
+  aspect: 0.2,
+  width: 70,
+  intro: 'fade',
+  text: 'Add a heading',
+  font: 'Inter',
+  size: 7,
+  color: '#ffffff',
+  align: 'center',
+  lineHeight: 1.15,
+  letterSpacing: 0,
+  uppercase: false,
 }
 export const DEFAULT_SHAPE_LAYER: Omit<ShapeLayer, 'id' | 'name'> = {
   ...DEFAULT_ELEMENT,
@@ -605,6 +641,7 @@ const assetIdPattern = /^[\w-]{1,80}$/
 export const MAX_IMAGE_LAYERS = 12
 export const MAX_CHYRONS = 8
 export const MAX_SHAPES = 16
+export const MAX_TEXTS = 16
 /** Seconds a layer may wait before its intro (or after its outro). */
 const MAX_OFFSET = MAX_HOLD + 8
 
@@ -677,6 +714,23 @@ export function normalizeShapeLayer(raw: Record<string, unknown>): ShapeLayer | 
     gradientAngle: num(raw.gradientAngle, d.gradientAngle, -180, 180),
   }
 }
+export function normalizeTextLayer(raw: Record<string, unknown>): TextLayer | null {
+  if (typeof raw.id !== 'string' || !raw.id || raw.id === PRIMARY_CHYRON) return null
+  const d = DEFAULT_TEXT_LAYER
+  return {
+    ...normalizeElement(raw, d),
+    kind: 'text',
+    name: text(raw.name, 'Text'),
+    text: typeof raw.text === 'string' ? raw.text.slice(0, 2000) : d.text,
+    font: pick(raw.font, FONT_NAMES, d.font),
+    size: num(raw.size, d.size, 0.5, 60),
+    color: hex(raw.color, d.color),
+    align: pick(raw.align, TEXT_ALIGNS, d.align),
+    lineHeight: num(raw.lineHeight, d.lineHeight, 0.6, 3),
+    letterSpacing: num(raw.letterSpacing, d.letterSpacing, -0.2, 1),
+    uppercase: raw.uppercase === true,
+  }
+}
 function cropFields(raw: Record<string, unknown>) {
   const c = raw.crop as Record<string, unknown> | undefined
   if (!c || typeof c !== 'object' || typeof raw.sourceAspect !== 'number') return {}
@@ -725,7 +779,7 @@ export function normalizeLayers(value: unknown): Layer[] {
   if (!Array.isArray(value)) return [{ ...CHYRON_LAYER }]
   const layers: Layer[] = []
   const ids = new Set<string>()
-  const count = { image: 0, shape: 0, chyron: 0 }
+  const count = { image: 0, shape: 0, text: 0, chyron: 0 }
   let primary: ChyronLayer | null = null
   for (const entry of value) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
@@ -744,9 +798,15 @@ export function normalizeLayers(value: unknown): Layer[] {
         primary = normalizeChyronLayer(raw, true)
         layers.push(primary)
       }
-    } else if (raw.kind === 'image' || raw.kind === 'shape') {
-      const layer = raw.kind === 'image' ? normalizeImageLayer(raw) : normalizeShapeLayer(raw)
-      const max = raw.kind === 'image' ? MAX_IMAGE_LAYERS : MAX_SHAPES
+    } else if (raw.kind === 'image' || raw.kind === 'shape' || raw.kind === 'text') {
+      const layer =
+        raw.kind === 'image'
+          ? normalizeImageLayer(raw)
+          : raw.kind === 'shape'
+            ? normalizeShapeLayer(raw)
+            : normalizeTextLayer(raw)
+      const max =
+        raw.kind === 'image' ? MAX_IMAGE_LAYERS : raw.kind === 'shape' ? MAX_SHAPES : MAX_TEXTS
       if (!layer || ids.has(layer.id) || count[layer.kind] >= max) continue
       ids.add(layer.id)
       count[layer.kind]++
@@ -812,7 +872,10 @@ export const imageLayers = (p: Pick<Project, 'layers'>) =>
   (p.layers ?? []).filter((l): l is ImageLayer => l.kind === 'image')
 export const shapeLayers = (p: Pick<Project, 'layers'>) =>
   (p.layers ?? []).filter((l): l is ShapeLayer => l.kind === 'shape')
-export const isElement = (l: Layer): l is ElementLayer => l.kind === 'image' || l.kind === 'shape'
+export const textLayers = (p: Pick<Project, 'layers'>) =>
+  (p.layers ?? []).filter((l): l is TextLayer => l.kind === 'text')
+export const isElement = (l: Layer): l is ElementLayer =>
+  l.kind === 'image' || l.kind === 'shape' || l.kind === 'text'
 /** A chyron's style, wherever it is stored. */
 export const styleOf = (p: Project, l: ChyronLayer): ChyronStyle => l.style ?? p
 /**

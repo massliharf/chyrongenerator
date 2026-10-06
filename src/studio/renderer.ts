@@ -1,5 +1,6 @@
 import { outline, type Fonts } from './fonts'
 import { adjustFilter, cropOf, maskPath, shapeOutline, sourceAspectOf } from './crop'
+import { textLayout } from './textLayout'
 import {
   chyronGroupPose,
   hash,
@@ -18,6 +19,7 @@ import {
   type ImageLayer,
   type Project,
   type ShapeLayer,
+  type TextLayer,
 } from './model'
 import type { ImageMap } from './assets'
 
@@ -566,6 +568,20 @@ function shapeSvg(l: ShapeLayer, p: Project, time: number, n: number) {
   })
 }
 
+/** A text layer's letters, as one path in its box. */
+function textSvg(l: TextLayer, p: Project, time: number, n: number) {
+  const layout = textLayout(l, p)
+  if (!layout.d) return null
+  return elementSvg(
+    l,
+    p,
+    time,
+    `text${n}`,
+    (w, h) =>
+      `<path d="${layout.d}" transform="translate(${-w / 2} ${-h / 2})" fill="${l.color}"/>`,
+  )
+}
+
 /** The (cropped) picture filling a w × h box centred on 0,0. */
 function croppedImageSvg(l: ImageLayer, href: string, w: number, h: number, adjust: string) {
   const c = cropOf(l)
@@ -594,9 +610,11 @@ export function renderSvg(
           : null
         : layer.kind === 'shape'
           ? shapeSvg(layer, p, time, n++)
-          : images.has(layer.assetId)
-            ? imageSvg(layer, p, time, images.get(layer.assetId)!, n++)
-            : null
+          : layer.kind === 'text'
+            ? textSvg(layer, p, time, n++)
+            : images.has(layer.assetId)
+              ? imageSvg(layer, p, time, images.get(layer.assetId)!, n++)
+              : null
     if (!part) continue
     defs.push(part.defs)
     bodies.push(part.body)
@@ -608,7 +626,9 @@ export function renderSvg(
 
 export function imageBox(l: ElementLayer, p: Project) {
   const w = (l.width / 100) * p.width
-  return { w, h: w * l.aspect, cx: (l.x / 100) * p.width, cy: (l.y / 100) * p.height }
+  // A text box is as tall as its lines.
+  const h = l.kind === 'text' ? textLayout(l, p).height : w * l.aspect
+  return { w, h, cx: (l.x / 100) * p.width, cy: (l.y / 100) * p.height }
 }
 export function imageBounds(l: ElementLayer, p: Project) {
   const { w, h, cx, cy } = imageBox(l, p)
@@ -750,6 +770,27 @@ function framedShape(l: ShapeLayer, pw: number, ph: number, k: number) {
   while (cards.size > 24) cards.delete(cards.keys().next().value!)
   return card
 }
+/* A text layer's letters, filled in its box and cached by size. */
+function framedText(l: TextLayer, p: Project, pw: number, ph: number) {
+  const layout = textLayout(l, p)
+  const key = `text|${pw}|${ph}|${l.color}|${layout.key}`
+  const cached = cards.get(key)
+  if (cached) {
+    cards.delete(key)
+    cards.set(key, cached)
+    return cached
+  }
+  const card = surface(pw, ph)
+  const ctx = context2d(card)
+  if (!ctx || !layout.d) return card
+  const { w, h } = imageBox(l, p)
+  ctx.scale(pw / w, ph / h)
+  ctx.fillStyle = l.color
+  ctx.fill(new Path2D(layout.d))
+  cards.set(key, card)
+  while (cards.size > 24) cards.delete(cards.keys().next().value!)
+  return card
+}
 function tinted(card: Surface, color: string) {
   const out = surface(card.width, card.height)
   const ctx = context2d(out)
@@ -829,6 +870,15 @@ export function drawShapeLayer(
   time: number,
 ) {
   drawElement(ctx, l, p, time, (pw, ph, k) => framedShape(l, pw, ph, k))
+}
+
+export function drawTextLayer(
+  ctx: CanvasRenderingContext2D,
+  l: TextLayer,
+  p: Project,
+  time: number,
+) {
+  drawElement(ctx, l, p, time, (pw, ph) => framedText(l, p, pw, ph))
 }
 
 /** Pose, reveal, blur, shadow, glitch and shine around an element's rendered card. */
@@ -920,7 +970,9 @@ export function renderComposition(
   const drawn = p.layers.filter(
     (l) =>
       l.visible &&
-      (l.kind === 'chyron' ? scenes.has(l.id) : l.kind === 'shape' || images.has(l.assetId)),
+      (l.kind === 'chyron'
+        ? scenes.has(l.id)
+        : l.kind === 'shape' || l.kind === 'text' || images.has(l.assetId)),
   )
   if (drawn.length === 1 && drawn[0].kind === 'chyron') {
     renderFrame(ctx, scenes.get(drawn[0].id)!, chyronProject(p, drawn[0]), time)
@@ -937,6 +989,10 @@ export function renderComposition(
     }
     if (layer.kind === 'shape') {
       drawShapeLayer(ctx, layer, p, time)
+      continue
+    }
+    if (layer.kind === 'text') {
+      drawTextLayer(ctx, layer, p, time)
       continue
     }
     let layerSurface = chyronSurfaces.get(ctx.canvas)

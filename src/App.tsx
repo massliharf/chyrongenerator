@@ -71,8 +71,9 @@ import {
   FrameChoices,
   ImageChoices,
   ShapeChoices,
+  TextChoices,
 } from './designer/AddTools'
-import { LINE, type ShapePreset } from './designer/model'
+import { LINE, type ShapePreset, type TextPreset } from './designer/model'
 import {
   collectUnusedAssets,
   importImageFile,
@@ -86,6 +87,7 @@ import {
   canAdd,
   chyronStylePatch,
   createChyronLayer,
+  createTextLayer,
   createImageLayer,
   createShapeLayer,
   duplicateLayer,
@@ -300,9 +302,17 @@ function ChyronEditor({ active }: { active: boolean }) {
         },
       })
   }
-  const addChyron = (kind: 'chyron' | 'text') => {
+  const addChyron = () => {
     if (!canAdd(project, 'chyron')) return setNotice(LIMIT_MESSAGE.chyron)
-    const { layer, layers } = createChyronLayer(project, kind)
+    const { layer, layers } = createChyronLayer(project)
+    patch({ layers })
+    select(layer.id)
+    focusTitle()
+  }
+  /** Plain text, as in the Designer; its words are selected, ready to type over. */
+  const addText = (preset: TextPreset = 'heading') => {
+    if (!canAdd(project, 'text')) return setNotice(LIMIT_MESSAGE.text)
+    const { layer, layers } = createTextLayer(project, preset)
     patch({ layers })
     select(layer.id)
     focusTitle()
@@ -963,17 +973,20 @@ function ChyronEditor({ active }: { active: boolean }) {
               <AddButton
                 label="Add chyron"
                 title="Chyron: title and subtitle in this style"
-                onClick={() => addChyron('chyron')}
+                onClick={addChyron}
               >
                 <Clapperboard size={18} />
               </AddButton>
-              <AddButton
-                label="Add text"
-                title="Text: plain lettering"
-                onClick={() => addChyron('text')}
-              >
-                <Type size={18} />
-              </AddButton>
+              <AddPopover label="Add text" title="Text" icon={<Type size={18} />}>
+                {(close) => (
+                  <TextChoices
+                    onPick={(preset) => {
+                      close()
+                      addText(preset)
+                    }}
+                  />
+                )}
+              </AddPopover>
               <AddPopover label="Add shape" title="Shape" icon={<Shapes size={18} />}>
                 {(close) => (
                   <ShapeChoices

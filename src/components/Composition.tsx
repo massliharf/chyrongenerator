@@ -116,7 +116,8 @@ export const Composition = memo(function Composition({
       if (l.kind === 'chyron') {
         const scene = scenes.get(l.id)
         if (scene) map.set(l.id, chyronBounds(scene, chyronProject(project, l)))
-      } else if (l.kind === 'shape' || images.has(l.assetId)) map.set(l.id, imageBounds(l, project))
+      } else if (l.kind === 'shape' || l.kind === 'text' || images.has(l.assetId))
+        map.set(l.id, imageBounds(l, project))
     }
     return map
   }, [project, scenes, images])
@@ -125,6 +126,8 @@ export const Composition = memo(function Composition({
   const selectedElement = selectedLayer && isElement(selectedLayer) ? selectedLayer : undefined
   const selectedImage = selectedElement?.kind === 'image' ? selectedElement : undefined
   const isLine = selectedElement?.kind === 'shape' && selectedElement.shape === 'line'
+  // Lines and text boxes only get longer or shorter, wider or narrower, from the sides.
+  const sidesOnly = isLine || selectedElement?.kind === 'text'
   const selectedStyle =
     selectedLayer?.kind === 'chyron' ? styleOf(project, selectedLayer) : undefined
   const selectedBox: Box | null =
@@ -235,8 +238,13 @@ export const Composition = memo(function Composition({
       } else if (SIDES.includes(start.action as Side)) {
         onLayerChange?.(layer.id, stretch(layer, start.action as Side, delta, e.altKey))
       } else {
+        const width = scaleImage(layer.width, center, start.start, pointer)
+        // Text scales its letters with the box, like a picture.
         onLayerChange?.(layer.id, {
-          width: scaleImage(layer.width, center, start.start, pointer),
+          width,
+          ...(layer.kind === 'text'
+            ? { size: Math.round(((layer.size * width) / layer.width) * 100) / 100 }
+            : {}),
         })
       }
       return
@@ -317,6 +325,13 @@ export const Composition = memo(function Composition({
     const dy = ox * Math.sin(r) + oy * Math.cos(r)
     const round = (v: number) => Math.round(v * 100) / 100
     const width = Math.min(400, Math.max(2, (w / project.width) * 100))
+    // A text box only gets wider or narrower; its lines decide its height.
+    if (l.kind === 'text')
+      return {
+        width: round(width),
+        x: round(l.x + (dx / project.width) * 100),
+        y: round(l.y + (dy / project.height) * 100),
+      }
     return {
       width: round(width),
       aspect: Math.min(100, Math.max(0.01, h / ((width / 100) * project.width))),
@@ -482,7 +497,7 @@ export const Composition = memo(function Composition({
           if (!layer) return
           onSelect?.(layer.id)
           if (layer.kind === 'image') onCropChange?.(layer.id)
-          else if (layer.kind === 'chyron') onEditText?.(layer.id)
+          else if (layer.kind === 'chyron' || layer.kind === 'text') onEditText?.(layer.id)
         }}
         onContextMenu={(e) => {
           if (!interactive || cropping || !onLayerMenu) return
@@ -575,8 +590,8 @@ export const Composition = memo(function Composition({
                 <span />
               </button>
             ))}
-          {selectedElement?.kind === 'shape' &&
-            SIDES.filter((side) => !isLine || side === 'e' || side === 'w').map((side) => (
+          {(selectedElement?.kind === 'shape' || selectedElement?.kind === 'text') &&
+            SIDES.filter((side) => !sidesOnly || side === 'e' || side === 'w').map((side) => (
               <button
                 key={side}
                 className={`si-transform-handle si-side-handle side-${side}`}

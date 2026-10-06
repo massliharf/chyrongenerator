@@ -126,7 +126,7 @@ export function layerMenu(p: Project, id: string, c: LayerCommands): MenuEntry[]
   const front = index === p.layers.length - 1
   const back = index === 0
   const edit: MenuEntry[] = []
-  if (layer.kind === 'chyron' && c.editText)
+  if ((layer.kind === 'chyron' || layer.kind === 'text') && c.editText)
     edit.push({
       label: 'Edit text',
       Icon: PenLine,

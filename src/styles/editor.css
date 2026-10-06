@@ -146,6 +146,10 @@
   border-radius: var(--radius-lg);
   transform: translate(-50%, -50%);
 }
+/* On a short box the corners and the side handles overlap: scaling wins. */
+.si-resize-handle {
+  z-index: 2;
+}
 .si-resize-handle span {
   width: var(--transform-handle-size);
   height: var(--transform-handle-size);
@@ -1386,6 +1390,11 @@
   background: var(--track-shape-bg);
   border-color: var(--track-shape-line);
 }
+.clip.text-clip {
+  color: var(--track-text-fg);
+  background: var(--track-text-bg);
+  border-color: var(--track-text-line);
+}
 .clip.audio-clip {
   color: var(--track-audio-fg);
   background: var(--track-audio-bg);
@@ -1479,6 +1488,10 @@
 .inspector-icon.is-shape {
   color: var(--track-shape-fg);
   background: var(--track-shape-bg);
+}
+.inspector-icon.is-text {
+  color: var(--track-text-fg);
+  background: var(--track-text-bg);
 }
 .inspector-icon.is-music {
   color: var(--track-audio-fg);

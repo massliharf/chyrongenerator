@@ -9,7 +9,7 @@ import {
   Eye,
   EyeOff,
   Image as ImageIcon,
-  LetterText,
+  Clapperboard,
   Music,
   Pause,
   Play,
@@ -718,11 +718,9 @@ export function Timeline({
                   onClick={() => onSelect(l.id === selected ? null : l.id)}
                 >
                   {l.kind === 'chyron' ? (
-                    styleOf(p, l).mode === 'typography' && !styleOf(p, l).subtitlePill ? (
-                      <LetterText size={14} aria-hidden="true" />
-                    ) : (
-                      <Type size={14} aria-hidden="true" />
-                    )
+                    <Clapperboard size={14} aria-hidden="true" />
+                  ) : l.kind === 'text' ? (
+                    <Type size={14} aria-hidden="true" />
                   ) : l.kind === 'shape' ? (
                     <Shapes size={14} aria-hidden="true" />
                   ) : (
@@ -771,7 +769,7 @@ export function Timeline({
                 onContextMenu={rightClick(l.id)}
               >
                 <div
-                  className={`clip ${l.kind === 'chyron' ? 'title-clip' : l.kind === 'shape' ? 'shape-clip' : 'image-clip'} ${l.visible ? '' : 'is-hidden'}`}
+                  className={`clip ${l.kind === 'chyron' ? 'title-clip' : l.kind === 'shape' ? 'shape-clip' : l.kind === 'text' ? 'text-clip' : 'image-clip'} ${l.visible ? '' : 'is-hidden'}`}
                   style={{ marginLeft: pct(t.delay), width: pct(width) }}
                   title={`In ${t.length.toFixed(2)}s · Hold ${t.hold.toFixed(2)}s · Out ${t.outLength.toFixed(2)}s — drag to move, double-click for timing`}
                   onPointerDown={(e) => beginDrag(e, l, 'move')}
@@ -792,7 +790,9 @@ export function Timeline({
                   <span className="clip-hold">
                     {l.kind === 'chyron'
                       ? styleOf(p, l).text.replace(/\n/g, ' ') || l.name
-                      : l.name}
+                      : l.kind === 'text'
+                        ? l.text.replace(/\n/g, ' ') || l.name
+                        : l.name}
                   </span>
                   <span
                     className="clip-out"

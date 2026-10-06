@@ -8,6 +8,7 @@ import {
   hasArtwork,
   imageLayers,
   styleOf,
+  textLayers,
   type Project,
 } from './model'
 import { buildScenes, renderComposition, renderSvg } from './renderer'
@@ -141,7 +142,10 @@ export async function exportProject(
   const unavailable = exportAvailability(format, p)
   if (unavailable) throw new Error(unavailable)
   progress({ progress: 0, label: 'Preparing your composition…' })
-  const fonts = await loadFontSet(chyronLayers(p).map((l) => styleOf(p, l).font))
+  const fonts = await loadFontSet([
+    ...chyronLayers(p).map((l) => styleOf(p, l).font),
+    ...textLayers(p).map((l) => l.font),
+  ])
   checkAbort(signal)
   const scenes = buildScenes(p, fonts)
   const name = fileStem(p.name)

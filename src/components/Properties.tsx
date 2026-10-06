@@ -7,6 +7,7 @@ import {
   ArrowDownToLine,
   ArrowLeftRight,
   ArrowUp,
+  Clapperboard,
   Crop as CropIcon,
   Crosshair,
   Eraser,
@@ -56,6 +57,8 @@ import {
   type ShapeKind as LayerShape,
   type ShapeLayer,
   type Template,
+  type TextAlign,
+  type TextLayer,
 } from '../studio/model'
 import { chyronStylePatch, fitWidth, updateLayer } from '../studio/layers'
 import { useProjectImages } from '../studio/useImages'
@@ -123,7 +126,7 @@ export function Properties(props: PropertiesProps) {
     <aside className="inspector" aria-label="Properties">
       <header className="inspector-head">
         <span
-          className={`inspector-icon ${layer?.kind === 'chyron' ? 'is-chyron' : ''} ${layer?.kind === 'shape' ? 'is-shape' : ''} ${music ? 'is-music' : ''}`}
+          className={`inspector-icon ${layer?.kind === 'chyron' ? 'is-chyron' : ''} ${layer?.kind === 'shape' ? 'is-shape' : ''} ${layer?.kind === 'text' ? 'is-text' : ''} ${music ? 'is-music' : ''}`}
           aria-hidden="true"
         >
           {music ? (
@@ -131,9 +134,11 @@ export function Properties(props: PropertiesProps) {
           ) : !layer ? (
             <Film size={16} />
           ) : layer.kind === 'chyron' ? (
-            <Type size={16} />
+            <Clapperboard size={16} />
           ) : layer.kind === 'shape' ? (
             <Shapes size={16} />
+          ) : layer.kind === 'text' ? (
+            <Type size={16} />
           ) : (
             <Thumb image={images.get(layer.assetId)} />
           )}
@@ -249,6 +254,7 @@ export function Properties(props: PropertiesProps) {
         {layer?.kind === 'shape' && tab === 'design' && (
           <ShapeDesign l={layer} p={p} patch={patch} />
         )}
+        {layer?.kind === 'text' && tab === 'design' && <TextDesign l={layer} p={p} patch={patch} />}
       </div>
     </aside>
   )
@@ -1105,6 +1111,168 @@ function ImageDesign({
         l.brightness !== 100 || l.contrast !== 100 || l.saturation !== 100
           ? () => set({ brightness: 100, contrast: 100, saturation: 100 })
           : undefined,
+      )}
+    </>
+  )
+}
+
+/* ---------- Text ---------- */
+
+/**
+ * Plain text, as in the Designer: words, typeface, size, colour and
+ * alignment; then where it sits. Its box is as tall as its lines.
+ */
+function TextDesign({ l, p, patch }: { l: TextLayer; p: Project; patch: Patch }) {
+  const group = useGroups()
+  const set = (values: Partial<TextLayer>) =>
+    patch({ layers: updateLayer(p, l.id, values as Partial<Layer>) })
+  const round = (v: number) => Math.round(v * 10) / 10
+  const px = Math.round((l.size / 100) * p.width)
+  return (
+    <>
+      {group(
+        'text',
+        'Text',
+        `${l.font} · ${px}px`,
+        <>
+          <Field label="Words">
+            <textarea
+              data-title-input
+              rows={3}
+              maxLength={2000}
+              value={l.text}
+              onChange={(e) => set({ text: e.target.value })}
+            />
+          </Field>
+          <div className="pair-fields">
+            <Field label="Typeface">
+              <select
+                value={l.font}
+                onChange={(e) => set({ font: e.target.value as TextLayer['font'] })}
+              >
+                {FONT_NAMES.map((font) => (
+                  <option key={font}>{font}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Size (px)">
+              <NumberInput
+                value={px}
+                min={6}
+                max={Math.round(p.width * 0.6)}
+                onChange={(v) => set({ size: Math.round((v / p.width) * 10000) / 100 })}
+              />
+            </Field>
+          </div>
+          <Color label="Colour" value={l.color} onChange={(color) => set({ color })} />
+          <Segmented<TextAlign>
+            label="Align"
+            value={l.align}
+            onChange={(align) => set({ align })}
+            items={[
+              { id: 'left', name: 'Left', Icon: AlignLeft },
+              { id: 'center', name: 'Centre', Icon: AlignCenter },
+              { id: 'right', name: 'Right', Icon: AlignRight },
+            ]}
+          />
+          <NumberField
+            label="Line height"
+            value={l.lineHeight}
+            min={0.6}
+            max={3}
+            step={0.05}
+            onChange={(lineHeight) => set({ lineHeight })}
+          />
+          <NumberField
+            label="Letter spacing"
+            value={Math.round(l.letterSpacing * 100)}
+            min={-20}
+            max={100}
+            unit="%"
+            onChange={(v) => set({ letterSpacing: v / 100 })}
+          />
+          <Toggle
+            label="All caps"
+            checked={l.uppercase}
+            onChange={(uppercase) => set({ uppercase })}
+          />
+        </>,
+      )}
+      {group(
+        'text-place',
+        'Position',
+        `${round(l.width)}% wide · ${l.rotation}°`,
+        <>
+          <div className="chip-grid quick" role="group" aria-label="Quick placement">
+            <button onClick={() => set({ x: 50, y: 14, rotation: 0 })}>
+              <ArrowUp size={18} aria-hidden="true" />
+              <span>Top</span>
+            </button>
+            <button onClick={() => set({ x: 50, y: 50 })}>
+              <Crosshair size={18} aria-hidden="true" />
+              <span>Center</span>
+            </button>
+            <button onClick={() => set({ x: 50, y: 82, rotation: 0 })}>
+              <ArrowDown size={18} aria-hidden="true" />
+              <span>Bottom</span>
+            </button>
+          </div>
+          <div className="pair-fields">
+            <Field label="Box width (%)">
+              <NumberInput
+                value={round(l.width)}
+                min={2}
+                max={400}
+                step={0.5}
+                onChange={(width) => set({ width })}
+              />
+            </Field>
+            <Field label="Rotation (°)">
+              <NumberInput
+                value={l.rotation}
+                min={-180}
+                max={180}
+                onChange={(rotation) => set({ rotation })}
+              />
+            </Field>
+          </div>
+          <div className="pair-fields">
+            <Field label="X (%)">
+              <NumberInput
+                value={l.x}
+                min={-50}
+                max={150}
+                step={0.5}
+                onChange={(x) => set({ x })}
+              />
+            </Field>
+            <Field label="Y (%)">
+              <NumberInput
+                value={l.y}
+                min={-50}
+                max={150}
+                step={0.5}
+                onChange={(y) => set({ y })}
+              />
+            </Field>
+          </div>
+          <NumberField
+            label="Opacity"
+            value={l.opacity}
+            min={0}
+            max={100}
+            unit="%"
+            onChange={(opacity) => set({ opacity })}
+          />
+          <NumberField
+            label="Shadow"
+            value={l.shadow}
+            min={0}
+            max={80}
+            unit="px"
+            onChange={(shadow) => set({ shadow })}
+          />
+        </>,
       )}
     </>
   )

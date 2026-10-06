@@ -47,13 +47,20 @@ export interface Fonts {
   subtitle: Font
   extended: Font
 }
+/** Typefaces that have finished loading, for drawing text without waiting. */
+const ready = new Map<FontName, Fonts>()
+export const loadedFonts = (name: FontName) => ready.get(name) ?? null
+/** For tests, and for fonts parsed elsewhere. */
+export const rememberFonts = (name: FontName, fonts: Fonts) => ready.set(name, fonts)
 export async function loadFonts(name: FontName): Promise<Fonts> {
   const [main, subtitle, extended] = await Promise.all([
     load(urls[name]),
     load(interURL),
     load(interExtendedURL),
   ])
-  return { main, subtitle, extended }
+  const fonts = { main, subtitle, extended }
+  ready.set(name, fonts)
+  return fonts
 }
 export function outline(text: string, size: number, fonts: Fonts, subtitle = false) {
   const path = new Path()

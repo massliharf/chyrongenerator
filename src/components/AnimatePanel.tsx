@@ -54,6 +54,7 @@ import {
   MAX_HOLD,
   PRIMARY_CHYRON,
   effectsFor,
+  isElement,
   layerTiming,
   styleOf,
   type ChyronLayer,
@@ -487,12 +488,17 @@ function ElementAnimate({
 }) {
   const group = useGroups()
   const set = (values: Partial<ElementLayer>) => patch({ layers: updateLayer(p, l.id, values) })
-  const peers = p.layers.filter(
-    (layer) => (layer.kind === 'image' || layer.kind === 'shape') && layer.id !== l.id,
-  )
+  const peers = p.layers.filter((layer) => isElement(layer) && layer.id !== l.id)
   const others = peers.length
   const kinds = new Set(peers.map((layer) => layer.kind))
-  const noun = kinds.size > 1 ? 'layer' : kinds.has('shape') ? 'shape' : 'image'
+  const noun =
+    kinds.size > 1
+      ? 'layer'
+      : kinds.has('shape')
+        ? 'shape'
+        : kinds.has('text')
+          ? 'text layer'
+          : 'image'
   return (
     <div className="props-stack animate-stack">
       {group(
@@ -571,19 +577,19 @@ function ElementAnimate({
       {others > 0 && (
         <button
           className="button secondary full"
-          title="Give every image and shape this intro, outro, easing, length and on-screen effect"
+          title="Give every image, shape and text layer this intro, outro, easing, length and on-screen effect"
           onClick={() =>
             patch({
               layers: p.layers.map((layer) =>
-                (layer.kind === 'image' || layer.kind === 'shape') && layer.id !== l.id
+                isElement(layer) && layer.id !== l.id
                   ? {
                       ...layer,
                       intro: l.intro,
                       outro: l.outro,
                       easing: l.easing,
                       duration: l.duration,
-                      // Ken Burns only moves pictures; shapes keep their own effect.
-                      ...(layer.kind === 'shape' && !effectsFor('shape').includes(l.emphasis)
+                      // Ken Burns only moves pictures; shapes and text keep their own effect.
+                      ...(layer.kind !== 'image' && !effectsFor(layer.kind).includes(l.emphasis)
                         ? {}
                         : { emphasis: l.emphasis }),
                       emphasisStrength: l.emphasisStrength,

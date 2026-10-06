@@ -1,5 +1,6 @@
 import { Clapperboard, FolderOpen, LayoutGrid, PenTool } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
+import logo from '../assets/brand/savvy-logo-96.png'
 
 export type Workspace = 'chyron' | 'designer' | 'gallery' | 'apps'
 
@@ -24,12 +25,8 @@ export function AppNav({
 }) {
   return (
     <nav className="app-nav" aria-label="Workspaces">
-      <span className="app-brand" aria-label="Chyron Studio" role="img">
-        <span className="brand-symbol" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
+      <span className="app-brand">
+        <img className="brand-logo" src={logo} alt="Chyron Studio" width={32} height={32} />
       </span>
       <ul className="app-nav-list">
         {WORKSPACES.map(({ id, label, Icon, end }) => (

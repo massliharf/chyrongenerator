@@ -66,11 +66,16 @@ test('chyrons, text, a shape and music build one composition and export together
       .getByRole('toolbar', { name: 'Add' })
       .getByRole('button', { name: `Add ${item}` })
       .click()
-    // Shapes open the same picker as the Designer's.
+    // Shapes and text open the same pickers as the Designer's.
     if (item === 'shape')
       await page
         .getByRole('dialog', { name: 'Add shape' })
         .getByRole('button', { name: 'Rectangle' })
+        .click()
+    if (item === 'text')
+      await page
+        .getByRole('dialog', { name: 'Add text' })
+        .getByRole('button', { name: 'Heading', exact: true })
         .click()
   }
   // A second chyron opens with its words selected, ready to type over.
@@ -78,10 +83,15 @@ test('chyrons, text, a shape and music build one composition and export together
   await page.keyboard.type('Guest\nStar')
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Guest\nStar')
   await expect(page.getByRole('heading', { name: 'Chyron 2' })).toBeVisible()
+  // Text is plain text, as in the Designer, and not another chyron.
   await add('text')
+  await page.keyboard.type('Live tonight')
+  await expect(page.getByLabel('Words', { exact: true })).toHaveValue('Live tonight')
+  await expect(page.locator('.text-clip', { hasText: 'Live tonight' })).toBeVisible()
   await add('shape')
   const rows = page.locator('.layer-labels .layer-label')
   await expect(rows).toHaveCount(4)
+  await expect(page.locator('.title-clip')).toHaveCount(2)
   // The first chyron keeps its own words.
   await expect(page.locator('.title-clip', { hasText: 'Scott Rogowsky' })).toBeVisible()
   await expect(page.locator('.title-clip', { hasText: 'Guest Star' })).toBeVisible()

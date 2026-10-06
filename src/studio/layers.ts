@@ -1,16 +1,18 @@
 import { generateId } from '../utils/id'
 import {
   DEFAULT_IMAGE_LAYER,
-  DEFAULT_PROJECT,
   DEFAULT_SHAPE_LAYER,
+  DEFAULT_TEXT_LAYER,
   MAX_CHYRONS,
   MAX_IMAGE_LAYERS,
   MAX_SHAPES,
+  MAX_TEXTS,
   chyronLayers,
   imageLayers,
   pickStyle,
   shapeLayers,
   styleOf,
+  textLayers,
   type ChyronLayer,
   type ChyronStyle,
   type ImageLayer,
@@ -19,7 +21,9 @@ import {
   type Project,
   type ShapeKind,
   type ShapeLayer,
+  type TextLayer,
 } from './model'
+import { TEXT_PRESETS, type TextPreset } from '../designer/model'
 
 /** Width percentage that makes an image cover or fit the whole canvas. */
 export function fitWidth(p: Project, aspect: number, mode: 'contain' | 'cover') {
@@ -58,11 +62,14 @@ export const canAdd = (p: Project, kind: LayerKind) =>
     ? canAddImage(p)
     : kind === 'shape'
       ? shapeLayers(p).length < MAX_SHAPES
-      : chyronLayers(p).length < MAX_CHYRONS
+      : kind === 'text'
+        ? textLayers(p).length < MAX_TEXTS
+        : chyronLayers(p).length < MAX_CHYRONS
 export const LIMIT_MESSAGE: Record<LayerKind, string> = {
   image: `Up to ${MAX_IMAGE_LAYERS} images per composition.`,
   shape: `Up to ${MAX_SHAPES} shapes per composition.`,
-  chyron: `Up to ${MAX_CHYRONS} chyrons and text layers per composition.`,
+  text: `Up to ${MAX_TEXTS} text layers per composition.`,
+  chyron: `Up to ${MAX_CHYRONS} chyrons per composition.`,
 }
 
 /** A unique "Name 2", "Name 3"… among the project's layer names. */
@@ -77,65 +84,64 @@ function nextName(p: Project, base: string) {
  * other chyron centred within 14 % of it.
  */
 function freeSlot(p: Project, slots: number[]) {
-  const taken = p.layers
-    .filter((l) => l.kind === 'chyron')
-    .map((l) => styleOf(p, l as ChyronLayer).y)
+  const taken = p.layers.flatMap((l) =>
+    l.kind === 'chyron' ? [styleOf(p, l).y] : l.kind === 'text' ? [l.y] : [],
+  )
   return slots.find((y) => taken.every((t) => Math.abs(t - y) >= 14)) ?? slots[0]
 }
 
-/** Plain lettering: no tiles, no subtitle, no effect. */
-export const TEXT_STYLE: Partial<ChyronStyle> = {
-  mode: 'typography',
-  text: 'Your text here',
-  textCase: 'original',
-  font: 'Inter',
-  textColor: '#ffffff',
-  effect: 'extrude',
-  depth: 0,
-  glow: 0,
-  italic: false,
-  subtitlePill: false,
-  tracking: 0,
-  motion: 'fade',
-  outro: 'mirror',
-  stagger: 0.3,
-  scale: 55,
-  compositionRotation: 0,
-  opacity: 100,
-  x: 50,
-}
-
 /**
- * A new chyron on top of the stack. "chyron" copies the look of the first
- * chyron so a guest's name matches the host's; "text" is plain lettering.
- * Either way it lands away from the first chyron's position.
+ * A new chyron on top of the stack, in the look of the first chyron so a
+ * guest's name matches the host's. It lands away from the first chyron's
+ * position.
  */
-export function createChyronLayer(
-  p: Project,
-  kind: 'chyron' | 'text',
-): { layer: ChyronLayer; layers: Layer[] } {
-  const base = kind === 'text' ? pickStyle(DEFAULT_PROJECT) : pickStyle(p)
+export function createChyronLayer(p: Project): { layer: ChyronLayer; layers: Layer[] } {
+  const base = pickStyle(p)
   // On an empty canvas a chyron takes the centre at full size. Next to other
   // chyrons it starts smaller, in a free band (chyrons fill the width at 100 %).
   const alone = !chyronLayers(p).length
-  const style: ChyronStyle =
-    kind === 'text'
-      ? { ...base, ...TEXT_STYLE, y: alone ? 50 : freeSlot(p, [14, 86, 30, 70]) }
-      : {
-          ...base,
-          text: alone ? 'Your\nName' : 'Guest\nName',
-          subtitle: alone ? 'ROLE' : 'GUEST',
-          x: p.x,
-          y: alone ? p.y : freeSlot(p, [78, 22, 64, 36]),
-          scale: alone ? base.scale : Math.min(base.scale, 60),
-        }
+  const style: ChyronStyle = {
+    ...base,
+    text: alone ? 'Your\nName' : 'Guest\nName',
+    subtitle: alone ? 'ROLE' : 'GUEST',
+    x: p.x,
+    y: alone ? p.y : freeSlot(p, [78, 22, 64, 36]),
+    scale: alone ? base.scale : Math.min(base.scale, 60),
+  }
   const layer: ChyronLayer = {
     id: generateId(),
     kind: 'chyron',
-    name: nextName(p, kind === 'text' ? 'Text' : 'Chyron'),
+    name: nextName(p, 'Chyron'),
     visible: true,
     delay: 0,
     style,
+  }
+  return { layer, layers: [...p.layers, layer] }
+}
+
+/** Letter size of each text preset, as a share of the composition's shorter side (the Designer's sizes on a 1080 artboard). */
+const TEXT_SIZE: Record<TextPreset, number> = {
+  heading: 96 / 1080,
+  subheading: 56 / 1080,
+  body: 32 / 1080,
+}
+/**
+ * Plain text, as in the Designer: a heading, subheading or body text in a box
+ * across the middle, above everything else.
+ */
+export function createTextLayer(
+  p: Project,
+  preset: TextPreset = 'heading',
+): { layer: TextLayer; layers: Layer[] } {
+  const size = (Math.min(p.width, p.height) * TEXT_SIZE[preset] * 100) / p.width
+  const layer: TextLayer = {
+    ...DEFAULT_TEXT_LAYER,
+    id: generateId(),
+    name: nextName(p, 'Text'),
+    text: TEXT_PRESETS[preset].text,
+    size: Math.round(size * 100) / 100,
+    width: preset === 'body' ? 70 : 80,
+    y: textLayers(p).length ? freeSlot(p, [30, 70, 50, 14, 86]) : 50,
   }
   return { layer, layers: [...p.layers, layer] }
 }

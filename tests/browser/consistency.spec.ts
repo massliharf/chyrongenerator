@@ -30,10 +30,10 @@ const fullyShown = async (page: Page, panel: Locator) => {
 test('selection handles, guides and the logo look the same in every editor', async ({ page }) => {
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
-  // The logo is the selection blue.
-  expect(
-    (await style(page.locator('.brand-symbol i').first(), 'background-color'))['background-color'],
-  ).toBe(BLUE)
+  // The logo is the show's glasses icon, loaded.
+  const logo = page.locator('.app-brand img')
+  await expect(logo).toHaveAttribute('alt', 'Chyron Studio')
+  expect(await logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
   // Chyron editor: the chyron is selected.
   const chyronBox = page.locator('.si-transform-box')

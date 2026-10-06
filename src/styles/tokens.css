@@ -257,6 +257,10 @@
   --track-shape-bg: rgb(204 126 128 / 0.12);
   --track-shape-fg: #8f4547;
   --track-shape-line: rgb(204 126 128 / 0.45);
+  /* Text uses the Spaces tone, apart from chyrons. */
+  --track-text-bg: rgb(133 102 220 / 0.12);
+  --track-text-fg: #563aa8;
+  --track-text-line: rgb(133 102 220 / 0.45);
   --track-audio-bg: rgb(0 205 198 / 0.1);
   --track-audio-fg: #00736f;
   --track-audio-line: rgb(0 205 198 / 0.4);
@@ -346,6 +350,9 @@
     --track-shape-bg: rgb(204 126 128 / 0.18);
     --track-shape-fg: #f4c3c4;
     --track-shape-line: rgb(204 126 128 / 0.5);
+    --track-text-bg: rgb(133 102 220 / 0.2);
+    --track-text-fg: #d3c5ff;
+    --track-text-line: rgb(133 102 220 / 0.55);
     --track-audio-bg: rgb(0 205 198 / 0.14);
     --track-audio-fg: #7eefe9;
     --track-audio-line: rgb(0 205 198 / 0.45);
@@ -427,6 +434,9 @@
   --track-shape-bg: rgb(204 126 128 / 0.18);
   --track-shape-fg: #f4c3c4;
   --track-shape-line: rgb(204 126 128 / 0.5);
+  --track-text-bg: rgb(133 102 220 / 0.2);
+  --track-text-fg: #d3c5ff;
+  --track-text-line: rgb(133 102 220 / 0.55);
   --track-audio-bg: rgb(0 205 198 / 0.14);
   --track-audio-fg: #7eefe9;
   --track-audio-line: rgb(0 205 198 / 0.45);

@@ -43,7 +43,7 @@ const withLayers = (p: Project, ...steps: ((p: Project) => { layers: Project['la
 
 describe('several chyrons', () => {
   it('keeps the first chyron on the project and gives added ones their own style', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'chyron'))
+    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p))
     const [first, added] = chyronLayers(p)
     expect(first.id).toBe(PRIMARY_CHYRON)
     expect(first.style).toBeUndefined()
@@ -56,13 +56,8 @@ describe('several chyrons', () => {
     // Its style round-trips through a project file.
     expect(normalizeProject(JSON.parse(JSON.stringify(p)))).toEqual(p)
   })
-  it('adds plain text lettering without tiles or subtitle', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'text'))
-    const text = chyronLayers(p)[1]
-    expect(styleOf(p, text)).toMatchObject({ mode: 'typography', subtitlePill: false, depth: 0 })
-  })
   it('routes style edits to wherever a chyron keeps its style', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'chyron'))
+    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p))
     const added = chyronLayers(p)[1]
     expect(chyronStylePatch(p, PRIMARY_CHYRON, { text: 'Host' })).toEqual({ text: 'Host' })
     const next = normalizeProject({ ...p, ...chyronStylePatch(p, added.id, { text: 'Guest' }) })
@@ -70,7 +65,7 @@ describe('several chyrons', () => {
     expect(next.text).toBe(p.text)
   })
   it('views each chyron as its own project for scenes, poses and timing', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'text'))
+    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p))
     const added = chyronLayers(p)[1]
     const view = chyronProject(p, added)
     expect(view.text).toBe(added.style!.text)
@@ -80,12 +75,12 @@ describe('several chyrons', () => {
     expect(duration(view)).toBe(duration(p))
   })
   it('deletes any chyron, the first and the last included', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'text'))
+    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p))
     const added = chyronLayers(p)[1]
     const withoutFirst = normalizeProject({ ...p, layers: removeLayer(p, PRIMARY_CHYRON) })
     expect(chyronLayers(withoutFirst).map((l) => l.id)).toEqual([added.id])
     // The added chyron keeps its own words and look.
-    expect(styleOf(withoutFirst, chyronLayers(withoutFirst)[0]).mode).toBe('typography')
+    expect(styleOf(withoutFirst, chyronLayers(withoutFirst)[0]).text).toBe('Guest\nName')
     const empty = normalizeProject({ ...withoutFirst, layers: removeLayer(withoutFirst, added.id) })
     expect(empty.layers).toEqual([])
     expect(hasArtwork(empty)).toBe(false)
@@ -94,9 +89,8 @@ describe('several chyrons', () => {
   })
   it('puts a chyron added to an empty canvas in the middle at full size', () => {
     const empty = normalizeProject({ ...DEFAULT_PROJECT, layers: [] })
-    const { layer } = createChyronLayer(empty, 'chyron')
+    const { layer } = createChyronLayer(empty)
     expect(layer.style).toMatchObject({ y: empty.y, scale: empty.scale, text: 'Your\nName' })
-    expect(createChyronLayer(empty, 'text').layer.style!.y).toBe(50)
   })
   it('duplicates chyrons as added chyrons and limits how many there are', () => {
     const copy = duplicateLayer(DEFAULT_PROJECT, PRIMARY_CHYRON)
@@ -104,18 +98,18 @@ describe('several chyrons', () => {
     expect(added.style?.text).toBe(DEFAULT_PROJECT.text)
     let p: Project = DEFAULT_PROJECT
     for (let i = 0; i < MAX_CHYRONS + 3; i++)
-      p = normalizeProject({ ...p, ...createChyronLayer(p, 'chyron') })
+      p = normalizeProject({ ...p, ...createChyronLayer(p) })
     expect(chyronLayers(p)).toHaveLength(MAX_CHYRONS)
   })
   it('restyles only the chosen chyron with a template', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'chyron'))
+    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p))
     const restyled = applyTemplate(p, TEMPLATES[4])
     expect(restyled.font).toBe('Bangers')
     expect(styleOf(restyled, chyronLayers(restyled)[1]).font).toBe(DEFAULT_PROJECT.font)
     expect(restyled.layers).toEqual(p.layers)
   })
   it('counts any visible chyron with words as artwork', () => {
-    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p, 'text'))
+    const p = withLayers(DEFAULT_PROJECT, (p) => createChyronLayer(p))
     const hidden = normalizeProject({
       ...p,
       layers: p.layers.map((l) => (l.id === PRIMARY_CHYRON ? { ...l, visible: false } : l)),
@@ -132,7 +126,7 @@ describe('several chyrons', () => {
 
 describe('chyron timing and motion', () => {
   it('gives added chyrons their own intro length', () => {
-    const p = withLayers({ ...DEFAULT_PROJECT, hold: 4 }, (p) => createChyronLayer(p, 'text'))
+    const p = withLayers({ ...DEFAULT_PROJECT, hold: 4 }, (p) => createChyronLayer(p))
     const added = { ...chyronLayers(p)[1], duration: 0.5 }
     const t = layerTiming(added, p)
     expect(t.length).toBeCloseTo(0.5)
