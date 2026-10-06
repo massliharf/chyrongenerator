@@ -1,10 +1,14 @@
-/* Magnific components used across every workspace. */
+/*
+ * Components used across every workspace. Magnific sizes and type, with
+ * shadcn/ui's colouring: outlined inputs, hairline shadows, tab-list
+ * segments, and the brand blue for selection and focus.
+ */
 
 /* ---------- Button ---------- */
 .button {
   --_bg: var(--color-bg-surface);
   --_fg: var(--color-text-primary);
-  --_border: var(--color-border-default);
+  --_border: var(--color-border-input);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -16,6 +20,7 @@
   background: var(--_bg);
   border: var(--border-width-thin) solid var(--_border);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
   white-space: nowrap;
   transition:
     background-color var(--duration-fast) var(--ease-standard),
@@ -53,6 +58,7 @@
 .button.ghost {
   --_bg: transparent;
   --_border: transparent;
+  box-shadow: none;
 }
 .button.ghost:hover:not(:disabled) {
   background: var(--color-state-hover);
@@ -107,7 +113,7 @@
 }
 .icon-button.selected,
 .icon-button[aria-pressed='true'] {
-  color: var(--color-text-brand);
+  color: var(--color-text-primary);
   background: var(--color-bg-selected);
 }
 .icon-button.sm {
@@ -169,11 +175,14 @@
   padding: 0 var(--space-3);
   font: var(--text-body-sm);
   color: var(--color-text-primary);
-  background-color: var(--color-bg-control);
-  border: var(--border-width-thin) solid transparent;
+  /* shadcn/ui input: outlined, on the surface, a hairline shadow. */
+  background-color: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-input);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
     background-color var(--duration-fast) var(--ease-standard);
 }
 .field textarea {
@@ -197,8 +206,9 @@
 .number-field-control:hover:not(:focus-within),
 .color-input:hover:not(:focus-within),
 .search-field:hover:not(:focus-within) {
-  background-color: var(--color-bg-control-hover);
+  border-color: var(--color-border-strong);
 }
+/* Focus: the field's border in the accent and a soft 3 px ring around it. */
 .field :is(input, select, textarea):focus-visible,
 .number-field-control:focus-within,
 .color-input:focus-within,
@@ -207,6 +217,7 @@
   outline: none;
   background-color: var(--color-bg-surface);
   border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 25%, transparent);
 }
 :is(input, select, textarea):disabled {
   opacity: 0.5;
@@ -358,8 +369,9 @@ fieldset.form-grid {
   width: 32px;
   height: 18px;
   border-radius: var(--radius-full);
-  background: var(--color-bg-muted);
-  border: var(--border-width-thin) solid var(--color-border-strong);
+  background: var(--color-border-input);
+  border: var(--border-width-thin) solid transparent;
+  box-shadow: var(--shadow-xs);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 .switch::after {
@@ -370,7 +382,7 @@ fieldset.form-grid {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--color-bg-surface);
+  background: var(--color-switch-thumb);
   box-shadow: var(--shadow-sm);
   transition: transform var(--duration-normal) var(--ease-spring);
 }
@@ -379,6 +391,7 @@ fieldset.form-grid {
   border-color: transparent;
 }
 .toggle-field input:checked + .switch::after {
+  background: #ffffff;
   transform: translateX(14px);
 }
 .toggle-field input:focus-visible + .switch {
@@ -386,13 +399,13 @@ fieldset.form-grid {
   outline-offset: 2px;
 }
 
-/* ---------- Segmented control ---------- */
+/* ---------- Segmented control (shadcn/ui tab list) ---------- */
 .segmented {
   display: flex;
   gap: var(--space-0-5);
-  padding: var(--space-1);
+  padding: 3px;
   background: var(--color-bg-track);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 .segmented > button {
   flex: 1;
@@ -403,9 +416,10 @@ fieldset.form-grid {
   min-height: var(--control-xs);
   padding: 0 var(--space-3);
   font: var(--text-label-md);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   color: var(--color-text-secondary);
-  border-radius: var(--radius-sm);
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-md);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
@@ -415,22 +429,29 @@ fieldset.form-grid {
 }
 .segmented > button.active {
   color: var(--color-text-primary);
-  background: var(--color-bg-surface);
-  box-shadow: 0 1px 2px rgb(16 16 16 / 0.06);
+  background: var(--color-segment-active);
+  border-color: var(--color-segment-active-border);
+  box-shadow: var(--shadow-sm);
 }
 
-/* ---------- Tabs ---------- */
+/* ---------- Tabs (shadcn/ui tab list) ---------- */
 .tabs {
   display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4) var(--space-3);
+  gap: var(--space-0-5);
+  margin: var(--space-2) var(--space-4) var(--space-3);
+  padding: 3px;
+  background: var(--color-bg-track);
+  border-radius: var(--radius-lg);
 }
 .tabs > [role='tab'] {
-  min-height: 30px;
+  flex: 1;
+  min-height: 28px;
   padding: 0 var(--space-4);
   font: var(--text-label-md);
+  font-weight: var(--weight-medium);
   color: var(--color-text-secondary);
-  border-radius: var(--radius-full);
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-md);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
@@ -440,7 +461,9 @@ fieldset.form-grid {
 }
 .tabs > [role='tab'][aria-selected='true'] {
   color: var(--color-text-primary);
-  background: var(--color-bg-selected);
+  background: var(--color-segment-active);
+  border-color: var(--color-segment-active-border);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ---------- Chips ---------- */
@@ -472,8 +495,9 @@ fieldset.form-grid {
 .chip-grid > button.active {
   color: var(--color-text-primary);
   font-weight: var(--weight-medium);
-  background: var(--color-bg-surface);
+  background: var(--color-accent-soft);
   border-color: var(--color-border-selected);
+  box-shadow: inset 0 0 0 1px var(--color-border-selected);
 }
 .chip-grid.quick {
   grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)) !important;
@@ -617,9 +641,8 @@ fieldset.form-grid {
   cursor: default;
 }
 .menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  inset-inline-start: 0;
+  position: fixed;
+  inset: var(--menu-y) auto auto var(--menu-x);
   z-index: calc(var(--z-dropdown) + 1);
   display: grid;
   /* As wide as the longest item, so hints stay on one line where they can. */
@@ -628,19 +651,13 @@ fieldset.form-grid {
   max-width: min(320px, calc(100vw - 32px));
   max-height: min(420px, 70dvh);
   overflow-y: auto;
-  padding: var(--space-2);
+  /* shadcn/ui dropdown: a tight popover with a border and a soft shadow. */
+  padding: var(--space-1);
   background: var(--color-bg-surface-raised);
   border: var(--border-width-thin) solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   animation: menu-in var(--duration-normal) var(--ease-enter);
-}
-.menu-wrap.align-end .menu {
-  inset-inline: auto 0;
-}
-.menu-wrap.placement-top .menu {
-  top: auto;
-  bottom: calc(100% + var(--space-1));
 }
 @keyframes menu-in {
   from {
@@ -657,7 +674,7 @@ fieldset.form-grid {
   font: var(--text-caption);
   color: var(--color-text-primary);
   text-align: start;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
 }
 .menu-item > svg:first-child {
   color: var(--color-text-secondary);
@@ -695,8 +712,6 @@ fieldset.form-grid {
 /* A menu opened at the pointer (right-click). Phones get the action sheet below. */
 @media (min-width: 768px) {
   .menu.context-menu {
-    position: fixed;
-    inset: var(--menu-y) auto auto var(--menu-x);
     min-width: 232px;
     max-height: calc(100dvh - 16px);
   }
@@ -726,10 +741,7 @@ fieldset.form-grid {
     background: var(--color-bg-overlay);
     animation: fade-in var(--duration-normal) var(--ease-enter);
   }
-  .menu,
-  .menu-wrap.align-end .menu,
-  .menu-wrap.placement-top .menu {
-    position: fixed;
+  .menu {
     inset: auto 0 0;
     max-width: none;
     max-height: 70dvh;

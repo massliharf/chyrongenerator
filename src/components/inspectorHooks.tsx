@@ -16,7 +16,8 @@ const defaultOpen: Record<string, boolean> = {
 }
 const REVEAL = 'chyron-studio:reveal-group'
 /** Open a section wherever it is shown (for links that jump to a setting). */
-export const revealGroup = (id: string) => window.dispatchEvent(new CustomEvent(REVEAL, { detail: id }))
+export const revealGroup = (id: string) =>
+  window.dispatchEvent(new CustomEvent(REVEAL, { detail: id }))
 /** Collapsible sections whose open state is remembered on this device. */
 export function useGroups() {
   const [open, setOpen] = useState<Record<string, boolean>>(() => {

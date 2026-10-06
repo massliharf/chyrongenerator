@@ -10,7 +10,7 @@ export const SAVVY_TYPE = 'application/x-savvy'
 /** What open dialogs accept: .savvy files and the .json files of earlier versions. */
 export const SAVVY_ACCEPT = '.savvy,.json,application/json'
 
-export type SavvyKind = 'chyron' | 'design'
+export type SavvyKind = 'chyron' | 'design' | 'hero'
 
 export const savvyName = (stem: string) => `${stem}${SAVVY_EXTENSION}`
 export const isSavvyFile = (file: File) => /\.(savvy|json)$/i.test(file.name)
@@ -20,6 +20,7 @@ export function savvyKind(raw: unknown): SavvyKind | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const r = raw as Record<string, unknown>
   if (r.version === 2 && typeof r.text === 'string') return 'chyron'
+  if (r.kind === 'hero' && Array.isArray(r.artboards)) return 'hero'
   if (r.version === 1 && Array.isArray(r.layers) && typeof r.width === 'number') return 'design'
   return null
 }

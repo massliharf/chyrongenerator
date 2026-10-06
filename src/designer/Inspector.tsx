@@ -42,6 +42,7 @@ import {
   Maximize2,
   Upload,
   FolderOpen,
+  Minus,
 } from 'lucide-react'
 import { Color, Field, NumberField, Section, Toggle } from '../components/Controls'
 import { MenuButton, type MenuEntry } from '../components/Menu'
@@ -99,6 +100,8 @@ export interface InspectorActions {
   /** Put back the picture from before its background was removed. */
   restoreOriginal: () => void
   fitToArtboard: (mode: 'fit' | 'fill') => void
+  /** Multi-artboard apps: copy the selection to every other artboard. */
+  copyToArtboards?: () => void
   /** New words or look for the selected chyron; its picture is drawn again. */
   updateChyron: (values: Partial<ChyronStyle>) => void
 }
@@ -1199,7 +1202,9 @@ export function Inspector({
             : ImageIcon
           : l?.kind === 'ellipse'
             ? Circle
-            : Square
+            : l?.kind === 'line'
+              ? Minus
+              : Square
 
   const menu: MenuEntry[] = [
     {
@@ -1225,6 +1230,15 @@ export function Inspector({
     },
     'separator',
     { label: 'Duplicate', Icon: Copy, shortcut: '⌘ D', onSelect: actions.duplicate },
+    ...(actions.copyToArtboards
+      ? [
+          {
+            label: 'Copy to other artboards',
+            Icon: Copy,
+            onSelect: actions.copyToArtboards,
+          },
+        ]
+      : []),
     { label: 'Delete', Icon: Trash2, shortcut: 'Del', danger: true, onSelect: actions.remove },
   ]
 

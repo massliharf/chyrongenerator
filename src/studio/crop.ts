@@ -148,7 +148,7 @@ export function shapeOutline(
   h: number,
   radius = 0,
 ) {
-  if (shape === 'rect') return shapePath('rect', x, y, w, h, { radius })
+  if (shape === 'rect' || shape === 'line') return shapePath('rect', x, y, w, h, { radius })
   return maskPath(shape, x, y, w, h)!
 }
 

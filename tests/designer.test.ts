@@ -241,7 +241,12 @@ describe('chyrons in the Designer', () => {
     const placed = { ...layer, x: 350, y: 400, w: 500, h: 200 }
     const doc: DesignDoc = { ...DEFAULT_DOC, assets: { a: 'data:a' }, layers: [placed] }
     // Longer words: a wider picture at the same scale, around the same centre.
-    const next = withChyronAsset(doc, layer.id, { id: 'b', src: 'data:b', width: 1600, height: 400 })
+    const next = withChyronAsset(doc, layer.id, {
+      id: 'b',
+      src: 'data:b',
+      width: 1600,
+      height: 400,
+    })
     const out = next.layers[0] as typeof placed
     expect(out.asset).toBe('b')
     expect(next.assets.b).toBe('data:b')

@@ -102,7 +102,6 @@
   z-index: 20;
   pointer-events: none;
   background: var(--snap-line);
-  box-shadow: 0 0 6px var(--snap-line);
 }
 .composition-snap-line.vertical {
   top: 0;
@@ -114,31 +113,27 @@
   right: 0;
   height: 1px;
 }
+/* Canvas badges share the Designer's size badge: small, square-ish, on the guide or selection colour. */
 .composition-snap-badge {
   position: absolute;
   z-index: 21;
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-1-5);
   font: var(--text-label-sm);
-  line-height: 1;
   white-space: nowrap;
-  color: var(--snap-line);
-  background: var(--blue-950);
-  border: 1px solid var(--snap-line);
-  border-radius: var(--radius-sm);
+  color: var(--mg-ink);
+  background: var(--snap-line);
+  border-radius: var(--radius-xs);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
-/* ---------- Transform box (Chyron + Stream images) ---------- */
+/* ---------- Transform box (Chyron) ---------- */
+/* The same selection, handles and guides as the Designer (tokens.css › Canvas selection). */
 .si-transform-box {
   position: absolute;
   z-index: 15;
   border: 1px solid var(--transform-line);
-  outline: 1px solid rgb(16 42 86 / 0.5);
   pointer-events: none;
-}
-.si-transform-box.is-image {
-  border-style: dashed;
 }
 .si-transform-handle {
   position: absolute;
@@ -152,12 +147,11 @@
   transform: translate(-50%, -50%);
 }
 .si-resize-handle span {
-  width: 12px;
-  height: 12px;
-  border: var(--border-width-thick) solid var(--transform-ink);
-  border-radius: var(--radius-xs);
+  width: var(--transform-handle-size);
+  height: var(--transform-handle-size);
+  border: 1px solid var(--transform-line);
+  border-radius: 2px;
   background: var(--transform-handle);
-  box-shadow: 0 0 0 1px var(--transform-line);
 }
 .si-transform-handle:is(:hover, :focus-visible) span {
   background: var(--transform-handle-hover);
@@ -183,28 +177,27 @@
   cursor: nwse-resize;
 }
 .si-rotate-handle {
-  top: -32px;
+  top: -22px;
   left: 50%;
-  color: var(--transform-ink);
   cursor: grab;
 }
+/* A small circle on a stem above the box, like the Designer's. */
 .si-rotate-handle::before {
   content: '';
   position: absolute;
-  top: 36px;
+  top: calc(50% + 6px);
   left: 50%;
   width: 1px;
-  height: 20px;
+  height: 16px;
   background: var(--transform-line);
   pointer-events: none;
 }
-.si-rotate-handle svg {
-  position: relative;
-  box-sizing: content-box;
-  padding: var(--space-1-5);
-  border-radius: 50%;
+.si-rotate-handle span {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--transform-line);
+  border-radius: var(--radius-full);
   background: var(--transform-handle);
-  border: 1px solid var(--transform-ink);
 }
 .si-rotate-handle:active {
   cursor: grabbing;
@@ -310,32 +303,143 @@
   margin: 0;
   accent-color: var(--color-action-primary-bg);
 }
+/* Names stay put on the left; the ruler and the clips scroll and zoom together. */
 .timeline-grid {
+  position: relative;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 200px calc((100% - 200px - var(--space-2)) * var(--timeline-zoom, 1));
   column-gap: var(--space-2);
-  max-height: 232px;
-  overflow-y: auto;
+  max-height: var(--timeline-height, 232px);
+  overflow: auto;
+  overscroll-behavior-x: contain;
   padding: 0 var(--space-4) var(--space-3) var(--space-2);
 }
 .ruler,
 .ruler-label {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 6;
   height: 24px;
+  background: var(--color-bg-surface);
 }
-.ruler > span {
+.ruler-label,
+.layer-labels,
+.music-label {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: var(--color-bg-surface);
+}
+.ruler-label {
+  z-index: 7;
+}
+/* Small ticks every minor step along the bottom; labelled ticks as elements. */
+.ruler {
+  background-image: linear-gradient(to right, var(--color-border-strong) 1px, transparent 1px);
+  background-size: var(--minor-step) 5px;
+  background-repeat: repeat-x;
+  background-position: left bottom;
+}
+.ruler > .tick {
   position: absolute;
-  top: var(--space-1);
-  transform: translateX(-50%);
+  top: 0;
+  bottom: 0;
+  padding: var(--space-0-5) 0 0 var(--space-1);
   font: var(--text-label-sm);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--color-text-tertiary);
+  border-left: var(--border-width-thin) solid var(--color-border-strong);
+  pointer-events: none;
 }
-.ruler > span:first-child {
-  transform: none;
+/* The edge being dragged: its time, and a stronger line when it snapped. */
+.snap-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 1px;
+  background: var(--color-text-tertiary);
+  pointer-events: none;
 }
-.ruler > span:nth-last-child(2) {
-  transform: translateX(-100%);
+.snap-guide.is-snapped {
+  width: 2px;
+  margin-left: -0.5px;
+  background: var(--snap-line, var(--color-border-focus));
+}
+.snap-guide > span {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  padding: 1px var(--space-1-5);
+  font: var(--text-label-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-text-inverse);
+  background: var(--color-bg-inverse);
+  border-radius: var(--radius-sm);
+}
+/* Drag the top edge of the layers to resize them. */
+.timeline-resize {
+  height: 8px;
+  margin: -4px 0;
+  position: relative;
+  z-index: 8;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.timeline-resize::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 32px;
+  height: 2px;
+  margin-left: -16px;
+  border-radius: 1px;
+  background: var(--color-border-strong);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+.timeline-resize:hover::after,
+.timeline-resize:focus-visible::after {
+  opacity: 1;
+}
+.timeline-zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  padding-inline-end: var(--space-1);
+  margin-inline-end: var(--space-1);
+  border-inline-end: var(--border-width-thin) solid var(--color-border-default);
+}
+.timeline-zoom .icon-button:disabled {
+  opacity: 0.35;
+}
+.timecode-now {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+.timecode-now:hover {
+  background: var(--color-state-hover);
+}
+@media (pointer: coarse) {
+  .timecode-now {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+  }
+}
+@media (max-width: 640px) {
+  .timeline-zoom {
+    display: none;
+  }
 }
 .timeline-scrubber {
   position: absolute;
@@ -764,11 +868,12 @@
   min-width: 0;
 }
 .format-option.selected {
-  background: var(--color-bg-surface);
+  background: var(--color-accent-soft);
   border-color: var(--color-border-selected);
+  box-shadow: inset 0 0 0 1px var(--color-border-selected);
 }
 .format-option.selected > svg {
-  color: var(--color-text-brand);
+  color: var(--color-accent);
 }
 .format-title {
   font: var(--text-label-md);
@@ -792,9 +897,9 @@
   border-radius: 50%;
 }
 .selected .radio-indicator {
-  color: var(--color-text-on-action);
-  background: var(--color-action-primary-bg);
-  border-color: var(--color-action-primary-bg);
+  color: #ffffff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 .export-content > * + * {
   margin-top: var(--space-4);
@@ -875,18 +980,12 @@
 
 @media (max-width: 767px) {
   .timeline-grid {
-    grid-template-columns: 168px minmax(0, 1fr);
+    grid-template-columns: 168px calc((100% - 168px - var(--space-2)) * var(--timeline-zoom, 1));
     padding-inline: var(--space-1) var(--space-3);
   }
   .timeline-toolbar {
     gap: var(--space-1);
     padding: 0 var(--space-2);
-  }
-  .add-layer .label {
-    display: none;
-  }
-  .add-layer {
-    padding: 0 var(--space-3);
   }
   .focus-toggle {
     display: none;
@@ -1018,8 +1117,9 @@
   background: var(--color-bg-control-hover);
 }
 .mask-picker button.active {
-  color: var(--color-text-inverse);
-  background: var(--color-bg-inverse);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--color-border-selected);
 }
 .mask-picker svg path {
   fill: currentColor;
@@ -1034,7 +1134,7 @@
 }
 
 .si-transform-box.is-locked {
-  border-style: dotted;
+  border-style: dashed;
 }
 .composition-lock-badge {
   position: absolute;
@@ -1043,13 +1143,12 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-1-5);
   font: var(--text-label-sm);
-  line-height: 1;
   white-space: nowrap;
-  color: var(--snap-line);
-  background: var(--blue-950);
-  border-radius: var(--radius-full);
+  color: #ffffff;
+  background: var(--transform-line);
+  border-radius: var(--radius-xs);
   transform: translateX(-50%);
 }
 
@@ -1250,13 +1349,17 @@
   width: 28px;
   height: 28px;
 }
+/* Edge handles: short bars along the edge, as in the Designer. */
 .si-side-handle span {
-  width: 10px;
-  height: 10px;
-  border: var(--border-width-thick) solid var(--transform-ink);
-  border-radius: var(--radius-full);
+  width: 16px;
+  height: 6px;
+  border: 1px solid var(--transform-line);
+  border-radius: 2px;
   background: var(--transform-handle);
-  box-shadow: 0 0 0 1px var(--transform-line);
+}
+.si-side-handle:is(.side-e, .side-w) span {
+  width: 6px;
+  height: 16px;
 }
 .si-side-handle.side-n {
   top: 0;
@@ -1295,22 +1398,74 @@
   height: calc(100% - 6px);
   pointer-events: none;
 }
-.clip-fade {
+/* Cut music: each part is its own clip; the envelope (volume and fades) runs over them. */
+.music-track {
+  position: relative;
+}
+.clip.music-part {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 1;
+  top: 3px;
+  bottom: 3px;
+  height: auto;
+}
+.music-track.has-pick .clip.music-part:not(.is-picked) {
+  border-color: var(--track-audio-line);
+}
+.clip.music-part.is-picked {
+  box-shadow: inset 0 0 0 1px var(--color-border-focus);
+}
+.music-envelope {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  z-index: 5;
   pointer-events: none;
 }
-.clip-fade.in {
-  left: 0;
-  background: linear-gradient(to top right, var(--color-bg-surface) 50%, transparent 50%);
-  opacity: 0.55;
+.music-envelope svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
-.clip-fade.out {
-  right: 0;
-  background: linear-gradient(to top left, var(--color-bg-surface) 50%, transparent 50%);
-  opacity: 0.55;
+.music-envelope polyline {
+  fill: none;
+  stroke: var(--track-audio-fg);
+  stroke-width: 1.5;
+  opacity: 0.8;
+}
+.music-envelope.is-hidden {
+  opacity: 0.35;
+}
+.fade-handle,
+.volume-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: var(--color-bg-surface);
+  border: 1.5px solid var(--track-audio-fg);
+  border-radius: var(--radius-full);
+  pointer-events: auto;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.volume-handle {
+  width: 16px;
+  height: 8px;
+  margin: -4px 0 0 -8px;
+  cursor: ns-resize;
+}
+/* Bigger hit areas than the dots. */
+.fade-handle::after,
+.volume-handle::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+.fade-handle:hover,
+.volume-handle:hover {
+  background: var(--track-audio-fg);
 }
 .music-tracks {
   margin-top: var(--space-1);
@@ -1391,6 +1546,42 @@
 }
 .music-actions {
   padding: 0 var(--space-4) var(--space-4);
+}
+.music-overview-window:not(.is-picked) {
+  border-width: var(--border-width-thin);
+}
+.music-overview[aria-disabled='true'] {
+  cursor: default;
+}
+/* The parts of cut music: pick one to move, trim or delete it. */
+.music-parts {
+  display: grid;
+  gap: var(--space-1);
+}
+.music-part-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  padding: var(--space-1) var(--space-2);
+  font: var(--text-label-md);
+  text-align: start;
+  background: var(--color-bg-control);
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-md);
+}
+.music-part-row small {
+  font: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+.music-part-row:hover {
+  background: var(--color-bg-control-hover);
+}
+.music-part-row[aria-pressed='true'] {
+  border-color: var(--color-border-selected);
+  background: var(--color-accent-soft);
 }
 .waveform {
   display: block;
@@ -1587,8 +1778,7 @@
     width: var(--touch-target-min);
     height: var(--touch-target-min);
   }
-  .topbar-primary,
-  .add-layer {
+  .topbar-primary {
     min-height: var(--touch-target-min);
   }
   .picture-actions .button,

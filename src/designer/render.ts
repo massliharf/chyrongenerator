@@ -45,6 +45,20 @@ export function getImage(id: string): HTMLImageElement | null {
   return img && img.complete && img.naturalWidth ? img : null
 }
 
+/** Waits for the pictures the document's layers show (before an export). */
+export async function loadAssets(doc: DesignDoc) {
+  const ids = new Set(doc.layers.flatMap((l) => (l.kind === 'image' ? [l.asset] : [])))
+  await Promise.all(
+    [...ids].map((id) => {
+      const src = doc.assets[id]
+      if (!src) return
+      ensureImage(id, src)
+      const img = images.get(id)!
+      return img.complete && img.naturalWidth ? undefined : img.decode().catch(() => {})
+    }),
+  )
+}
+
 /** Loads every asset of the document; returns a counter that changes as they arrive. */
 export function useAssetImages(doc: DesignDoc) {
   const [version, setVersion] = useState(0)
@@ -182,9 +196,35 @@ function drawImageContent(
   }
   if (img) {
     const own = filterString(l, pixelScale)
-    ctx.filter = [extra, own === 'none' ? '' : own].filter(Boolean).join(' ') || 'none'
-    ctx.drawImage(img, l.crop.x, l.crop.y, l.crop.w, l.crop.h, 0, 0, l.w, l.h)
-    ctx.filter = 'none'
+    const filter = [extra, own === 'none' ? '' : own].filter(Boolean).join(' ') || 'none'
+    const sw = Math.ceil(l.w * pixelScale),
+      sh = Math.ceil(l.h * pixelScale)
+    if (l.fade && fadeScratch && sw > 0 && sh > 0 && sw * sh < 64e6) {
+      // Fade the bottom: draw the picture alone, then keep it under a gradient.
+      fadeScratch.width = sw
+      fadeScratch.height = sh
+      const f = fadeScratch.getContext('2d')!
+      f.setTransform(pixelScale, 0, 0, pixelScale, 0, 0)
+      f.filter = filter
+      f.drawImage(img, l.crop.x, l.crop.y, l.crop.w, l.crop.h, 0, 0, l.w, l.h)
+      f.filter = 'none'
+      f.globalCompositeOperation = 'destination-in'
+      const g = f.createLinearGradient(
+        0,
+        l.h * l.fade.from,
+        0,
+        l.h * Math.max(l.fade.to, l.fade.from + 0.001),
+      )
+      g.addColorStop(0, '#000')
+      g.addColorStop(1, '#0000')
+      f.fillStyle = g
+      f.fillRect(0, 0, l.w, l.h)
+      ctx.drawImage(fadeScratch, 0, 0, l.w, l.h)
+    } else {
+      ctx.filter = filter
+      ctx.drawImage(img, l.crop.x, l.crop.y, l.crop.w, l.crop.h, 0, 0, l.w, l.h)
+      ctx.filter = 'none'
+    }
   } else {
     ctx.fillStyle = 'rgba(128,128,128,0.25)'
     ctx.fillRect(0, 0, l.w, l.h)
@@ -212,7 +252,12 @@ export function shapeD(l: ShapeLayer, inset = 0) {
 function drawShapeContent(ctx: CanvasRenderingContext2D, l: ShapeLayer) {
   const s = Math.min(l.strokeWidth, l.w / 2, l.h / 2)
   if (l.fillEnabled) {
-    ctx.fillStyle = l.fill
+    const g = l.gradient
+    if (g) {
+      const fill = ctx.createLinearGradient(g.x0 * l.w, g.y0 * l.h, g.x1 * l.w, g.y1 * l.h)
+      for (const stop of g.stops) fill.addColorStop(stop.at, stop.color)
+      ctx.fillStyle = fill
+    } else ctx.fillStyle = l.fill
     ctx.fill(new Path2D(shapeD(l)))
   }
   if (s > 0) {
@@ -315,6 +360,7 @@ function hexToRgba(hex: string, alpha: number) {
 }
 
 const shadowScratch = typeof document !== 'undefined' ? document.createElement('canvas') : null
+const fadeScratch = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
 function drawLayer(
   ctx: CanvasRenderingContext2D,

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 
-test('the Designer adds from a floating bar, chyrons included, and redraws them as you type', async ({
+test('the Designer adds from its top toolbar, chyrons included, and redraws them as you type', async ({
   page,
 }) => {
   const errors: string[] = []
@@ -9,17 +9,16 @@ test('the Designer adds from a floating bar, chyrons included, and redraws them 
   await page.goto('./')
   await page.getByRole('button', { name: 'Designer' }).first().click()
   const designer = page.locator('.designer-root')
-  // One add bar, over the artboard; the left panel only lists layers.
-  const bar = designer.getByRole('toolbar', { name: 'Add to design' })
-  await expect(bar).toBeVisible()
+  // Everything to add sits with the tools at the top; nothing floats over the artboard.
+  const bar = designer.getByRole('toolbar', { name: 'Tools' })
+  await expect(designer.locator('.dz-addbar')).toHaveCount(0)
   await expect(designer.locator('.dz-left').getByRole('toolbar')).toHaveCount(0)
-  await expect(designer.getByText('Start with an image, text or a shape')).toHaveCount(0)
-  for (const name of ['Image', 'Text', 'Shape', 'Frame', 'Chyron'])
+  for (const name of ['Add chyron', 'Add text', 'Add shape', 'Add line', 'Add frame', 'Add image'])
     await expect(bar.getByRole('button', { name, exact: true })).toBeVisible()
 
   // A chyron in the Chyron editor's lettering, with its words in the panel.
-  await bar.getByRole('button', { name: 'Chyron', exact: true }).click()
-  await designer.getByRole('button', { name: 'Add a chyron: Play it bold' }).click()
+  await bar.getByRole('button', { name: 'Add chyron', exact: true }).click()
+  await page.getByRole('button', { name: 'Add a chyron: Play it bold' }).click()
   await expect(designer.locator('.dz-layers')).toContainText('Chyron')
   const title = designer.getByLabel('Title', { exact: true })
   await expect(title).toHaveValue('Your\nName')
@@ -85,11 +84,8 @@ test('projects save as .savvy and open in the editor they belong to', async ({
 
   // So does the Designer.
   await page.getByRole('button', { name: 'Designer' }).first().click()
-  await designer
-    .getByRole('toolbar', { name: 'Add to design' })
-    .getByRole('button', { name: 'Text' })
-    .click()
-  await designer.getByRole('dialog', { name: 'Text' }).getByRole('button').first().click()
+  await designer.getByRole('button', { name: 'Add text' }).click()
+  await page.getByRole('dialog', { name: 'Add text' }).getByRole('button').first().click()
   saving = page.waitForEvent('download')
   await designer.getByRole('button', { name: 'Design menu' }).click()
   await page.getByRole('menuitem', { name: /Save design file/ }).click()

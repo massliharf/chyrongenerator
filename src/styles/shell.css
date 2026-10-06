@@ -21,17 +21,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) 0;
-  background: var(--color-bg-surface);
-  border-radius: var(--radius-xl);
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-3);
+  /* The rail sits right on the page, as a shadcn/ui sidebar does. */
+  background: transparent;
   z-index: var(--z-header);
 }
 .app-brand {
   display: grid;
   place-items: center;
-  width: var(--control-lg);
-  height: var(--control-lg);
+  width: var(--control-md);
+  height: var(--control-md);
 }
 .brand-symbol {
   display: flex;
@@ -56,12 +56,18 @@
   opacity: 0.6;
 }
 .app-nav-list {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-2);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
   list-style: none;
   width: 100%;
   padding: 0;
+}
+/* The Media gallery sits at the foot of the rail, above the theme switch. */
+.app-nav-list > .is-end {
+  margin-top: auto;
 }
 .app-nav-item {
   display: grid;
@@ -77,8 +83,8 @@
 .app-nav-icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-md);
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
@@ -91,7 +97,18 @@
 }
 .app-nav-item[aria-current='page'] .app-nav-icon {
   color: var(--color-text-primary);
-  background: var(--color-bg-selected);
+  /* On the bare page the current place is a small raised tile. */
+  background: var(--color-bg-surface);
+  box-shadow:
+    0 0 0 1px var(--color-border-default),
+    var(--shadow-xs);
+}
+/* Fingers on a tablet still get 44 px. */
+@media (pointer: coarse) and (min-width: 768px) {
+  .app-nav-icon {
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+  }
 }
 /* Magnific rail: icons only, the name shows as a tooltip. */
 @media (min-width: 768px) {
@@ -108,9 +125,6 @@
     white-space: nowrap;
   }
 }
-.app-nav-footer {
-  margin-top: auto;
-}
 
 /* ---------- Workspace frame ---------- */
 .workspace-root {
@@ -119,8 +133,11 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  /* The work area: its own surface on the page, next to the bare rail (shadcn/ui inset). */
   background: var(--color-bg-workspace);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
 }
 .topbar {
   display: flex;
@@ -221,7 +238,9 @@
   min-height: 0;
   overflow: hidden;
   background: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-default);
   border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
 }
 
 /* ---------- Canvas toolbar & stage ---------- */
@@ -231,8 +250,9 @@
   justify-content: space-between;
   gap: var(--space-2);
   flex: none;
-  min-height: 52px;
-  padding: 0 var(--space-2) 0 var(--space-1);
+  min-height: 56px;
+  /* Clear of the card's rounded corner, lined up with the stage below. */
+  padding: 0 var(--space-3);
   background: var(--color-bg-surface);
 }
 .canvas-tools {
@@ -240,9 +260,53 @@
   align-items: center;
   gap: var(--space-0-5);
 }
+/* A row of tools in the middle of the canvas toolbar (what to add, how to draw). */
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  background: var(--color-bg-control);
+  border-radius: var(--radius-lg);
+}
+/* Start, tools and view in three columns: the tools stay centred and never overlap. */
+.chyron-root .editor-main {
+  container: canvas / inline-size;
+}
+.chyron-root .canvas-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.chyron-root .canvas-toolbar > .canvas-size {
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.chyron-root .canvas-toolbar > .canvas-tools {
+  justify-self: end;
+}
+/* Too narrow for one row: the tools get their own, under the size and the view. */
+@container canvas (max-width: 540px) {
+  .chyron-root .canvas-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    padding-block: var(--space-1);
+  }
+  .chyron-root .canvas-toolbar > .tool-group {
+    order: 3;
+    justify-content: center;
+    width: 100%;
+  }
+  .chyron-root .canvas-toolbar > .canvas-tools {
+    margin-inline-start: auto;
+  }
+}
 .canvas-size {
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
   gap: var(--space-2);
   min-height: var(--control-md);
   padding: 0 var(--space-2);
@@ -257,7 +321,8 @@
   background: var(--color-state-hover);
 }
 .canvas-size[aria-pressed='true'] {
-  color: var(--color-text-brand);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-medium);
   background: var(--color-bg-selected);
 }
 .canvas-size-meta {
@@ -282,7 +347,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 var(--space-2);
+  margin: 0 var(--space-3);
   padding: var(--space-6);
   overflow: hidden;
   border-radius: var(--radius-lg);
@@ -315,7 +380,9 @@
   min-height: 0;
   overflow: hidden;
   background: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-default);
   border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
 }
 .inspector {
   display: flex;
@@ -370,6 +437,7 @@
   font: var(--text-heading-xs);
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 .inspector-title-input:hover {
   background: var(--color-state-hover);
@@ -465,17 +533,26 @@
     padding: var(--space-1-5) var(--space-1) env(safe-area-inset-bottom);
     border-radius: 0;
     border-top: var(--border-width-thin) solid var(--color-border-default);
+    background: var(--color-bg-surface);
   }
   .app-nav-icon {
     width: 56px;
     height: 32px;
     border-radius: var(--radius-full);
   }
+  .app-nav-item[aria-current='page'] .app-nav-icon {
+    background: var(--color-bg-selected);
+    box-shadow: none;
+  }
   .app-brand,
   .app-nav-footer {
     display: none;
   }
+  .app-nav-list > .is-end {
+    margin-top: 0;
+  }
   .app-nav-list {
+    display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 0;

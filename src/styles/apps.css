@@ -1,0 +1,351 @@
+/* ---------- Apps ---------- */
+.apps-home {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 var(--shell-gap) var(--shell-gap);
+  padding: var(--space-12) var(--space-6);
+  background: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+}
+.apps-intro {
+  max-width: 960px;
+  margin: 0 auto var(--space-8);
+  text-align: center;
+}
+.apps-intro h2 {
+  font: var(--text-display);
+}
+.apps-intro p {
+  margin-top: var(--space-1);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-3);
+  max-width: 960px;
+  margin: 0 auto;
+  list-style: none;
+}
+.app-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-5);
+  text-align: start;
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.app-card:hover {
+  background: var(--color-state-hover);
+}
+/* Category tiles, as in the Magnific home grid: the hue at full strength on 10 %. */
+.app-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+}
+.app-icon.is-image {
+  color: var(--mg-cat-image);
+  background: color-mix(in srgb, var(--mg-cat-image) 10%, transparent);
+}
+.app-icon.is-video {
+  color: var(--mg-cat-video);
+  background: color-mix(in srgb, var(--mg-cat-video) 10%, transparent);
+}
+.app-text {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+.app-text strong {
+  font: var(--text-label-lg);
+  color: var(--color-text-primary);
+}
+.app-text span {
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.app-open {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+}
+
+/* ---------- Hero image generator ---------- */
+.hero-app {
+  display: contents;
+}
+.hero-back {
+  flex: none;
+  gap: var(--space-0-5);
+  padding-inline: var(--space-2);
+}
+/* The artboards, above the layers in the left panel. */
+.hero-artboards {
+  flex: none;
+  max-height: 45%;
+  overflow-y: auto;
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.hero-artboard-list {
+  display: grid;
+  gap: var(--space-0-5);
+  padding: 0 var(--space-2) var(--space-2);
+  list-style: none;
+}
+.hero-artboard-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+}
+.hero-artboard-list > li.is-active {
+  background: var(--color-bg-selected);
+}
+.hero-artboard-list > li:not(.is-active):hover {
+  background: var(--color-state-hover);
+}
+.hero-artboard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1);
+  text-align: start;
+  border-radius: var(--radius-md);
+}
+.hero-thumb-frame {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 40px;
+  background: var(--color-bg-control);
+  border-radius: var(--radius-sm);
+}
+.hero-thumb {
+  max-width: 56px;
+  max-height: 40px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--color-border-subtle);
+}
+.hero-artboard-text {
+  display: grid;
+  min-width: 0;
+}
+.hero-artboard-text strong {
+  overflow: hidden;
+  font: var(--text-label-md);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-primary);
+}
+.hero-artboard-text small {
+  font: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-tertiary);
+}
+/* Tertiary text is too faint on the selected row. */
+.is-active .hero-artboard-text small {
+  color: var(--color-text-secondary);
+}
+.hero-artboard-more {
+  flex: none;
+  margin-inline-end: var(--space-1);
+}
+.hero-rename {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-md);
+  margin: var(--space-1);
+  padding: 0 var(--space-2);
+  font: var(--text-label-md);
+  background: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-focus);
+  border-radius: var(--radius-sm);
+}
+.hero-hint {
+  padding: 0 var(--space-4) var(--space-3);
+  font: var(--text-caption);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--color-text-tertiary);
+}
+/* Artboard names on the canvas: the edited one stands out, the others open on click. */
+.dz-artboard-label.is-active {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+.dz-artboard-label.is-neighbor {
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.dz-artboard-label.is-neighbor:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+.hero-toast {
+  z-index: var(--z-toast);
+}
+
+/* ---------- Hero export ---------- */
+.hero-export {
+  width: min(520px, calc(100vw - 32px));
+}
+.hero-export-list {
+  display: grid;
+  gap: var(--space-1);
+  border: 0;
+}
+.hero-export-list legend {
+  margin-bottom: var(--space-2);
+}
+.hero-export-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  padding: 0 var(--space-2);
+  font: var(--text-label-md);
+  background: var(--color-bg-control);
+  border-radius: var(--radius-md);
+}
+.hero-export-item small {
+  font: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-tertiary);
+}
+.hero-export-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* ---------- Hero image settings (the stream image panel) ---------- */
+.hero-backgrounds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.hero-backgrounds > button,
+.hero-backgrounds .hero-background-add {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-1);
+  font: var(--text-label-sm);
+  text-align: start;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-control);
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-md);
+}
+.hero-backgrounds > button:hover {
+  background: var(--color-bg-control-hover);
+}
+.hero-backgrounds > button[aria-pressed='true'] {
+  color: var(--color-text-primary);
+  background: var(--color-accent-soft);
+  border-color: var(--color-border-selected);
+  box-shadow: inset 0 0 0 1px var(--color-border-selected);
+}
+.hero-backgrounds img,
+.hero-backgrounds canvas {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.hero-backgrounds > button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-inline: var(--space-0-5);
+}
+.hero-backgrounds .menu-wrap {
+  display: block;
+}
+.hero-backgrounds .hero-background-add {
+  height: 100%;
+  min-height: 72px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  border-style: dashed;
+  border-color: var(--color-border-default);
+}
+.hero-backgrounds .hero-background-add:hover {
+  color: var(--color-text-brand);
+  border-color: var(--color-border-focus);
+}
+.swatch-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: var(--space-1-5);
+}
+.swatch-row > button {
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+.swatch-row > button:hover {
+  transform: scale(1.06);
+}
+
+.hero-backgrounds img {
+  background: var(--color-bg-control);
+}
+.file-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: repeating-conic-gradient(var(--color-bg-control) 0 25%, var(--color-bg-surface) 0 50%)
+    0 0 / 12px 12px;
+}
+.hero-host-off {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.hero-flip {
+  justify-self: start;
+}
+.hero-flip.is-on {
+  color: var(--color-text-brand);
+  border-color: var(--color-border-focus);
+}
+.hero-panel .inspector-heading {
+  display: grid;
+  min-width: 0;
+}
+.hero-panel .inspector-heading span {
+  font: var(--text-caption);
+  color: var(--color-text-tertiary);
+}
+.hero-panel .inspector-body {
+  min-width: 0;
+  border: 0;
+}

@@ -1,9 +1,9 @@
 import { useEffect, useRef, type PointerEvent } from 'react'
-import { Replace, Trash2 } from 'lucide-react'
+import { Combine, Replace, Scissors, Trash2 } from 'lucide-react'
 import { NumberField, Toggle } from './Controls'
 import { clock } from './inspectorHooks'
 import { duration, type AudioTrack, type Project } from '../studio/model'
-import { musicWindow } from '../studio/audio'
+import { MIN_PART, moveSegment, musicWindow, segmentsOf, trimSegment } from '../studio/audio'
 import { useAudioPeaks } from '../studio/useAudioPeaks'
 
 /** Bars for the part of the song between `from` and `to` seconds. */
@@ -65,14 +65,31 @@ export function MusicPanel({
   onChange,
   onReplace,
   onRemove,
+  part: partId = null,
+  onPart,
+  onSplit,
+  canSplit = false,
+  onRemovePart,
+  onJoin,
 }: {
   project: Project
   track: AudioTrack
   onChange: (values: Partial<AudioTrack>) => void
   onReplace: () => void
   onRemove: () => void
+  /** The picked part of the cut music. */
+  part?: string | null
+  onPart?: (id: string | null) => void
+  /** Cut at the playhead; `canSplit` when the music plays there. */
+  onSplit?: () => void
+  canSplit?: boolean
+  onRemovePart?: (id: string) => void
+  onJoin?: () => void
 }) {
   const total = duration(p)
+  const cut = !!track.segments
+  const parts = segmentsOf({ ...track, muted: false }, total)
+  const picked = parts.find((x) => x.id === partId) ?? null
   const peaks = useAudioPeaks(track.assetId)
   const plays = musicWindow({ ...track, muted: false }, total)
   const used = Math.max(0, plays.end - plays.start)
@@ -80,7 +97,7 @@ export function MusicPanel({
   const drag = useRef<{ x: number; width: number; trim: number } | null>(null)
   const slide = {
     onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0) return
+      if (e.button !== 0 || cut) return
       e.currentTarget.setPointerCapture(e.pointerId)
       drag.current = {
         x: e.clientX,
@@ -111,10 +128,13 @@ export function MusicPanel({
           aria-valuemax={track.length}
           aria-valuenow={track.trim}
           aria-valuetext={`From ${clock(track.trim)}`}
-          tabIndex={0}
-          title="Drag to choose which part of the song plays"
+          tabIndex={cut ? -1 : 0}
+          aria-disabled={cut}
+          title={
+            cut ? 'The parts of the song that play' : 'Drag to choose which part of the song plays'
+          }
           onKeyDown={(e) => {
-            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+            if (cut || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
             e.preventDefault()
             const step = (e.shiftKey ? 5 : 0.5) * (e.key === 'ArrowRight' ? 1 : -1)
             onChange({ trim: round(Math.max(0, Math.min(track.length - 0.1, track.trim + step))) })
@@ -122,27 +142,146 @@ export function MusicPanel({
           {...slide}
         >
           <Waveform peaks={peaks} length={track.length} from={0} to={track.length} />
-          <span
-            className="music-overview-window"
-            style={{
-              left: `${(track.trim / track.length) * 100}%`,
-              width: `${Math.min(100 - (track.trim / track.length) * 100, (shown / track.length) * 100)}%`,
-            }}
-          />
+          {cut ? (
+            // Every part, where it comes from in the song.
+            parts.map((x) => (
+              <span
+                key={x.id}
+                className={`music-overview-window ${x.id === partId ? 'is-picked' : ''}`}
+                style={{
+                  left: `${(x.from / track.length) * 100}%`,
+                  width: `${(x.length / track.length) * 100}%`,
+                }}
+              />
+            ))
+          ) : (
+            <span
+              className="music-overview-window"
+              style={{
+                left: `${(track.trim / track.length) * 100}%`,
+                width: `${Math.min(100 - (track.trim / track.length) * 100, (shown / track.length) * 100)}%`,
+              }}
+            />
+          )}
         </div>
-        <NumberField
-          label="Play the song from"
-          value={track.trim}
-          min={0}
-          max={Math.max(0, track.length - 0.1)}
-          step={0.1}
-          unit="s"
-          onChange={(trim) => onChange({ trim })}
-        />
-        <p className="block-note">
-          Plays from {clock(track.trim)}. Drag the highlighted part of the song to choose another
-          part.
-        </p>
+        {!cut && (
+          <>
+            <NumberField
+              label="Play the song from"
+              value={track.trim}
+              min={0}
+              max={Math.max(0, track.length - 0.1)}
+              step={0.1}
+              unit="s"
+              onChange={(trim) => onChange({ trim })}
+            />
+            <p className="block-note">
+              Plays from {clock(track.trim)}. Drag the highlighted part of the song to choose
+              another part.
+            </p>
+          </>
+        )}
+      </div>
+      <div className="block">
+        <span className="block-label">Cut</span>
+        <div className="button-row">
+          <button
+            className="button secondary sm"
+            disabled={!canSplit}
+            title="Cut the music at the playhead (S)"
+            onClick={onSplit}
+          >
+            <Scissors size={14} aria-hidden="true" /> Cut at playhead
+          </button>
+          {cut && onJoin && (
+            <button className="button ghost sm" onClick={onJoin}>
+              <Combine size={14} aria-hidden="true" /> Join the parts
+            </button>
+          )}
+        </div>
+        {cut ? (
+          <>
+            <div className="music-parts" role="group" aria-label="Parts of the music">
+              {parts.map((x, i) => (
+                <button
+                  key={x.id}
+                  className="music-part-row"
+                  aria-pressed={x.id === partId}
+                  onClick={() => onPart?.(x.id === partId ? null : x.id)}
+                >
+                  <span>Part {i + 1}</span>
+                  <small>
+                    {x.at.toFixed(2)}–{(x.at + x.length).toFixed(2)} s · song {clock(x.from)}
+                  </small>
+                </button>
+              ))}
+            </div>
+            {picked ? (
+              <>
+                <NumberField
+                  label="Part starts at"
+                  value={round(picked.at)}
+                  min={0}
+                  max={Math.max(0, round(total - MIN_PART))}
+                  step={0.1}
+                  unit="s"
+                  onChange={(at) =>
+                    onChange({ segments: moveSegment(track, total, picked.id, at).segments })
+                  }
+                />
+                <NumberField
+                  label="Part plays the song from"
+                  value={round(picked.from)}
+                  min={0}
+                  max={Math.max(0, round(track.length - MIN_PART))}
+                  step={0.1}
+                  unit="s"
+                  onChange={(from) =>
+                    onChange({
+                      segments: track.segments!.map((x) =>
+                        x.id === picked.id
+                          ? {
+                              ...x,
+                              from,
+                              length: Math.max(MIN_PART, Math.min(x.length, track.length - from)),
+                            }
+                          : x,
+                      ),
+                    })
+                  }
+                />
+                <NumberField
+                  label="Part length"
+                  value={round(picked.length)}
+                  min={MIN_PART}
+                  max={Math.max(MIN_PART, round(track.length - picked.from))}
+                  step={0.1}
+                  unit="s"
+                  onChange={(length) =>
+                    onChange({
+                      segments: trimSegment(track, total, picked.id, 'end', picked.at + length)
+                        .segments,
+                    })
+                  }
+                />
+                {onRemovePart && (
+                  <button className="button ghost sm" onClick={() => onRemovePart(picked.id)}>
+                    <Trash2 size={14} aria-hidden="true" /> Delete this part
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="block-note">
+                Pick a part here or in the timeline to move, trim or delete it.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="block-note">
+            Put the playhead where the music should be cut and press S. Then drag a part's ends in
+            the timeline to trim it, or pick it and press Delete.
+          </p>
+        )}
       </div>
       <div className="block">
         <span className="block-label">In the clip</span>
@@ -154,15 +293,17 @@ export function MusicPanel({
           unit="%"
           onChange={(volume) => onChange({ volume })}
         />
-        <NumberField
-          label="Starts at"
-          value={track.delay}
-          min={0}
-          max={Math.max(0, round(total - 0.1))}
-          step={0.1}
-          unit="s"
-          onChange={(delay) => onChange({ delay })}
-        />
+        {!cut && (
+          <NumberField
+            label="Starts at"
+            value={track.delay}
+            min={0}
+            max={Math.max(0, round(total - 0.1))}
+            step={0.1}
+            unit="s"
+            onChange={(delay) => onChange({ delay })}
+          />
+        )}
         <NumberField
           label="Fade in"
           value={track.fadeIn}
@@ -181,12 +322,14 @@ export function MusicPanel({
           unit="s"
           onChange={(fadeOut) => onChange({ fadeOut })}
         />
-        <Toggle
-          label="Loop"
-          hint="Start the song again if it ends before the clip"
-          checked={track.loop}
-          onChange={(loop) => onChange({ loop })}
-        />
+        {!cut && (
+          <Toggle
+            label="Loop"
+            hint="Start the song again if it ends before the clip"
+            checked={track.loop}
+            onChange={(loop) => onChange({ loop })}
+          />
+        )}
         <Toggle
           label="Mute"
           hint="Silence it in the preview and the export"
@@ -194,8 +337,9 @@ export function MusicPanel({
           onChange={(muted) => onChange({ muted })}
         />
         <p className="block-note">
-          Plays {round(used)}s of the song; drag its bar in the timeline to move it. WebM and ProRes
-          exports include the music; a PNG sequence adds it as music.wav.
+          Plays {round(used)}s of the song. In the timeline, drag the music to move it, its round
+          handles for the fades and the bar in the middle for the volume. WebM and ProRes exports
+          include the music; a PNG sequence adds it as music.wav.
         </p>
       </div>
       <div className="button-row music-actions">

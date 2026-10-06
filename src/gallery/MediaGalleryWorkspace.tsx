@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import type { Workspace } from '../components/WorkspaceNav'
 import { sendToDesigner } from '../designer/inbox'
+import { sendToHero } from '../apps/hero/handoff'
 import { MenuButton } from '../components/Menu'
 import { TopBar } from '../components/TopBar'
 import {
@@ -134,18 +135,11 @@ export default function MediaGalleryWorkspace({
     onWorkspaceChange('designer')
   }
 
-  // Send to Stream Images
-  const handleUseInStream = (item: GalleryItem) => {
-    window.dispatchEvent(
-      new CustomEvent('stream:import-gallery-item', {
-        detail: {
-          item,
-          target: item.category === 'Backgrounds' ? 'background' : 'host',
-        },
-      }),
-    )
+  // Send to the Hero image generator (Apps)
+  const handleUseInHero = (item: GalleryItem) => {
+    sendToHero({ item, target: item.category === 'Backgrounds' ? 'background' : 'host' })
     setPreviewItem(null)
-    onWorkspaceChange('stream')
+    onWorkspaceChange('apps')
   }
 
   // Lightbox dialog control
@@ -377,10 +371,10 @@ export default function MediaGalleryWorkspace({
                     onSelect: () => handleUseInDesigner(previewItem),
                   },
                   {
-                    label: 'Use in Stream images',
+                    label: 'Use in Hero image generator',
                     hint: previewItem.category === 'Backgrounds' ? 'As background' : 'As host',
                     Icon: Images,
-                    onSelect: () => handleUseInStream(previewItem),
+                    onSelect: () => handleUseInHero(previewItem),
                   },
                 ]}
               >

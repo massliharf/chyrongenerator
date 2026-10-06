@@ -62,7 +62,7 @@ import { useProjectImages } from '../studio/useImages'
 import { cropToRatio, FULL_CROP, isCropped, SQUARE_MASKS, withCrop } from '../studio/crop'
 import { maxVideoSeconds } from '../studio/export'
 import { ShapeIcon } from '../designer/LeftPanel'
-import type { ShapeKind } from '../designer/model'
+import { LINE, SHAPES, type ShapeKind } from '../designer/model'
 import type { SavedPreset } from '../studio/useProject'
 import type { TimingChange } from './Timeline'
 
@@ -99,6 +99,13 @@ export interface PropertiesProps {
   onReplaceImage?: (id: string) => void
   onReplaceMusic: () => void
   onRemoveMusic: () => void
+  /** Cutting the music: the picked part and what to do with it. */
+  musicPart?: string | null
+  onMusicPart?: (id: string | null) => void
+  onSplitMusic?: () => void
+  canSplitMusic?: boolean
+  onRemoveMusicPart?: (id: string) => void
+  onJoinMusic?: () => void
 }
 
 export function Properties(props: PropertiesProps) {
@@ -199,6 +206,12 @@ export function Properties(props: PropertiesProps) {
             onChange={setMusic}
             onReplace={props.onReplaceMusic}
             onRemove={props.onRemoveMusic}
+            part={props.musicPart}
+            onPart={props.onMusicPart}
+            onSplit={props.onSplitMusic}
+            canSplit={props.canSplitMusic}
+            onRemovePart={props.onRemoveMusicPart}
+            onJoin={props.onJoinMusic}
           />
         )}
         {!layer && !music && <CompositionSettings project={p} patch={patch} />}
@@ -869,15 +882,15 @@ function ChyronDesign({
 
 /* ---------- Images ---------- */
 
-const MASK_OPTIONS: { id: ImageMask; name: string; kind: ShapeKind; sides?: number }[] = [
-  { id: 'none', name: 'Rectangle', kind: 'rect' },
-  { id: 'circle', name: 'Circle', kind: 'ellipse' },
-  { id: 'arch', name: 'Arch', kind: 'arch' },
-  { id: 'triangle', name: 'Triangle', kind: 'triangle' },
-  { id: 'hexagon', name: 'Hexagon', kind: 'polygon', sides: 6 },
-  { id: 'star', name: 'Star', kind: 'star' },
-  { id: 'heart', name: 'Heart', kind: 'heart' },
-]
+/** Image masks: the shapes of the shape pickers (the rectangle is no mask). */
+const MASK_OPTIONS: { id: ImageMask; name: string; kind: ShapeKind; sides?: number }[] = SHAPES.map(
+  ({ id, name, kind, sides }) => ({
+    id: id === 'rect' ? 'none' : (id as ImageMask),
+    name,
+    kind,
+    sides,
+  }),
+)
 
 function ImageDesign({
   l,
@@ -1106,13 +1119,9 @@ const SHAPE_OPTIONS: {
   sides?: number
   radius?: number
 }[] = [
-  { id: 'rect', name: 'Rectangle', kind: 'rect', radius: 0.18 },
-  { id: 'circle', name: 'Circle', kind: 'ellipse' },
-  { id: 'arch', name: 'Arch', kind: 'arch' },
-  { id: 'triangle', name: 'Triangle', kind: 'triangle' },
-  { id: 'hexagon', name: 'Hexagon', kind: 'polygon', sides: 6 },
-  { id: 'star', name: 'Star', kind: 'star' },
-  { id: 'heart', name: 'Heart', kind: 'heart' },
+  // The same shapes, names, order and icons as the Designer.
+  ...SHAPES.map(({ id, name, kind, sides }) => ({ id, name, kind, sides })),
+  { id: LINE.id, name: LINE.name, kind: LINE.kind },
 ]
 
 function ShapeDesign({ l, p, patch }: { l: ShapeLayer; p: Project; patch: Patch }) {

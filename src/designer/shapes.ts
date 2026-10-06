@@ -57,6 +57,7 @@ export function shapePath(
   h = Math.max(0.5, h)
   switch (kind) {
     case 'rect':
+    case 'line':
       return roundedRect(x, y, w, h, p.radius ?? 0)
     case 'ellipse': {
       const rx = w / 2,

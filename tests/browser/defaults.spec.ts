@@ -16,7 +16,7 @@ test('live preview is the default but never exported; subtitle toggle hides its 
   await expect(page.getByLabel('Video length in seconds')).toHaveValue('4.4')
   await page.screenshot({ path: testInfo.outputPath('studio-blue.png') })
   await page.getByRole('button', { name: /^Typography/ }).click()
-  await expect(page.getByLabel('Typeface', { exact: true })).toHaveValue('Fredoka')
+  await expect(page.getByLabel('Typeface', { exact: true })).toHaveValue('Wicked Mouse')
   await expect(page.getByLabel('Size', { exact: true })).toHaveValue('128')
   await page.getByRole('button', { name: /^Shape & spacing/ }).click()
   for (const [label, value] of [

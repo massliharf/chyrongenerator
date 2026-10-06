@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, type LucideIcon } from 'lucide-react'
+import { placeNear } from './placeNear'
 
 export type MenuEntry =
   | {
@@ -25,9 +26,10 @@ export type MenuEntry =
   | 'separator'
 
 /**
- * Magnific Menu. A trigger button opens a list of actions. Desktop: popover
- * anchored to the trigger. Below 768px the same list renders as an action sheet
- * (see components.css). Keyboard: ↑/↓, Home/End, Enter, Escape.
+ * Magnific Menu. A trigger button opens a list of actions. Desktop: a popover
+ * next to the trigger, drawn above the page so no panel or scroll area cuts
+ * it off. Below 768px the same list renders as an action sheet (see
+ * components.css). Keyboard: ↑/↓, Home/End, Enter, Escape.
  */
 export function MenuButton({
   label,
@@ -50,55 +52,42 @@ export function MenuButton({
   title?: string
   disabled?: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const [autoAlign, setAutoAlign] = useState<'start' | 'end'>(align)
+  /** Where the open menu lives: the page, or the open dialog the trigger is in (dialogs sit above the page). */
+  const [host, setHost] = useState<Element | null>(null)
+  const open = host !== null
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const id = useId()
   const close = (refocus = true) => {
-    setOpen(false)
+    setHost(null)
+    setPos(null)
     if (refocus) trigger.current?.focus()
   }
 
-  const toggle = () => {
-    if (!open && trigger.current) {
-      const triggerRect = trigger.current.getBoundingClientRect()
-      const container = trigger.current.closest<HTMLElement>(
-        '.inspector, .dialog, aside, [data-menu-container]',
-      )
-      const containerRect = container?.getBoundingClientRect()
-      const minLeft = (containerRect ? Math.max(containerRect.left, 0) : 0) + 8
-      const maxRight =
-        (containerRect ? Math.min(containerRect.right, window.innerWidth) : window.innerWidth) - 8
-      const menuWidth = 240
-
-      if (align === 'start') {
-        if (triggerRect.left + menuWidth > maxRight && triggerRect.right - menuWidth >= minLeft) {
-          setAutoAlign('end')
-        } else {
-          setAutoAlign('start')
-        }
-      } else {
-        if (triggerRect.right - menuWidth < minLeft && triggerRect.left + menuWidth <= maxRight) {
-          setAutoAlign('start')
-        } else {
-          setAutoAlign('end')
-        }
-      }
-    } else {
-      setAutoAlign(align)
-    }
-    setOpen((prev) => !prev)
-  }
-
+  useLayoutEffect(() => {
+    if (!open || !trigger.current || !list.current) return
+    const r = list.current.getBoundingClientRect()
+    setPos(placeNear(trigger.current.getBoundingClientRect(), r, { align, placement }))
+  }, [open, align, placement])
+  // Focus the first item once the menu is placed (it is hidden until then).
+  const placed = pos !== null
   useEffect(() => {
-    if (open) list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+    if (placed) list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [placed])
+  useEffect(() => {
+    if (!open) return
+    // The page moved under the menu: close it rather than leave it floating.
+    const away = () => {
+      setHost(null)
+      setPos(null)
+    }
+    window.addEventListener('resize', away)
+    return () => window.removeEventListener('resize', away)
   }, [open])
 
-  const effectiveAlign = open ? autoAlign : align
-
   return (
-    <div className={`menu-wrap align-${effectiveAlign} placement-${placement}`}>
+    <div className="menu-wrap">
       <button
         ref={trigger}
         className={className}
@@ -108,31 +97,42 @@ export function MenuButton({
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         disabled={disabled}
-        onClick={toggle}
+        onClick={() =>
+          open ? close(false) : setHost(trigger.current?.closest('dialog[open]') ?? document.body)
+        }
       >
         {children}
       </button>
-      {open && (
-        <>
-          <button
-            type="button"
-            className="menu-scrim"
-            tabIndex={-1}
-            aria-label={`Close ${label}`}
-            onClick={() => close()}
-          />
-          <div
-            className="menu"
-            id={id}
-            role="menu"
-            aria-label={label}
-            ref={list}
-            onKeyDown={(e) => menuKeys(e, () => close())}
-          >
-            <MenuItems items={items} onPick={() => close(false)} />
-          </div>
-        </>
-      )}
+      {host &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="menu-scrim"
+              tabIndex={-1}
+              aria-label={`Close ${label}`}
+              onClick={() => close()}
+            />
+            <div
+              className="menu is-floating"
+              id={id}
+              role="menu"
+              aria-label={label}
+              ref={list}
+              style={
+                {
+                  '--menu-x': `${pos?.x ?? 0}px`,
+                  '--menu-y': `${pos?.y ?? 0}px`,
+                  visibility: pos ? undefined : 'hidden',
+                } as React.CSSProperties
+              }
+              onKeyDown={(e) => menuKeys(e, () => close())}
+            >
+              <MenuItems items={items} onPick={() => close(false)} />
+            </div>
+          </>,
+          host,
+        )}
     </div>
   )
 }

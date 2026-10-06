@@ -5,7 +5,7 @@
 :root {
   --designer-left-width: 264px;
   --designer-grid: rgb(79 105 242 / 0.16);
-  --designer-select: var(--mg-focus);
+  --designer-select: var(--transform-line);
   --designer-mask: var(--mg-cat-spaces);
 }
 :root[data-theme='dark'] {
@@ -28,7 +28,9 @@
   min-height: 0;
   overflow: hidden;
   background: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-default);
   border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
 }
 .dz-left-close,
 .dz-left-toggle {
@@ -101,6 +103,11 @@
   display: grid;
   flex: 1;
   min-width: 0;
+  min-height: 32px;
+  align-content: center;
+  text-align: start;
+  cursor: inherit;
+  border-radius: var(--radius-sm);
 }
 .dz-layer-name > span {
   overflow: hidden;
@@ -165,16 +172,41 @@
   gap: var(--space-1);
   min-width: 0;
 }
+/* Start, tools and view in three columns: the tools stay centred and never overlap. */
+.designer-root .editor-main {
+  container: canvas / inline-size;
+}
+.designer-root .canvas-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.designer-root .canvas-toolbar > .canvas-tools {
+  justify-self: end;
+}
+/* Too narrow for one row: the tools get their own, under the size and the view. */
+@container canvas (max-width: 780px) {
+  .designer-root .canvas-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    padding-block: var(--space-1);
+  }
+  .dz-tools {
+    order: 3;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+  .designer-root .canvas-toolbar > .canvas-tools {
+    margin-inline-start: auto;
+  }
+}
 .dz-tools {
-  position: absolute;
-  left: 50%;
   display: flex;
   align-items: center;
   gap: var(--space-0-5);
   padding: var(--space-0-5);
   background: var(--color-bg-control);
   border-radius: var(--radius-lg);
-  transform: translateX(-50%);
 }
 .dz-align-sep {
   width: 1px;
@@ -197,7 +229,7 @@
 /* ---------- Stage ---------- */
 .dz-stage {
   padding: 0;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
   touch-action: none;
   outline: none;
   user-select: none;
@@ -247,7 +279,7 @@
   stroke-dasharray: 5 4;
 }
 .dz-guide {
-  stroke: var(--mg-pink);
+  stroke: var(--snap-line);
   stroke-width: 1;
   shape-rendering: crispEdges;
 }
@@ -274,9 +306,9 @@
 }
 .dz-handle {
   position: absolute;
-  width: 9px;
-  height: 9px;
-  background: #ffffff;
+  width: var(--transform-handle-size);
+  height: var(--transform-handle-size);
+  background: var(--transform-handle);
   border: 1px solid var(--designer-select);
   border-radius: 2px;
   transform: translate(-50%, -50%);
@@ -412,13 +444,17 @@
 .dz-crop-third.h2 {
   top: 66.666%;
 }
+.dz-handle:not(.is-crop):hover,
+.dz-rotate:hover {
+  background: var(--transform-handle-hover);
+}
 .dz-rotate {
   position: absolute;
   top: -28px;
   left: 50%;
   width: 12px;
   height: 12px;
-  background: #ffffff;
+  background: var(--transform-handle);
   border: 1px solid var(--designer-select);
   border-radius: var(--radius-full);
   transform: translateX(-50%);
@@ -574,6 +610,9 @@
     left: var(--shell-gap);
     z-index: var(--z-overlay);
     width: min(300px, calc(100% - 32px));
+    /* As a drawer over the canvas it needs its own surface. */
+    background: var(--color-bg-surface-raised);
+    border: var(--border-width-thin) solid var(--color-border-default);
     box-shadow: var(--shadow-lg);
     transform: translateX(calc(-100% - 24px));
     transition: transform var(--duration-slow) var(--ease-standard);
@@ -601,14 +640,6 @@
   }
 }
 @media (max-width: 767px) {
-  .dz-tools {
-    position: static;
-    transform: none;
-  }
-  .designer-root .canvas-toolbar {
-    flex-wrap: wrap;
-    padding-block: var(--space-1);
-  }
   .dz-tools .icon-button,
   .canvas-tools .icon-button {
     width: var(--touch-target-min);
@@ -631,75 +662,25 @@
   }
 }
 
-/* ---------- Floating add bar ---------- */
-/* Everything that can be added, in one pill floating over the artboard. */
-.dz-addbar {
-  position: absolute;
-  left: 50%;
-  bottom: var(--space-4);
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  gap: var(--space-0-5);
-  max-width: calc(100% - var(--space-4));
-  padding: var(--space-1);
-  background: var(--color-bg-surface-raised);
-  border: var(--border-width-thin) solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  translate: -50% 0;
-}
+/* ---------- Add tools (top toolbar) ---------- */
 .dz-add-item {
-  min-width: 0;
+  position: relative;
+  display: flex;
 }
-.dz-add-tile {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  height: var(--control-md);
-  padding: 0 var(--space-3);
-  font: var(--text-caption);
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-md);
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard);
-}
-.dz-add-tile > svg {
-  flex: none;
-}
-.dz-add-tile:hover,
-.dz-add-tile.is-open {
-  color: var(--color-text-primary);
-  background: var(--color-state-hover);
-}
-.dz-add-tile.is-open {
-  background: var(--color-bg-selected);
-}
-.dz-addbar-sep {
-  flex: none;
-  width: 1px;
-  height: 20px;
-  margin: 0 var(--space-1);
-  background: var(--color-border-default);
-}
-/* Choices open above the bar, centred on it. */
+/* Choices open below their icon, centred on it, kept on screen (see placeNear). */
 .dz-popover {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + var(--space-2));
+  position: fixed;
+  inset: var(--menu-y) auto auto var(--menu-x);
   z-index: calc(var(--z-dropdown) + 1);
   width: min(300px, calc(100vw - 32px));
   max-height: min(70dvh, 520px);
   overflow-y: auto;
   padding: var(--space-2);
+  text-align: start;
   background: var(--color-bg-surface-raised);
   border: var(--border-width-thin) solid var(--color-border-default);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
-  translate: -50% 0;
   animation: menu-in var(--duration-normal) var(--ease-enter);
 }
 .dz-popover.is-wide {
@@ -708,24 +689,21 @@
 .dz-chyron-grid {
   margin-bottom: var(--space-1);
 }
-@media (pointer: coarse) {
-  .dz-add-tile {
-    height: var(--touch-target-min);
-  }
+/* Back to the frame shapes from the picture step. */
+.dz-pop-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-sm);
+  margin-bottom: var(--space-1);
+  padding: 0 var(--space-2);
+  font: var(--text-label-md);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
 }
-/* Narrow screens: icons only (each still has its name for assistive tech). */
-@media (max-width: 520px) {
-  .dz-add-tile > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .dz-add-tile {
-    padding: 0 var(--space-3);
-  }
+.dz-pop-back:hover {
+  color: var(--color-text-primary);
+  background: var(--color-state-hover);
 }
 .dz-pop-list {
   display: grid;
@@ -960,4 +938,7 @@ button.dz-layer-twisty:hover {
 /* Inside an inspector section the note lines up with the fields. */
 .dz-picture-note {
   margin: 0;
+}
+.dz-layer.is-selected .dz-layer-name > small {
+  color: var(--color-text-secondary);
 }

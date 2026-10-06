@@ -1,8 +1,4 @@
-import {
-  GALLERY_ITEMS,
-  getGalleryItemUrl,
-  getGalleryItemThumbUrl,
-} from '../studio/galleryData'
+import { GALLERY_ITEMS, getGalleryItemUrl, getGalleryItemThumbUrl } from '../studio/galleryData'
 
 export const FORMATS = [
   {
@@ -179,4 +175,3 @@ export function coverRect(width: number, height: number, format: Format, layout:
     height: h,
   }
 }
-

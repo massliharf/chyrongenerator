@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -9,20 +9,26 @@ import {
   LockOpen,
   X,
 } from 'lucide-react'
-import { SHAPES, isShape, type DesignDoc, type Layer } from './model'
+import { isShape, type DesignDoc, type Layer, type ShapePreset } from './model'
 import type { DropZone } from './ops'
 import { clipGroups, drawThumb } from './render'
 import { shapePath } from './shapes'
 
-type ShapePreset = (typeof SHAPES)[number]
+type IconShape = Pick<ShapePreset, 'kind' | 'radius' | 'sides'> & { name?: string }
 
 /* ---------- Small pieces ---------- */
 
-export function ShapeIcon({ preset, size = 22 }: { preset: ShapePreset; size?: number }) {
+export function ShapeIcon({ preset, size = 22 }: { preset: IconShape; size?: number }) {
   const pad = 2
   const box = size - pad * 2
   const h =
-    preset.kind === 'arch' ? box : preset.kind === 'rect' && !preset.radius ? box * 0.86 : box
+    preset.kind === 'line'
+      ? 2.5
+      : preset.kind === 'arch'
+        ? box
+        : preset.kind === 'rect' && !preset.radius
+          ? box * 0.86
+          : box
   const w = preset.kind === 'arch' ? box * 0.8 : box
   const d = shapePath(preset.kind, pad + (box - w) / 2, pad + (box - h) / 2, w, h, {
     radius: (preset.radius ?? 0) * box,
@@ -57,6 +63,7 @@ const KIND_LABEL: Record<Layer['kind'], string> = {
   star: 'Star',
   heart: 'Heart',
   arch: 'Arch',
+  line: 'Line',
 }
 
 interface ListProps {
@@ -96,8 +103,8 @@ function LayersList({
         <LayersIcon size={24} strokeWidth={1.5} aria-hidden="true" />
         <strong>No layers yet</strong>
         <span>
-          Use the bar under the artboard to add an image, text, shape, frame or chyron, or drop
-          files on the artboard.
+          Use the tools at the top to add a chyron, text, a shape, a line, a frame or an image, or
+          drop files on the artboard.
         </span>
       </div>
     )
@@ -138,8 +145,6 @@ function LayersList({
     return (
       <li
         key={l.id}
-        role="option"
-        aria-selected={active}
         className={[
           'dz-layer',
           active ? 'is-selected' : '',
@@ -226,8 +231,10 @@ function LayersList({
             }}
           />
         ) : (
-          <span
+          // The row selects on click; the name is its keyboard stop (the row holds buttons too).
+          <button
             className="dz-layer-name"
+            aria-pressed={active}
             title={`${l.name} · double-click to rename`}
             onDoubleClick={(e) => {
               e.stopPropagation()
@@ -236,7 +243,7 @@ function LayersList({
           >
             <span>{l.name}</span>
             <small>{sub}</small>
-          </span>
+          </button>
         )}
         <span className="dz-layer-actions">
           <button
@@ -269,11 +276,11 @@ function LayersList({
   }
 
   return (
-    <ul className="dz-layers" role="listbox" aria-label="Layers" aria-multiselectable="true">
+    <ul className="dz-layers" aria-label="Layers">
       {groups.map((g) =>
         g.clips.length ? (
-          <li key={g.base.id} className="dz-group" role="presentation">
-            <ul role="group" aria-label={`${g.base.name} mask group`}>
+          <li key={g.base.id} className="dz-group">
+            <ul aria-label={`${g.base.name} mask group`}>
               {!collapsed.has(g.base.id) && [...g.clips].reverse().map((c) => row(c, 'clip'))}
               {row(g.base, 'base', g.clips.length)}
             </ul>
@@ -288,10 +295,11 @@ function LayersList({
 
 /* ---------- Panel ---------- */
 
-export function LeftPanel(props: ListProps & { onClose: () => void }) {
+export function LeftPanel(props: ListProps & { onClose: () => void; top?: ReactNode }) {
   const { doc } = props
   return (
-    <aside className="dz-left" aria-label="Layers">
+    <aside className="dz-left" aria-label={props.top ? 'Artboards and layers' : 'Layers'}>
+      {props.top}
       <div className="dz-left-head">
         <h2>
           Layers {doc.layers.length > 0 && <span className="count-badge">{doc.layers.length}</span>}

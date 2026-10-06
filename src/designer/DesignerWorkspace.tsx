@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -44,7 +44,8 @@ import { SaveStatus, TopBar } from '../components/TopBar'
 import { fetchGalleryFile, type GalleryItem } from '../studio/galleryData'
 import { saveBlob } from '../studio/export'
 import { generateId } from '../utils/id'
-import { DesignerCanvas, type Tool, type View } from './DesignerCanvas'
+import { DesignerCanvas, type Neighbor, type Tool, type View } from './DesignerCanvas'
+export type { Neighbor }
 import { DesignerExportDialog } from './ExportDialog'
 import { BackgroundRemovalDialog } from '../components/BackgroundRemovalDialog'
 import {
@@ -59,7 +60,7 @@ import {
 import { center, clampCrop, unionBounds, type Point } from './geometry'
 import { Inspector, type InspectorActions } from './Inspector'
 import { LeftPanel } from './LeftPanel'
-import { AddBar } from './AddBar'
+import { AddTools } from './AddTools'
 import { renderChyron, withChyronAsset } from './chyron'
 import type { ChyronStyle } from '../studio/model'
 import {
@@ -69,7 +70,6 @@ import {
   createShape,
   createText,
   isShape,
-  SHAPES,
   DEFAULT_DOC,
   fileStem,
   parseDoc,
@@ -78,6 +78,7 @@ import {
   type ImageLayer,
   type Layer,
   type TextPreset,
+  type ShapePreset,
 } from './model'
 import {
   addImageAsset,
@@ -100,7 +101,7 @@ import {
   updateLayers,
 } from './ops'
 import { textHeight, useAssetImages } from './render'
-import { useDesignDoc } from './useDesignDoc'
+import { useDesignDoc, type DesignEditor as DesignEditorState } from './useDesignDoc'
 import { subscribeDesignerInbox } from './inbox'
 
 const TOOLS: { id: Tool; label: string; key: string; Icon: typeof Hand }[] = [
@@ -116,8 +117,56 @@ interface Clip {
   assets: Record<string, string>
 }
 
+/**
+ * A set of artboards edited one at a time on one canvas (the Hero image
+ * generator). Without it the editor is the Designer's single artboard.
+ */
+export interface Board {
+  /** The id of the artboard being edited; switching keeps the view still. */
+  activeId: string
+  neighbors: Neighbor[]
+  /** Make another artboard the one being edited, selecting the layer clicked there. */
+  onActivate: (id: string, layerId: string | null) => void
+  /** Replaces the design name and menu in the top bar. */
+  title: ReactNode
+  /** Above the layers list: the artboards. */
+  panel: ReactNode
+  /** Export opens the board's export (every artboard). */
+  onExport: () => void
+  /** ⌘S saves the whole board. */
+  onSave: () => void
+  /** Copy layers (with their pictures) to every other artboard. */
+  onCopyToOthers: (layers: Layer[]) => void
+  /** Short name for the help dialog title and the page heading. */
+  name: string
+  /** Changes when the artboard being edited should come into view (picked from a list). */
+  focus?: number
+  /** In place of the Export button. */
+  actions?: ReactNode
+  /** The board's own settings for a selection (empty: the artboard); null shows the Designer's. */
+  inspector?: (selected: Layer[]) => ReactNode | null
+  /** Files dropped on the canvas; true when the board took them. */
+  onDropFiles?: (files: File[]) => boolean
+}
+
 export default function DesignerWorkspace({ active }: { active: boolean }) {
   const editor = useDesignDoc()
+  return <DesignEditor active={active} editor={editor} />
+}
+
+/**
+ * The Designer's editing surface: canvas, tools, layers and inspector for one
+ * artboard. Apps reuse it with their own documents through `editor` and `board`.
+ */
+export function DesignEditor({
+  active,
+  editor,
+  board,
+}: {
+  active: boolean
+  editor: DesignEditorState
+  board?: Board
+}) {
   const { doc, commit } = editor
   const imagesVersion = useAssetImages(doc)
   const [selection, setSelectionRaw] = useState<string[]>([])
@@ -158,18 +207,32 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
 
   /* ---------- View ---------- */
   const docRef = editor.current
+  // On a board, fitting shows every artboard; otherwise the one artboard.
+  const neighbors = board?.neighbors
   const fit = useCallback(
     (d: DesignDoc = docRef.current, size = stageSize) => {
       if (!size.width) return
+      let x0 = 0,
+        y0 = 0,
+        x1 = d.width,
+        y1 = d.height
+      for (const n of neighbors ?? []) {
+        x0 = Math.min(x0, n.x)
+        y0 = Math.min(y0, n.y)
+        x1 = Math.max(x1, n.x + n.doc.width)
+        y1 = Math.max(y1, n.y + n.doc.height)
+      }
+      const w = x1 - x0,
+        h = y1 - y0
       const pad = size.width < 600 ? 24 : 64
-      const zoom = Math.min((size.width - pad * 2) / d.width, (size.height - pad * 2) / d.height, 4)
+      const zoom = Math.min((size.width - pad * 2) / w, (size.height - pad * 2) / h, 4)
       setView({
         zoom,
-        panX: (size.width - d.width * zoom) / 2,
-        panY: (size.height - d.height * zoom) / 2,
+        panX: (size.width - w * zoom) / 2 - x0 * zoom,
+        panY: (size.height - h * zoom) / 2 - y0 * zoom,
       })
     },
-    [docRef, stageSize],
+    [docRef, stageSize, neighbors],
   )
   const zoomTo = (zoom: number, focus?: Point) => {
     const z = Math.min(32, Math.max(0.02, zoom))
@@ -196,15 +259,50 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       fit(doc)
     }
   }, [editor.ready, stageSize, fit, doc])
-  // A new artboard size refits.
+  // A new artboard size refits (on a board the other artboards keep the view).
   const lastSize = useRef(`${doc.width}x${doc.height}`)
   useEffect(() => {
     const key = `${doc.width}x${doc.height}`
     if (key !== lastSize.current) {
       lastSize.current = key
-      fit(doc)
+      if (!board) fit(doc)
     }
-  }, [doc, fit])
+  }, [doc, fit, board])
+  // Switching artboards on a board: the view moves with it, so nothing jumps.
+  const activeId = board?.activeId
+  const lastBoard = useRef<{ id?: string; neighbors: Neighbor[] }>({ id: activeId, neighbors: [] })
+  useLayoutEffect(() => {
+    const last = lastBoard.current
+    if (activeId && last.id && activeId !== last.id) {
+      const was = last.neighbors.find((n) => n.id === activeId)
+      if (was)
+        setView((v) => ({ ...v, panX: v.panX + was.x * v.zoom, panY: v.panY + was.y * v.zoom }))
+      setSelectionRaw((ids) => ids.filter((id) => doc.layers.some((l) => l.id === id)))
+      setCropId(null)
+      setEditingId(null)
+    }
+    lastBoard.current = { id: activeId, neighbors: neighbors ?? [] }
+  }, [activeId, neighbors, doc.layers])
+  // An artboard picked from a list comes into view: centred, or fitted if it is too big.
+  const focus = board?.focus
+  useEffect(() => {
+    if (!focus || !stageSize.width) return
+    const d = docRef.current
+    setView((v) => {
+      const pad = stageSize.width < 600 ? 24 : 64
+      const fits = Math.min(
+        (stageSize.width - pad * 2) / d.width,
+        (stageSize.height - pad * 2) / d.height,
+      )
+      const zoom = Math.min(v.zoom, fits)
+      return {
+        zoom,
+        panX: (stageSize.width - d.width * zoom) / 2,
+        panY: (stageSize.height - d.height * zoom) / 2,
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus])
 
   useEffect(() => {
     if (!notice) return
@@ -250,17 +348,11 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     t.h = textHeight(t)
     insert(placeAtCenter(t))
   }
-  const addShape = (p: (typeof SHAPES)[number]) =>
+  const addShape = (p: ShapePreset) =>
     insert(
-      placeAtCenter(
-        createShape(doc, p.kind, {
-          radius: p.radius,
-          sides: p.sides,
-          name: p.name === 'Square' ? 'Rectangle' : p.name,
-        }),
-      ),
+      placeAtCenter(createShape(doc, p.kind, { radius: p.radius, sides: p.sides, name: p.name })),
     )
-  const addFrame = (p: (typeof SHAPES)[number]) => {
+  const addFrame = (p: ShapePreset) => {
     insert(placeAtCenter(createFrame(doc, p)))
     setNotice('Frame added. Drop a photo on it, or double-click it to choose one.')
   }
@@ -397,7 +489,8 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       } catch {
         /* parseDoc explains. */
       }
-      if (savvyKind(raw) === 'chyron') return sendSavvyFile('chyron', file)
+      const kind = savvyKind(raw)
+      if (kind === 'chyron' || kind === 'hero') return sendSavvyFile(kind, file)
       const next = parseDoc(text)
       commit(next)
       setSelection([])
@@ -482,6 +575,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     if (!l) return
     // A chyron is already lettering on transparency.
     if (l.chyron) return setNotice('Chyrons have no background to remove.')
+    if (l.role) return setNotice(`${l.name} is set in the panel on the right.`)
     if (l.locked) return setNotice('Unlock the layer to remove its background.')
     flushLive()
     setSelection([l.id])
@@ -505,6 +599,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
     if (!l) return
     // A chyron's picture is redrawn from its words, so it is edited, not cropped.
     if (l.chyron) return editChyronWords(l.id)
+    if (l.role) return setNotice(`${l.name} is framed in the panel on the right.`)
     if (l.locked) return setNotice('Unlock the layer to crop it.')
     flushLive()
     cropSnapshot.current = l
@@ -640,6 +735,13 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       setNotice('Masked. Select the mask layer below to move or reshape it.')
     },
     replaceImage: () => setGallery('replace'),
+    copyToArtboards: board
+      ? () => {
+          // Masked groups travel whole: a base brings the layers clipped to it.
+          const ids = new Set(sel.flatMap((id) => groupIds(doc.layers, id)))
+          board.onCopyToOthers(doc.layers.filter((l) => ids.has(l.id)))
+        }
+      : undefined,
     removeBackground: () => removeBackground(),
     restoreOriginal: () => single && restoreOriginal(single.id),
     updateChyron: (values) => single && updateChyron(single.id, values),
@@ -698,12 +800,14 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
       const k = e.key.toLowerCase()
       if (mod && k === 's') {
         e.preventDefault()
-        saveFile()
+        if (board) board.onSave()
+        else saveFile()
         return
       }
       if (mod && k === 'e') {
         e.preventDefault()
-        setExportOpen(true)
+        if (board) board.onExport()
+        else setExportOpen(true)
         return
       }
       if (typing) return
@@ -928,6 +1032,16 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
         onSelect: () => void paste(),
       },
       { label: 'Duplicate', Icon: Copy, shortcut: '⌘ D', onSelect: actions.duplicate },
+      ...(actions.copyToArtboards
+        ? [
+            {
+              label: 'Copy to other artboards',
+              Icon: Copy,
+              hint: 'Same place, scaled to each size',
+              onSelect: actions.copyToArtboards,
+            },
+          ]
+        : []),
       'separator',
       {
         label: 'Bring to front',
@@ -1036,7 +1150,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
   const zoomPct = Math.round(view.zoom * 100)
 
   return (
-    <div className="workspace-root designer-root">
+    <div className={`workspace-root designer-root ${board ? 'board-root' : ''}`}>
       <a className="skip-link" href="#dz-props">
         Skip to properties
       </a>
@@ -1066,61 +1180,69 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
                 <Redo2 size={20} />
               </button>
             </div>
-            <button
-              className="button primary topbar-primary"
-              aria-label="Export"
-              title="Export (⌘/Ctrl E)"
-              onClick={() => setExportOpen(true)}
-            >
-              <Download size={18} aria-hidden="true" /> <span className="label">Export</span>
-            </button>
+            {board?.actions ?? (
+              <button
+                className="button primary topbar-primary"
+                aria-label="Export"
+                title="Export (⌘/Ctrl E)"
+                onClick={() => (board ? board.onExport() : setExportOpen(true))}
+              >
+                <Download size={18} aria-hidden="true" /> <span className="label">Export</span>
+              </button>
+            )}
           </>
         }
       >
-        <h1 className="sr-only">Designer</h1>
-        <div className="document-title">
-          <input
-            aria-label="Design name"
-            className="document-name"
-            value={doc.name}
-            maxLength={80}
-            onChange={(e) => live((d) => ({ ...d, name: e.target.value }))}
-          />
-          <MenuButton
-            label="Design menu"
-            items={[
-              {
-                label: 'Save design file',
-                Icon: ArrowDownToLine,
-                shortcut: '⌘ S',
-                onSelect: saveFile,
-              },
-              {
-                label: 'Open design file',
-                Icon: ArrowUpFromLine,
-                onSelect: () => openInput.current?.click(),
-              },
-              {
-                label: 'New design',
-                Icon: Plus,
-                onSelect: () => {
-                  commit({ ...DEFAULT_DOC, grid: { ...doc.grid } })
-                  setSelection([])
-                  setNotice('New design. Undo to return to your previous work.')
-                },
-              },
-              'separator',
-              {
-                label: 'Guide & shortcuts',
-                Icon: HelpCircle,
-                shortcut: '?',
-                onSelect: () => setHelp(true),
-              },
-            ]}
-          >
-            <ChevronDown size={18} />
-          </MenuButton>
-        </div>
+        {board ? (
+          board.title
+        ) : (
+          <>
+            <h1 className="sr-only">Designer</h1>
+            <div className="document-title">
+              <input
+                aria-label="Design name"
+                className="document-name"
+                value={doc.name}
+                maxLength={80}
+                onChange={(e) => live((d) => ({ ...d, name: e.target.value }))}
+              />
+              <MenuButton
+                label="Design menu"
+                items={[
+                  {
+                    label: 'Save design file',
+                    Icon: ArrowDownToLine,
+                    shortcut: '⌘ S',
+                    onSelect: saveFile,
+                  },
+                  {
+                    label: 'Open design file',
+                    Icon: ArrowUpFromLine,
+                    onSelect: () => openInput.current?.click(),
+                  },
+                  {
+                    label: 'New design',
+                    Icon: Plus,
+                    onSelect: () => {
+                      commit({ ...DEFAULT_DOC, grid: { ...doc.grid } })
+                      setSelection([])
+                      setNotice('New design. Undo to return to your previous work.')
+                    },
+                  },
+                  'separator',
+                  {
+                    label: 'Guide & shortcuts',
+                    Icon: HelpCircle,
+                    shortcut: '?',
+                    onSelect: () => setHelp(true),
+                  },
+                ]}
+              >
+                <ChevronDown size={18} />
+              </MenuButton>
+            </div>
+          </>
+        )}
         <SaveStatus status={editor.saveStatus} error={editor.storageError} />
       </TopBar>
 
@@ -1138,6 +1260,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
           }}
           onContextMenu={(at, id) => setMenu({ at, hit: id })}
           onClose={() => setLeftOpen(false)}
+          top={board?.panel}
         />
 
         <main className="editor-main" aria-label="Artboard">
@@ -1164,7 +1287,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
               </button>
             </div>
             <div className="dz-tools" role="toolbar" aria-label="Tools">
-              {TOOLS.map(({ id, label, key, Icon }) => (
+              {TOOLS.slice(0, 2).map(({ id, label, key, Icon }) => (
                 <button
                   key={id}
                   className={`icon-button ${tool === id ? 'selected' : ''}`}
@@ -1177,12 +1300,23 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
                 </button>
               ))}
               <span className="dz-align-sep" aria-hidden="true" />
+              {/* Everything that can be added: T, R and O also draw text and shapes. */}
+              <AddTools
+                tool={tool}
+                onUpload={() => uploadInput.current?.click()}
+                onGallery={() => setGallery('add')}
+                onText={addText}
+                onShape={addShape}
+                onFrame={addFrame}
+                onChyron={(style) => void addChyron(style)}
+              />
+              <span className="dz-align-sep" aria-hidden="true" />
               <button
                 className={`icon-button ${cropId ? 'selected' : ''}`}
                 aria-label="Crop image"
                 aria-pressed={!!cropId}
                 title="Crop (C)"
-                disabled={single?.kind !== 'image' || !!single.chyron}
+                disabled={single?.kind !== 'image' || !!single.chyron || !!single.role}
                 onClick={() => (cropId ? applyCrop() : startCrop())}
               >
                 <Crop size={18} />
@@ -1191,7 +1325,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
                 className="icon-button"
                 aria-label="Remove background"
                 title="Remove background: cut out the subject or a colour, on this device"
-                disabled={single?.kind !== 'image' || !!single.chyron || !!cropId}
+                disabled={single?.kind !== 'image' || !!single.chyron || !!single.role || !!cropId}
                 onClick={() => removeBackground()}
               >
                 <WandSparkles size={18} />
@@ -1283,6 +1417,15 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
             </div>
           </div>
           <DesignerCanvas
+            neighbors={board?.neighbors}
+            onActivate={
+              board &&
+              ((id, layerId) => {
+                flushLive()
+                board.onActivate(id, layerId)
+                setSelectionRaw(layerId ? [layerId] : [])
+              })
+            }
             editor={editor}
             doc={doc}
             selection={sel}
@@ -1300,7 +1443,10 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
             spaceHeld={spaceHeld}
             imagesVersion={imagesVersion}
             onContextMenu={(at, hit) => setMenu({ at, hit })}
-            onDropFiles={(files, at, frameId) => void addFiles(files, at, frameId)}
+            onDropFiles={(files, at, frameId) => {
+              if (!frameId && board?.onDropFiles?.(files)) return
+              void addFiles(files, at, frameId)
+            }}
             onFillFrame={(frameId) => {
               setSelection([frameId])
               pendingFrame.current = frameId
@@ -1312,26 +1458,19 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
               setNotice('Placed in frame. Double-click to adjust the picture inside.')
             }}
           />
-          {/* Everything that can be added floats over the artboard. */}
-          <AddBar
-            onUpload={() => uploadInput.current?.click()}
-            onGallery={() => setGallery('add')}
-            onText={addText}
-            onShape={addShape}
-            onFrame={addFrame}
-            onChyron={(style) => void addChyron(style)}
-          />
         </main>
 
         <div className="inspector-slot">
-          <Inspector
-            doc={doc}
-            selection={sel}
-            actions={actions}
-            cropping={!!cropId}
-            cropRatio={cropRatio}
-            onRename={(name) => live((d) => updateLayers(d, sel, { name }))}
-          />
+          {(!cropId && board?.inspector?.(selected)) || (
+            <Inspector
+              doc={doc}
+              selection={sel}
+              actions={actions}
+              cropping={!!cropId}
+              cropRatio={cropRatio}
+              onRename={(name) => live((d) => updateLayers(d, sel, { name }))}
+            />
+          )}
         </div>
       </div>
 
@@ -1444,7 +1583,7 @@ export default function DesignerWorkspace({ active }: { active: boolean }) {
           }}
         >
           <div className="dialog-header">
-            <h2 id="dz-help-title">Designer guide & shortcuts</h2>
+            <h2 id="dz-help-title">{board?.name ?? 'Designer'} guide & shortcuts</h2>
             <button
               className="icon-button"
               aria-label="Close guide"

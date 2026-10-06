@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
-import { ImagePlus } from 'lucide-react'
+import { ImagePlus, Lock } from 'lucide-react'
 import {
   applyLocalBox,
   bounds,
@@ -79,7 +79,18 @@ type Gesture =
   | { kind: 'crop-resize'; handle: Handle; layer: ImageLayer }
   | { kind: 'crop-pan'; start: Point; layer: ImageLayer }
 
+/** Another artboard drawn around the one being edited; its corner is relative to it. */
+export interface Neighbor {
+  id: string
+  x: number
+  y: number
+  doc: DesignDoc
+}
+
 export interface CanvasProps {
+  /** Other artboards (multi-artboard apps): drawn alongside, a click edits them. */
+  neighbors?: Neighbor[]
+  onActivate?: (id: string, layerId: string | null) => void
   editor: DesignEditor
   doc: DesignDoc
   selection: string[]
@@ -219,6 +230,23 @@ export function DesignerCanvas(props: CanvasProps) {
       const s = dpr * view.zoom
       ctx.setTransform(s, 0, 0, s, dpr * view.panX, dpr * view.panY)
       const styles = getComputedStyle(stage.current!)
+      scratch.current ??= document.createElement('canvas')
+      // Other artboards, each clipped to its own frame.
+      for (const n of props.neighbors ?? []) {
+        ctx.save()
+        ctx.translate(n.x, n.y)
+        ctx.save()
+        ctx.shadowColor = 'rgba(0,0,0,0.12)'
+        ctx.shadowBlur = 12 * dpr
+        ctx.fillStyle = n.doc.transparent ? '#ffffff' : n.doc.background
+        ctx.fillRect(0, 0, n.doc.width, n.doc.height)
+        ctx.restore()
+        ctx.beginPath()
+        ctx.rect(0, 0, n.doc.width, n.doc.height)
+        ctx.clip()
+        renderLayers(ctx, n.doc, { pixelScale: s, scratch: scratch.current, preview: true })
+        ctx.restore()
+      }
       // Artboard
       ctx.save()
       ctx.shadowColor = 'rgba(0,0,0,0.12)'
@@ -239,7 +267,6 @@ export function DesignerCanvas(props: CanvasProps) {
       ctx.beginPath()
       ctx.rect(0, 0, doc.width, doc.height)
       ctx.clip()
-      scratch.current ??= document.createElement('canvas')
       const skip = new Set<string>()
       if (editingId) skip.add(editingId)
       renderLayers(ctx, doc, { pixelScale: s, skip, scratch: scratch.current, preview: true })
@@ -298,7 +325,7 @@ export function DesignerCanvas(props: CanvasProps) {
   /** Box test plus the real outline for ellipses, stars, hearts… */
   const hitPrecise = (p: Point, l: Layer, slop: number) => {
     if (!hitLayer(p, l, slop)) return false
-    if (!isShape(l) || l.kind === 'rect' || l.kind === 'ellipse') return true
+    if (!isShape(l) || l.kind === 'rect' || l.kind === 'ellipse' || l.kind === 'line') return true
     const q = toLocal(p, l)
     return hitShape(l, q.x, q.y)
   }
@@ -385,6 +412,21 @@ export function DesignerCanvas(props: CanvasProps) {
         capture(e)
       }
       return
+    }
+    // A click on another artboard edits it, selecting the layer under the pointer.
+    const outside = p.x < 0 || p.y < 0 || p.x > doc.width || p.y > doc.height
+    if (outside && props.onActivate && tool === 'select') {
+      const n = props.neighbors?.find(
+        (b) => p.x >= b.x && p.y >= b.y && p.x <= b.x + b.doc.width && p.y <= b.y + b.doc.height,
+      )
+      if (n) {
+        const local = { x: p.x - n.x, y: p.y - n.y }
+        const hit = [...n.doc.layers]
+          .reverse()
+          .find((l) => l.visible && !l.locked && !l.maskOnly && hitLayer(local, l))
+        props.onActivate(n.id, hit?.id ?? null)
+        return
+      }
     }
     if (tool === 'rect' || tool === 'ellipse') {
       const shape = createShape(doc, tool)
@@ -806,7 +848,10 @@ export function DesignerCanvas(props: CanvasProps) {
     ? HANDLES
     : single?.kind === 'text'
       ? ['nw', 'ne', 'e', 'se', 'sw', 'w']
-      : HANDLES
+      : // A line has two ends; its thickness is set in the panel.
+        single?.kind === 'line'
+        ? ['e', 'w']
+        : HANDLES
   const multiRect = selected.length > 1 ? unionBounds(selected) : null
   const maskBase = single?.clip ? maskBaseOf(doc.layers, single.id) : null
   const cursor = panning
@@ -868,8 +913,8 @@ export function DesignerCanvas(props: CanvasProps) {
     >
       <canvas ref={canvas} className="dz-canvas" aria-hidden="true" />
       <div
-        className="dz-artboard-label"
-        style={{ left: artTop.x, top: artTop.y }}
+        className={`dz-artboard-label ${props.neighbors ? 'is-active' : ''}`}
+        style={{ left: artTop.x, top: artTop.y, maxWidth: Math.max(48, doc.width * view.zoom) }}
         aria-hidden="true"
       >
         {doc.name}{' '}
@@ -877,6 +922,24 @@ export function DesignerCanvas(props: CanvasProps) {
           {doc.width} × {doc.height}
         </span>
       </div>
+      {props.neighbors?.map((n) => {
+        const at = toScreen({ x: n.x, y: n.y })
+        return (
+          <button
+            key={n.id}
+            className="dz-artboard-label is-neighbor"
+            style={{ left: at.x, top: at.y, maxWidth: Math.max(48, n.doc.width * view.zoom) }}
+            title={`Edit ${n.doc.name}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => props.onActivate?.(n.id, null)}
+          >
+            {n.doc.name}{' '}
+            <span>
+              {n.doc.width} × {n.doc.height}
+            </span>
+          </button>
+        )
+      })}
 
       {cropLayer && (
         <CropGhost
@@ -934,6 +997,12 @@ export function DesignerCanvas(props: CanvasProps) {
           style={boxStyle(single)}
           aria-hidden="true"
         >
+          {single.locked && !cropLayer && (
+            // The same badge as the Chyron editor's locked layers.
+            <span className="composition-lock-badge">
+              <Lock size={12} aria-hidden="true" /> Locked
+            </span>
+          )}
           {cropLayer && (
             <>
               <i className="dz-crop-third v1" />

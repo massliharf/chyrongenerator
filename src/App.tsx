@@ -3,18 +3,25 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronDown,
+  Clapperboard,
   Download,
   Expand,
   Film,
   HardDrive,
   HelpCircle,
+  Image as ImageIcon,
   ImagePlus,
+  Minus,
   MoreHorizontal,
+  Music,
   PanelRightClose,
   PanelRightOpen,
   Plus,
   Redo2,
   ScanLine,
+  Shapes,
+  SquareDashed,
+  Type,
   Undo2,
   X,
   ZoomIn,
@@ -30,9 +37,9 @@ import { layerMenu, type LayerCommands } from './components/layerMenu'
 import { SaveStatus, TopBar } from './components/TopBar'
 import { StorageDialog } from './components/StorageDialog'
 import { BackgroundRemovalDialog } from './components/BackgroundRemovalDialog'
-import StreamWorkspace from './stream/StreamWorkspace'
 import MediaGalleryWorkspace from './gallery/MediaGalleryWorkspace'
 import DesignerWorkspace from './designer/DesignerWorkspace'
+import AppsWorkspace from './apps/AppsWorkspace'
 import {
   DEFAULT_AUDIO,
   DEFAULT_PROJECT,
@@ -51,10 +58,21 @@ import {
   type ChyronStyle,
   type ElementLayer,
   type ImageLayer,
+  type ImageMask,
   type Layer,
   type Project,
+  type ShapeKind,
   type Template,
 } from './studio/model'
+import { SQUARE_MASKS, cropToRatio, withCrop } from './studio/crop'
+import {
+  AddButton,
+  AddPopover,
+  FrameChoices,
+  ImageChoices,
+  ShapeChoices,
+} from './designer/AddTools'
+import { LINE, type ShapePreset } from './designer/model'
 import {
   collectUnusedAssets,
   importImageFile,
@@ -78,7 +96,15 @@ import {
 import { loadPresets, storePresets, useProject, type SavedPreset } from './studio/useProject'
 import { usePlayback } from './studio/usePlayback'
 import { useMusicPreview } from './studio/useMusicPreview'
-import { AUDIO_ACCEPT, importAudioFile } from './studio/audio'
+import {
+  AUDIO_ACCEPT,
+  importAudioFile,
+  joinMusic,
+  moveSegment,
+  partAt,
+  removeSegment,
+  splitMusic,
+} from './studio/audio'
 import {
   canChooseLocation,
   forgetProjectFile,
@@ -113,6 +139,8 @@ function ChyronEditor({ active }: { active: boolean }) {
   const [tab, setTab] = useState<PropertiesTab>('design')
   // The chyron starts selected so its text is one click away.
   const [selection, setSelection] = useState<string | null>(PRIMARY_CHYRON)
+  /** The part of the cut music picked in the timeline. */
+  const [musicPartRaw, setMusicPart] = useState<string | null>(null)
   const [cropId, setCropId] = useState<string | null>(null)
   const [cutoutId, setCutoutId] = useState<string | null>(null)
   const [dropping, setDropping] = useState(false)
@@ -139,6 +167,7 @@ function ChyronEditor({ active }: { active: boolean }) {
   const [galleryOpen, setGalleryOpen] = useState(false)
   const importInput = useRef<HTMLInputElement>(null)
   const musicInput = useRef<HTMLInputElement>(null)
+  const imageInput = useRef<HTMLInputElement>(null)
   const replaceInput = useRef<HTMLInputElement>(null)
   const replaceTarget = useRef<string | null>(null)
   const stage = useRef<HTMLDivElement>(null)
@@ -213,7 +242,15 @@ function ChyronEditor({ active }: { active: boolean }) {
         stage.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
       )
   }
-  const addImages = async (files: File[]) => {
+  /** The frame shape the next picked picture goes in (Add frame), or null for a plain image. */
+  const frameMask = useRef<ImageMask | null>(null)
+  const takeFrame = () => {
+    const mask = frameMask.current
+    frameMask.current = null
+    return mask
+  }
+  /** Adds pictures as layers; with `mask`, as a picture in a frame of that shape. */
+  const addImages = async (files: File[], mask: ImageMask | null = null) => {
     let next: Project = project
     let last: string | null = null
     const errors: string[] = []
@@ -224,10 +261,21 @@ function ChyronEditor({ active }: { active: boolean }) {
       }
       try {
         const stored = await importImageFile(file)
-        const { layer, layers } = createImageLayer(next, {
+        const created = createImageLayer(next, {
           ...stored,
           opaque: file.type === 'image/jpeg',
         })
+        let { layer, layers } = created
+        if (mask) {
+          // In a frame: the picture takes its shape, squared first for round shapes.
+          const framed: ImageLayer = {
+            ...layer,
+            mask,
+            ...(SQUARE_MASKS.includes(mask) ? withCrop(layer, cropToRatio(layer, 1), next) : {}),
+          }
+          layers = layers.map((l) => (l.id === layer.id ? framed : l))
+          layer = framed
+        }
         next = { ...next, layers }
         last = layer.id
       } catch (error) {
@@ -259,15 +307,27 @@ function ChyronEditor({ active }: { active: boolean }) {
     select(layer.id)
     focusTitle()
   }
-  const addShape = () => {
+  const addShape = (shape: ShapeKind = 'rect') => {
     if (!canAdd(project, 'shape')) return setNotice(LIMIT_MESSAGE.shape)
-    const { layer } = createShapeLayer(project)
+    const { layer } = createShapeLayer(project, shape)
     // Shapes usually sit behind lettering: a selected chyron keeps the new shape just below it.
     const layers = [...project.layers]
     const below = selectedLayer?.kind === 'chyron' ? layers.indexOf(selectedLayer) : layers.length
     layers.splice(below, 0, layer)
     patch({ layers })
     select(layer.id)
+  }
+  /** A picture in a frame: the shape now, the picture from the device or the gallery. */
+  const addFrame = (preset: ShapePreset, source: 'upload' | 'gallery') => {
+    if (!canAdd(project, 'image')) return setNotice(LIMIT_MESSAGE.image)
+    frameMask.current = preset.id === 'rect' ? 'none' : (preset.id as ImageMask)
+    if (source === 'upload') imageInput.current?.click()
+    else setGalleryOpen(true)
+  }
+  const addPicture = (source: 'upload' | 'gallery') => {
+    frameMask.current = null
+    if (source === 'upload') imageInput.current?.click()
+    else setGalleryOpen(true)
   }
   const addMusic = async (file: File) => {
     try {
@@ -310,6 +370,54 @@ function ChyronEditor({ active }: { active: boolean }) {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'This image could not be used.')
     }
+  }
+  // A part removed by undo, or music that was joined again, is no longer picked.
+  const musicPart =
+    selection === MUSIC && project.audio?.segments?.some((s) => s.id === musicPartRaw)
+      ? musicPartRaw
+      : null
+  /** Cuts the music at the playhead; the part after the cut is picked. */
+  const splitMusicAt = (time = playback.time) => {
+    if (!project.audio) return
+    const r = splitMusic(project.audio, duration(project), time)
+    if (!r) return setNotice('Move the playhead over the music to cut it there.')
+    patch({ audio: r.track }, true)
+    setSelection(MUSIC)
+    setMusicPart(r.id)
+    setNotice(`Music cut at ${time.toFixed(2)}s. Pick a part and press Delete to remove it.`)
+  }
+  const removeMusicPart = (id: string) => {
+    if (!project.audio) return
+    const next = removeSegment(project.audio, duration(project), id)
+    if (!next) return removeLayerById(MUSIC)
+    patch({ audio: next }, true)
+    setMusicPart(null)
+    setNotice('Part of the music removed. Undo to bring it back.')
+  }
+  const joinMusicParts = () => {
+    if (!project.audio?.segments) return
+    patch({ audio: joinMusic(project.audio) }, true)
+    setMusicPart(null)
+    setNotice('The music plays in one piece again, from where its first part started.')
+  }
+  /** Moves the selected clip (or music part) by `seconds`; Alt + ← → steps a frame. */
+  const nudgeSelected = (seconds: number) => {
+    const total = duration(project)
+    if (selected === MUSIC && project.audio) {
+      const a = project.audio
+      if (!a.segments)
+        return patch({
+          audio: { ...a, delay: Math.max(0, Math.min(total - 0.1, a.delay + seconds)) },
+        })
+      const part = a.segments.find((x) => x.id === musicPart) ?? a.segments[0]
+      return patch({ audio: moveSegment(a, total, part.id, part.at + seconds) })
+    }
+    const layer = selectedLayer
+    if (!layer) return
+    const t = layerTiming(layer, project)
+    const span = t.length + t.hold + t.outLength
+    const delay = Math.max(0, Math.min(total - span, t.delay + seconds))
+    setLayerTiming(layer.id, { delay, endDelay: Math.max(0, total - span - delay) })
   }
   const removeLayerById = (id: string) => {
     if (id === MUSIC) {
@@ -391,6 +499,10 @@ function ChyronEditor({ active }: { active: boolean }) {
     replaceMusic: () => musicInput.current?.click(),
     toggleMute: () =>
       project.audio && patch({ audio: { ...project.audio, muted: !project.audio.muted } }),
+    splitMusic: () => splitMusicAt(),
+    canSplitMusic: !!project.audio && !!partAt(project.audio, duration(project), playback.time),
+    removeMusicPart: musicPart ? () => removeMusicPart(musicPart) : undefined,
+    joinMusic: project.audio?.segments ? joinMusicParts : undefined,
   }
   const menuFor = (id: string) => layerMenu(project, id, commands)
   // Empty once its layer is gone (undo, new composition): the menu closes.
@@ -413,8 +525,9 @@ function ChyronEditor({ active }: { active: boolean }) {
       } catch {
         throw new Error('Choose a Chyron Studio project (.savvy).')
       }
-      if (savvyKind(raw) === 'design') {
-        sendSavvyFile('design', file)
+      const kind = savvyKind(raw)
+      if (kind === 'design' || kind === 'hero') {
+        sendSavvyFile(kind, file)
         return
       }
       const imported = parseProject(json)
@@ -433,11 +546,11 @@ function ChyronEditor({ active }: { active: boolean }) {
   openProjectRef.current = openProject
   // Project files opened in another editor that belong here.
   useEffect(() => subscribeSavvyFiles('chyron', (file) => void openProjectRef.current(file)), [])
-  const handleSelectGalleryItem = async (item: GalleryItem) => {
+  const handleSelectGalleryItem = async (item: GalleryItem, mask: ImageMask | null = null) => {
     try {
       setNotice(`Adding ${item.name}…`)
       const file = await fetchGalleryFile(item)
-      await addImages([file])
+      await addImages([file], mask)
       setGalleryOpen(false)
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Could not load gallery asset.')
@@ -527,7 +640,28 @@ function ChyronEditor({ active }: { active: boolean }) {
       if (typing) return
       if ((event.key === 'Delete' || event.key === 'Backspace') && selected) {
         event.preventDefault()
-        removeLayerById(selected)
+        // A picked part of the cut music goes on its own.
+        if (selected === MUSIC && musicPart) removeMusicPart(musicPart)
+        else removeLayerById(selected)
+        return
+      }
+      // S cuts the music at the playhead, as in video editors.
+      if (
+        event.key.toLowerCase() === 's' &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        project.audio
+      ) {
+        event.preventDefault()
+        splitMusicAt()
+        return
+      }
+      // Alt + ← → nudge the selected clip by a frame (Shift: a second).
+      if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight') && selected) {
+        event.preventDefault()
+        const step = (event.shiftKey ? 1 : 1 / project.fps) * (event.key === 'ArrowRight' ? 1 : -1)
+        nudgeSelected(step)
         return
       }
       const layer = selectedLayer
@@ -573,13 +707,19 @@ function ChyronEditor({ active }: { active: boolean }) {
         return
       }
       if (element.closest('button, a, summary, [role=tab], [role=menu], [role=slider]')) return
+      // ← → step a frame, ⇧ ← → a second; Home and End go to the start and the end.
+      const step = event.shiftKey ? 1 : 1 / project.fps
       if (event.key === 'ArrowRight') {
         event.preventDefault()
-        playback.seek(playback.time + 1 / project.fps)
+        playback.seek(Math.min(duration(project), playback.time + step))
       }
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
-        playback.seek(playback.time - 1 / project.fps)
+        playback.seek(Math.max(0, playback.time - step))
+      }
+      if (event.key === 'Home' || event.key === 'End') {
+        event.preventDefault()
+        playback.seek(event.key === 'Home' ? 0 : duration(project))
       }
     }
     window.addEventListener('keydown', keydown)
@@ -758,7 +898,20 @@ function ChyronEditor({ active }: { active: boolean }) {
           }}
         />
       </TopBar>
-      {/* Pickers for music and for replacing an image; opened from menus and the inspector. */}
+      {/* Pickers for images, music and replacing an image; opened from menus and the inspector. */}
+      <input
+        type="file"
+        ref={imageInput}
+        hidden
+        multiple
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        aria-label="Image files"
+        onChange={(e) => {
+          const files = Array.from(e.currentTarget.files ?? [])
+          e.currentTarget.value = ''
+          if (files.length) void addImages(files, takeFrame())
+        }}
+      />
       <input
         type="file"
         ref={musicInput}
@@ -805,6 +958,72 @@ function ChyronEditor({ active }: { active: boolean }) {
                 {project.fps} fps · {duration(project).toFixed(1)} s
               </span>
             </button>
+            {/* Everything a composition can take: the Designer's icons, in the same order. */}
+            <div className="tool-group" role="toolbar" aria-label="Add">
+              <AddButton
+                label="Add chyron"
+                title="Chyron: title and subtitle in this style"
+                onClick={() => addChyron('chyron')}
+              >
+                <Clapperboard size={18} />
+              </AddButton>
+              <AddButton
+                label="Add text"
+                title="Text: plain lettering"
+                onClick={() => addChyron('text')}
+              >
+                <Type size={18} />
+              </AddButton>
+              <AddPopover label="Add shape" title="Shape" icon={<Shapes size={18} />}>
+                {(close) => (
+                  <ShapeChoices
+                    onPick={(p) => {
+                      close()
+                      addShape(p.id as ShapeKind)
+                    }}
+                    note="Rectangles arrive as a lower-third bar; change the shape any time on the right."
+                  />
+                )}
+              </AddPopover>
+              <AddButton label="Add line" title="Line" onClick={() => addShape(LINE.id)}>
+                <Minus size={18} />
+              </AddButton>
+              <AddPopover
+                label="Add frame"
+                title="Frame: a picture in a shape"
+                icon={<SquareDashed size={18} />}
+              >
+                {(close) => (
+                  <FrameChoices
+                    onPick={(p, source) => {
+                      close()
+                      addFrame(p, source)
+                    }}
+                  />
+                )}
+              </AddPopover>
+              <AddPopover label="Add image" title="Image" icon={<ImageIcon size={18} />}>
+                {(close) => (
+                  <ImageChoices
+                    onUpload={() => {
+                      close()
+                      addPicture('upload')
+                    }}
+                    onGallery={() => {
+                      close()
+                      addPicture('gallery')
+                    }}
+                  />
+                )}
+              </AddPopover>
+              <AddButton
+                label={project.audio ? 'Replace music' : 'Add music'}
+                title={project.audio ? 'Replace music' : 'Music: MP3, WAV, M4A, OGG or FLAC'}
+                onClick={() => musicInput.current?.click()}
+              >
+                <Music size={18} />
+              </AddButton>
+            </div>
             <div className="canvas-tools">
               <button
                 className={`icon-button ${artworkDetail ? 'selected' : ''}`}
@@ -943,6 +1162,10 @@ function ChyronEditor({ active }: { active: boolean }) {
             onToggleVisible={commands.toggleVisible}
             onToggleLock={commands.toggleLock}
             onLayerMenu={openLayerMenu}
+            onOpenTiming={(id) => {
+              select(id, 'animate')
+              requestAnimationFrame(() => revealGroup('anim-timing'))
+            }}
             onLength={(length) =>
               patch({
                 hold:
@@ -951,14 +1174,12 @@ function ChyronEditor({ active }: { active: boolean }) {
                   ) / 100,
               })
             }
-            onAddImages={(files) => void addImages(files)}
-            onOpenGallery={() => setGalleryOpen(true)}
-            onAddChyron={addChyron}
-            onAddShape={addShape}
-            onAddMusic={() => musicInput.current?.click()}
             onMusicChange={(values) =>
               project.audio && patch({ audio: { ...project.audio, ...values } })
             }
+            musicPart={musicPart}
+            onMusicPart={setMusicPart}
+            onSplitMusic={() => splitMusicAt()}
             onTiming={(id, change) => setLayerTiming(id, change)}
             onReorder={(id, index) => {
               const layers = project.layers.filter((l) => l.id !== id)
@@ -979,6 +1200,12 @@ function ChyronEditor({ active }: { active: boolean }) {
             layerMenu={menuFor}
             onReplaceMusic={() => musicInput.current?.click()}
             onRemoveMusic={() => removeLayerById(MUSIC)}
+            musicPart={musicPart}
+            onMusicPart={setMusicPart}
+            onSplitMusic={() => splitMusicAt()}
+            canSplitMusic={commands.canSplitMusic}
+            onRemoveMusicPart={removeMusicPart}
+            onJoinMusic={joinMusicParts}
             selected={selected}
             onSelect={setSelection}
             tab={tab}
@@ -1044,8 +1271,8 @@ function ChyronEditor({ active }: { active: boolean }) {
       <MediaGalleryModal
         open={galleryOpen}
         onClose={() => setGalleryOpen(false)}
-        onSelect={handleSelectGalleryItem}
-        onUploadClick={() => importInput.current?.click()}
+        onSelect={(item) => void handleSelectGalleryItem(item, takeFrame())}
+        onUploadClick={() => imageInput.current?.click()}
       />
       {notice && (
         <div className="toast" role="status">
@@ -1118,14 +1345,19 @@ function ChyronEditor({ active }: { active: boolean }) {
             <dl className="shortcuts">
               {[
                 ['Space', 'Play / pause'],
-                ['← →', 'Step one frame'],
+                ['← →', 'Step one frame (⇧ one second)'],
+                ['Home End', 'Go to the start or the end'],
+                ['⌘ + scroll', 'Zoom the timeline'],
+                ['Alt + drag', 'Move a clip without snapping'],
+                ['Alt ← →', 'Move the selected clip a frame (⇧ a second)'],
+                ['S', 'Cut the music at the playhead'],
+                ['Del', 'Delete layer, or the picked part of the music'],
                 ['Esc', 'Composition settings'],
                 ['⌘/Ctrl D', 'Duplicate layer'],
                 ['[ ]', 'Send backward / bring forward'],
                 ['⇧ [ ]', 'Send to back / bring to front'],
                 ['H', 'Hide / show layer'],
                 ['C', 'Crop image'],
-                ['Del', 'Delete layer'],
                 ['Right-click', 'Every action for that layer'],
                 ['⌘/Ctrl Z', 'Undo (⇧ to redo)'],
                 ['⌘/Ctrl S', 'Save project file (⇧ to choose where)'],
@@ -1156,20 +1388,25 @@ function App() {
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     try {
       const stored = localStorage.getItem('chyron-studio:workspace')
-      if (stored === 'stream' || stored === 'gallery' || stored === 'designer') return stored
+      if (stored === 'gallery' || stored === 'designer' || stored === 'apps') return stored
+      // Stream images grew into the Hero image generator, under Apps.
+      if (stored === 'stream') {
+        localStorage.setItem('chyron-studio:app', 'hero')
+        return 'apps'
+      }
       return 'chyron'
     } catch {
       return 'chyron'
     }
   })
-  const [streamVisited, setStreamVisited] = useState(workspace === 'stream')
   const [galleryVisited, setGalleryVisited] = useState(workspace === 'gallery')
   const [designerVisited, setDesignerVisited] = useState(workspace === 'designer')
+  const [appsVisited, setAppsVisited] = useState(workspace === 'apps')
   const changeWorkspace = (next: Workspace) => {
     if (next === workspace) return
-    if (next === 'stream') setStreamVisited(true)
     if (next === 'gallery') setGalleryVisited(true)
     if (next === 'designer') setDesignerVisited(true)
+    if (next === 'apps') setAppsVisited(true)
     setWorkspace(next)
     try {
       localStorage.setItem('chyron-studio:workspace', next)
@@ -1183,7 +1420,10 @@ function App() {
     changeRef.current = changeWorkspace
   })
   useEffect(
-    () => onSavvyHandOff((kind) => changeRef.current(kind === 'design' ? 'designer' : 'chyron')),
+    () =>
+      onSavvyHandOff((kind) =>
+        changeRef.current(kind === 'design' ? 'designer' : kind === 'hero' ? 'apps' : 'chyron'),
+      ),
     [],
   )
   return (
@@ -1202,9 +1442,9 @@ function App() {
             <DesignerWorkspace active={workspace === 'designer'} />
           </div>
         )}
-        {streamVisited && (
-          <div className="workspace-slot" data-workspace="stream" hidden={workspace !== 'stream'}>
-            <StreamWorkspace active={workspace === 'stream'} />
+        {appsVisited && (
+          <div className="workspace-slot" data-workspace="apps" hidden={workspace !== 'apps'}>
+            <AppsWorkspace active={workspace === 'apps'} />
           </div>
         )}
         {galleryVisited && (

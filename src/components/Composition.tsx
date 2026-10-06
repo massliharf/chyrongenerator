@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from 'react'
-import { Check, Lock, LoaderCircle, RotateCcw, RotateCw, X } from 'lucide-react'
+import { Check, Lock, LoaderCircle, RotateCcw, X } from 'lucide-react'
 import { chyronBounds, imageBounds, renderComposition } from '../studio/renderer'
 import {
   chyronProject,
@@ -124,6 +124,7 @@ export const Composition = memo(function Composition({
   const selectedLayer = project.layers.find((l) => l.id === selected)
   const selectedElement = selectedLayer && isElement(selectedLayer) ? selectedLayer : undefined
   const selectedImage = selectedElement?.kind === 'image' ? selectedElement : undefined
+  const isLine = selectedElement?.kind === 'shape' && selectedElement.shape === 'line'
   const selectedStyle =
     selectedLayer?.kind === 'chyron' ? styleOf(project, selectedLayer) : undefined
   const selectedBox: Box | null =
@@ -559,21 +560,23 @@ export const Composition = memo(function Composition({
             transform: `translate(-50%, -50%) rotate(${selectedBox.rotation}deg)`,
           }}
         >
-          {CORNERS.map((corner) => (
-            <button
-              key={corner}
-              className={`si-transform-handle si-resize-handle ${corner}`}
-              aria-label={`Scale ${targetName} from ${corner.replace('-', ' ')}`}
-              title="Drag to scale · Arrow keys adjust size · Shift for larger steps"
-              onPointerDown={(e) => begin(e, corner)}
-              onKeyDown={(e) => keydown(e, corner)}
-              {...pointerEvents}
-            >
-              <span />
-            </button>
-          ))}
+          {/* A line has two ends (as in the Designer); its thickness is set in the panel. */}
+          {!isLine &&
+            CORNERS.map((corner) => (
+              <button
+                key={corner}
+                className={`si-transform-handle si-resize-handle ${corner}`}
+                aria-label={`Scale ${targetName} from ${corner.replace('-', ' ')}`}
+                title="Drag to scale · Arrow keys adjust size · Shift for larger steps"
+                onPointerDown={(e) => begin(e, corner)}
+                onKeyDown={(e) => keydown(e, corner)}
+                {...pointerEvents}
+              >
+                <span />
+              </button>
+            ))}
           {selectedElement?.kind === 'shape' &&
-            SIDES.map((side) => (
+            SIDES.filter((side) => !isLine || side === 'e' || side === 'w').map((side) => (
               <button
                 key={side}
                 className={`si-transform-handle si-side-handle side-${side}`}
@@ -594,7 +597,7 @@ export const Composition = memo(function Composition({
             onKeyDown={(e) => keydown(e, 'rotate')}
             {...pointerEvents}
           >
-            <RotateCw size={18} />
+            <span />
           </button>
         </div>
       )}

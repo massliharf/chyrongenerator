@@ -148,25 +148,36 @@ const SHAPE_NAMES: Record<ShapeKind, string> = {
   hexagon: 'Hexagon',
   star: 'Star',
   heart: 'Heart',
+  line: 'Line',
 }
-/** A new shape. Rectangles arrive as a lower-third bar, everything else as a square badge. */
+/**
+ * A new shape. Rectangles arrive as a lower-third bar, lines as a thin rule
+ * across the middle, everything else as a square badge.
+ */
 export function createShapeLayer(
   p: Project,
   shape: ShapeKind = 'rect',
 ): { layer: ShapeLayer; layers: Layer[] } {
   const bar = shape === 'rect'
+  const line = shape === 'line'
   const canvasAspect = p.height / p.width
-  const width = bar ? DEFAULT_SHAPE_LAYER.width : Math.round(Math.min(40, 40 * canvasAspect))
+  const width = bar
+    ? DEFAULT_SHAPE_LAYER.width
+    : line
+      ? 50
+      : Math.round(Math.min(40, 40 * canvasAspect))
+  // A line is as thick as the stroke a 1080 px frame would use (about 6 px).
+  const thickness = Math.max(2, Math.round(Math.min(p.width, p.height) * 0.006))
   const layer: ShapeLayer = {
     ...DEFAULT_SHAPE_LAYER,
     id: generateId(),
     name: nextName(p, SHAPE_NAMES[shape]),
     shape,
     width,
-    aspect: bar ? DEFAULT_SHAPE_LAYER.aspect : 1,
+    aspect: bar ? DEFAULT_SHAPE_LAYER.aspect : line ? thickness / ((width / 100) * p.width) : 1,
     y: bar ? DEFAULT_SHAPE_LAYER.y : 50,
     radius: bar ? DEFAULT_SHAPE_LAYER.radius : 0,
-    intro: bar ? 'wipe' : 'pop',
+    intro: bar || line ? 'wipe' : 'pop',
   }
   return { layer, layers: [...p.layers, layer] }
 }

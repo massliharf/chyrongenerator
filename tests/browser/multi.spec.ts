@@ -61,17 +61,25 @@ test('chyrons, text, a shape and music build one composition and export together
   page.on('pageerror', (e) => errors.push(e.message))
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
-  const add = async (item: RegExp) => {
-    await page.getByRole('button', { name: 'Add layer' }).click()
-    await page.getByRole('menuitem', { name: item }).click()
+  const add = async (item: 'chyron' | 'text' | 'shape') => {
+    await page
+      .getByRole('toolbar', { name: 'Add' })
+      .getByRole('button', { name: `Add ${item}` })
+      .click()
+    // Shapes open the same picker as the Designer's.
+    if (item === 'shape')
+      await page
+        .getByRole('dialog', { name: 'Add shape' })
+        .getByRole('button', { name: 'Rectangle' })
+        .click()
   }
   // A second chyron opens with its words selected, ready to type over.
-  await add(/^Chyron/)
+  await add('chyron')
   await page.keyboard.type('Guest\nStar')
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Guest\nStar')
   await expect(page.getByRole('heading', { name: 'Chyron 2' })).toBeVisible()
-  await add(/^Text/)
-  await add(/^Shape/)
+  await add('text')
+  await add('shape')
   const rows = page.locator('.layer-labels .layer-label')
   await expect(rows).toHaveCount(4)
   // The first chyron keeps its own words.
@@ -115,7 +123,7 @@ test('chyrons, text, a shape and music build one composition and export together
 test('background removal cuts out the subject and can be undone', async ({ page }) => {
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
-  await page.locator('.timeline input[type=file]').setInputFiles(fixture('host-on-set.jpg'))
+  await page.getByLabel('Image files').setInputFiles(fixture('host-on-set.jpg'))
   await expect(page.locator('.toast')).toContainText('Double-click it to crop')
   await page.getByRole('tab', { name: 'Design', exact: true }).click()
   await page.getByRole('button', { name: 'Remove background' }).click()
@@ -172,8 +180,7 @@ test('every layer can be deleted, the starting chyron included', async ({ page }
   await page.keyboard.press('Delete')
   await expect(rows).toHaveCount(0)
   // A chyron added to the empty canvas takes the middle, ready to type.
-  await page.getByRole('button', { name: 'Add layer' }).click()
-  await page.getByRole('menuitem', { name: /^Chyron/ }).click()
+  await page.getByRole('button', { name: 'Add chyron' }).click()
   await page.keyboard.type('Fresh\nStart')
   await expect(rows).toHaveCount(1)
   await expect(page.locator('.title-clip', { hasText: 'Fresh Start' })).toBeVisible()
@@ -196,8 +203,11 @@ test('right-clicking a layer opens its actions, on the canvas and in the timelin
   await expect(canvas).toHaveCSS('opacity', '1')
   const rows = page.locator('.layer-labels .layer-label')
   const names = () => rows.locator('.layer-name span').allTextContents()
-  await page.getByRole('button', { name: 'Add layer' }).click()
-  await page.getByRole('menuitem', { name: /^Shape/ }).click()
+  await page.getByRole('button', { name: 'Add shape' }).click()
+  await page
+    .getByRole('dialog', { name: 'Add shape' })
+    .getByRole('button', { name: 'Rectangle' })
+    .click()
   // The new shape goes in under the selected chyron, and is selected.
   await expect.poll(names).toEqual(['Chyron', 'Rectangle'])
 
@@ -252,8 +262,11 @@ test('Space plays right after clicking a layer, and shortcuts draw no focus ring
 }) => {
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
-  await page.getByRole('button', { name: 'Add layer' }).click()
-  await page.getByRole('menuitem', { name: /^Shape/ }).click()
+  await page.getByRole('button', { name: 'Add shape' }).click()
+  await page
+    .getByRole('dialog', { name: 'Add shape' })
+    .getByRole('button', { name: 'Rectangle' })
+    .click()
   const names = () => page.locator('.layer-labels .layer-name span').allTextContents()
   await expect.poll(names).toEqual(['Chyron', 'Rectangle'])
   const chyron = page.locator('.layer-name', { hasText: 'Chyron' })

@@ -9,8 +9,10 @@ import {
   EyeOff,
   Lock,
   LockOpen,
+  Combine,
   PenLine,
   Replace,
+  Scissors,
   TextCursorInput,
   Trash2,
   Volume2,
@@ -43,6 +45,13 @@ export interface LayerCommands {
   replaceImage?: (id: string) => void
   replaceMusic?: () => void
   toggleMute?: () => void
+  /** Cut the music at the playhead (S); `canSplitMusic` when it plays there. */
+  splitMusic?: () => void
+  canSplitMusic?: boolean
+  /** Remove the picked part of the cut music. */
+  removeMusicPart?: () => void
+  /** Put the cut music back in one piece. */
+  joinMusic?: () => void
 }
 
 /**
@@ -53,7 +62,42 @@ export interface LayerCommands {
 export function layerMenu(p: Project, id: string, c: LayerCommands): MenuEntry[] {
   if (id === MUSIC) {
     if (!p.audio) return []
+    const cutting: MenuEntry[] = [
+      ...(c.splitMusic
+        ? [
+            {
+              label: 'Cut at playhead',
+              Icon: Scissors,
+              shortcut: 'S',
+              disabled: !c.canSplitMusic,
+              onSelect: c.splitMusic,
+            },
+          ]
+        : []),
+      ...(c.removeMusicPart
+        ? [
+            {
+              label: 'Delete this part',
+              Icon: Trash2,
+              shortcut: 'Del',
+              onSelect: c.removeMusicPart,
+            },
+          ]
+        : []),
+      ...(c.joinMusic
+        ? [
+            {
+              label: 'Join the parts',
+              Icon: Combine,
+              hint: 'Play it in one piece again',
+              onSelect: c.joinMusic,
+            },
+          ]
+        : []),
+    ]
     return [
+      ...cutting,
+      ...(cutting.length ? (['separator'] as const) : []),
       ...(c.replaceMusic
         ? [{ label: 'Replace music', Icon: Replace, onSelect: c.replaceMusic }]
         : []),

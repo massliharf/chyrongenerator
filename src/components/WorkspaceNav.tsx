@@ -1,13 +1,14 @@
-import { Clapperboard, FolderOpen, Images, PenTool } from 'lucide-react'
+import { Clapperboard, FolderOpen, LayoutGrid, PenTool } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
 
-export type Workspace = 'chyron' | 'designer' | 'stream' | 'gallery'
+export type Workspace = 'chyron' | 'designer' | 'gallery' | 'apps'
 
-const WORKSPACES: { id: Workspace; label: string; Icon: typeof Clapperboard }[] = [
+/** `end`: at the foot of the rail, above the theme switch (last in the bottom bar). */
+const WORKSPACES: { id: Workspace; label: string; Icon: typeof Clapperboard; end?: boolean }[] = [
   { id: 'chyron', label: 'Chyron', Icon: Clapperboard },
   { id: 'designer', label: 'Designer', Icon: PenTool },
-  { id: 'stream', label: 'Stream images', Icon: Images },
-  { id: 'gallery', label: 'Media gallery', Icon: FolderOpen },
+  { id: 'apps', label: 'Apps', Icon: LayoutGrid },
+  { id: 'gallery', label: 'Media gallery', Icon: FolderOpen, end: true },
 ]
 
 /**
@@ -31,8 +32,8 @@ export function AppNav({
         </span>
       </span>
       <ul className="app-nav-list">
-        {WORKSPACES.map(({ id, label, Icon }) => (
-          <li key={id}>
+        {WORKSPACES.map(({ id, label, Icon, end }) => (
+          <li key={id} className={end ? 'is-end' : undefined}>
             <button
               className="app-nav-item"
               title={label}

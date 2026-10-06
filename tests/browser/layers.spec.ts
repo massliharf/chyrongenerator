@@ -46,7 +46,7 @@ test('image layers: upload, arrange, animate, export and reopen', async ({ page 
 
   // Upload the Affidavit photo and the SHOWDOWN logo in one go.
   await page
-    .locator('.timeline input[type=file]')
+    .getByLabel('Image files')
     .setInputFiles([fixture('affidavit.jpg'), fixture('showdown-logo.png')])
   const rows = page.locator('.layer-label')
   await expect(rows).toHaveCount(3)
@@ -188,7 +188,7 @@ test('WebM export keeps alpha around a photo layer', async ({ page }, testInfo) 
   )
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
-  await page.locator('.timeline input[type=file]').setInputFiles(fixture('affidavit.jpg'))
+  await page.getByLabel('Image files').setInputFiles(fixture('affidavit.jpg'))
   await expect(page.locator('.layer-label')).toHaveCount(2)
   const webm = testInfo.outputPath('layers.webm')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
@@ -228,7 +228,7 @@ test('timeline drag, reorder, shortcuts, shared animation and live previews', as
   await page.goto('./')
   await expect(page.getByRole('img', { name: /Composition preview/ })).toHaveCSS('opacity', '1')
   await page
-    .locator('.timeline input[type=file]')
+    .getByLabel('Image files')
     .setInputFiles([fixture('affidavit.jpg'), fixture('showdown-logo.png')])
   const labels = page.locator('.layer-label')
   await expect(labels).toHaveCount(3)

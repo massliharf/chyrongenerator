@@ -78,6 +78,20 @@ interface BaseLayer {
   flipX: boolean
   flipY: boolean
   shadow: Shadow
+  /**
+   * What an app uses the layer for (the Hero image generator's background,
+   * host photo and bottom shadow). The Designer draws it like any other layer.
+   */
+  role?: 'background' | 'host' | 'shade'
+}
+
+/** A linear gradient across a shape's box: ends and stop positions are 0–1. */
+export interface LinearGradient {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+  stops: { at: number; color: string }[]
 }
 
 export interface Crop {
@@ -111,9 +125,15 @@ export interface ImageLayer extends BaseLayer {
   chyron?: ChyronStyle
   /** The picture before its background was removed, for Restore original. */
   originalAsset?: string
+  /**
+   * Fades the picture out downwards: opaque at `from`, gone at `to` (shares of
+   * its height, measured from the top; either may lie outside 0–1).
+   */
+  fade?: { from: number; to: number }
 }
 
-export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'heart' | 'arch'
+export type ShapeKind =
+  'rect' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'heart' | 'arch' | 'line'
 
 export interface ShapeLayer extends BaseLayer {
   kind: ShapeKind
@@ -124,6 +144,8 @@ export interface ShapeLayer extends BaseLayer {
   inner: number
   fill: string
   fillEnabled: boolean
+  /** Fills the shape instead of `fill` when set. */
+  gradient?: LinearGradient
   stroke: string
   strokeWidth: number
   radius: number
@@ -167,6 +189,9 @@ export interface DesignDoc {
 }
 
 export const ARTBOARD_PRESETS = [
+  { id: 'hero', name: 'Hero image', width: 900, height: 1200 },
+  { id: 'host-card', name: 'Host card', width: 1024, height: 1024 },
+  { id: 'stream', name: 'Stream image', width: 1200, height: 1200 },
   { id: 'square', name: 'Square post', width: 1080, height: 1080 },
   { id: 'portrait', name: 'Portrait post', width: 1080, height: 1350 },
   { id: 'story', name: 'Story / Reel', width: 1080, height: 1920 },
@@ -258,16 +283,26 @@ function uniqueName(doc: DesignDoc, stem: string) {
   return `${stem} ${i}`
 }
 
-export const SHAPES: { kind: ShapeKind; name: string; radius?: number; sides?: number }[] = [
-  { kind: 'rect', name: 'Square' },
-  { kind: 'rect', name: 'Rounded', radius: 0.18 },
-  { kind: 'ellipse', name: 'Circle' },
-  { kind: 'arch', name: 'Arch' },
-  { kind: 'triangle', name: 'Triangle' },
-  { kind: 'polygon', name: 'Hexagon', sides: 6 },
-  { kind: 'star', name: 'Star' },
-  { kind: 'heart', name: 'Heart' },
+/** A shape as the pickers offer it; `id` names it the same way in every editor. */
+export interface ShapePreset {
+  id: 'rect' | 'circle' | 'arch' | 'triangle' | 'hexagon' | 'star' | 'heart' | 'line'
+  kind: ShapeKind
+  name: string
+  radius?: number
+  sides?: number
+}
+/** The shapes (and frame and mask outlines), in the same order in every editor. */
+export const SHAPES: ShapePreset[] = [
+  { id: 'rect', kind: 'rect', name: 'Rectangle' },
+  { id: 'circle', kind: 'ellipse', name: 'Circle' },
+  { id: 'arch', kind: 'arch', name: 'Arch' },
+  { id: 'triangle', kind: 'triangle', name: 'Triangle' },
+  { id: 'hexagon', kind: 'polygon', name: 'Hexagon', sides: 6 },
+  { id: 'star', kind: 'star', name: 'Star' },
+  { id: 'heart', kind: 'heart', name: 'Heart' },
 ]
+/** A straight line: a thin bar, as long as its box and as thick as its height. */
+export const LINE: ShapePreset = { id: 'line', kind: 'line', name: 'Line' }
 
 const SHAPE_NAMES: Record<ShapeKind, string> = {
   rect: 'Rectangle',
@@ -277,6 +312,7 @@ const SHAPE_NAMES: Record<ShapeKind, string> = {
   star: 'Star',
   heart: 'Heart',
   arch: 'Arch',
+  line: 'Line',
 }
 
 export function isShape(l: Layer): l is ShapeLayer {
@@ -288,14 +324,18 @@ export function createShape(
   kind: ShapeKind,
   opts: { radius?: number; sides?: number; name?: string } = {},
 ): ShapeLayer {
-  const size = Math.round(Math.min(doc.width, doc.height) * 0.4)
+  const short = Math.min(doc.width, doc.height)
+  const size = Math.round(short * 0.4)
+  // Lines: half the artboard long, a hairline thick for its size.
+  const w = kind === 'line' ? Math.round(doc.width * 0.5) : size
+  const h =
+    kind === 'line'
+      ? Math.max(2, Math.round(short * 0.008))
+      : kind === 'arch'
+        ? Math.round(size * 1.25)
+        : size
   return {
-    ...base(
-      doc,
-      uniqueName(doc, opts.name ?? SHAPE_NAMES[kind]),
-      size,
-      kind === 'arch' ? Math.round(size * 1.25) : size,
-    ),
+    ...base(doc, uniqueName(doc, opts.name ?? SHAPE_NAMES[kind]), w, h),
     kind,
     sides: opts.sides ?? 6,
     points: 5,
@@ -309,7 +349,7 @@ export function createShape(
 }
 
 /** An image frame: a mask-only shape waiting for a picture. */
-export function createFrame(doc: DesignDoc, preset: (typeof SHAPES)[number]): ShapeLayer {
+export function createFrame(doc: DesignDoc, preset: ShapePreset): ShapeLayer {
   const shape = createShape(doc, preset.kind, {
     radius: preset.radius,
     sides: preset.sides,

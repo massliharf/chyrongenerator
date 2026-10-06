@@ -120,6 +120,7 @@ export const SHAPE_KINDS = [
   'hexagon',
   'star',
   'heart',
+  'line',
 ] as const
 export type ShapeKind = (typeof SHAPE_KINDS)[number]
 export const GRADIENTS = ['none', 'linear', 'radial'] as const
@@ -271,6 +272,17 @@ export const DEFAULT_SHAPE_LAYER: Omit<ShapeLayer, 'id' | 'name'> = {
 }
 
 /** A music track under the whole composition. */
+/** A part of the song placed in the clip. Cut music (split, trimmed, moved) is a list of these. */
+export interface AudioSegment {
+  id: string
+  /** Clip seconds where the part starts. */
+  at: number
+  /** Song seconds it plays from. */
+  from: number
+  /** How long it plays, in seconds. */
+  length: number
+}
+export const MAX_AUDIO_SEGMENTS = 32
 export interface AudioTrack {
   assetId: string
   name: string
@@ -288,6 +300,11 @@ export interface AudioTrack {
   /** Start the song again from `trim` when it runs out before the clip does. */
   loop: boolean
   muted: boolean
+  /**
+   * The music once it has been cut: its parts, in clip order. Unset, the song
+   * plays from `trim` at `delay` (looping when `loop`), as before cutting.
+   */
+  segments?: AudioSegment[]
 }
 export const DEFAULT_AUDIO: Omit<AudioTrack, 'assetId' | 'name' | 'length'> = {
   volume: 100,
@@ -419,7 +436,8 @@ export const DEFAULT_PROJECT: Project = {
   textCase: 'upper',
   tracking: 0,
   subtitle: 'PUZZLE PAPI',
-  font: 'Fredoka',
+  // The look of Play it bold, the starting template.
+  font: 'Wicked Mouse',
   tileColor: '#b8d4ff',
   textColor: '#142a4f',
   accent: '#3e75f3',
@@ -755,7 +773,31 @@ export function normalizeAudio(raw: unknown): AudioTrack | null {
     fadeOut: num(r.fadeOut, d.fadeOut, 0, 10),
     loop: typeof r.loop === 'boolean' ? r.loop : d.loop,
     muted: typeof r.muted === 'boolean' ? r.muted : d.muted,
+    ...normalizeSegments(r.segments, length),
   }
+}
+function normalizeSegments(raw: unknown, length: number): { segments?: AudioSegment[] } {
+  if (!Array.isArray(raw)) return {}
+  const segments: AudioSegment[] = []
+  let end = 0
+  const at = (v: unknown) =>
+    v && typeof v === 'object' ? Number((v as { at?: unknown }).at) || 0 : 0
+  for (const item of [...raw].sort((a, b) => at(a) - at(b)).slice(0, MAX_AUDIO_SEGMENTS)) {
+    if (!item || typeof item !== 'object') continue
+    const s = item as Record<string, unknown>
+    if (typeof s.id !== 'string' || !s.id) continue
+    const from = num(s.from, 0, 0, Math.max(0, length - 0.05))
+    const seg = {
+      id: s.id.slice(0, 64),
+      // Parts never overlap: each starts where the one before it ends, at the earliest.
+      at: Math.max(end, num(s.at, 0, 0, MAX_OFFSET)),
+      from,
+      length: num(s.length, 0.05, 0.05, Math.max(0.05, length - from)),
+    }
+    segments.push(seg)
+    end = seg.at + seg.length
+  }
+  return segments.length ? { segments } : {}
 }
 
 /** The first chyron, whose style lives on the project (a default one when there is none). */
@@ -940,7 +982,7 @@ export const TEMPLATES: Template[] = [
     background: '#422a3e',
     patch: {
       mode: 'tiles',
-      font: 'Fredoka',
+      font: 'Wicked Mouse',
       tileColor: '#f7b8d7',
       textColor: '#651c48',
       accent: '#da538e',

@@ -1,6 +1,6 @@
 import { generateId } from '../utils/id'
 import { putAsset, readAsset } from './assets'
-import type { AudioTrack } from './model'
+import { MAX_AUDIO_SEGMENTS, type AudioSegment, type AudioTrack } from './model'
 
 /**
  * Music for a composition. The file is stored next to the images in IndexedDB;
@@ -81,13 +81,35 @@ export function audioPeaks(buffer: AudioBuffer, buckets: number): Float32Array {
   return peaks
 }
 
+/* ---------- Parts of the song in the clip ---------- */
+
+/**
+ * The parts of the song that play, in clip order and inside the clip. Music
+ * that was never cut is one part from `trim` at `delay` (repeated while it
+ * loops); cut music lists its parts.
+ */
+export function segmentsOf(track: AudioTrack, total: number): AudioSegment[] {
+  const inside = (list: AudioSegment[]) =>
+    list
+      .filter((s) => s.at < total && s.length > 0)
+      .map((s) => ({ ...s, length: Math.min(s.length, total - s.at) }))
+  if (track.segments) return inside(track.segments)
+  const song = Math.max(0.05, track.length - track.trim)
+  const start = Math.min(total, track.delay)
+  if (!track.loop) return inside([{ id: 'part-1', at: start, from: track.trim, length: song }])
+  const parts: AudioSegment[] = []
+  for (let at = start, i = 1; at < total && i <= 200; at += song, i++)
+    parts.push({ id: `part-${i}`, at, from: track.trim, length: song })
+  return inside(parts)
+}
+
 /** Clip seconds during which the music plays. Empty (start = end) when muted. */
 export function musicWindow(track: AudioTrack, total: number) {
-  const start = Math.min(total, track.delay)
-  if (track.muted) return { start, end: start }
-  const song = Math.max(0, track.length - track.trim)
-  const end = track.loop ? total : Math.min(total, start + song)
-  return { start, end: Math.max(start, end) }
+  const parts = segmentsOf(track, total)
+  const start = parts.length ? parts[0].at : Math.min(total, track.delay)
+  if (track.muted || !parts.length) return { start, end: start }
+  const last = parts.at(-1)!
+  return { start, end: Math.max(start, last.at + last.length) }
 }
 
 /** Gain over clip time as [seconds, gain] points joined by straight lines. */
@@ -122,12 +144,14 @@ export function gainAt(envelope: [number, number][], t: number) {
   return envelope.at(-1)![1]
 }
 
-/** Where in the song the clip is at `clipTime` (looping back to `trim` when it runs out). */
-export function songTimeAt(track: AudioTrack, clipTime: number) {
-  const elapsed = Math.max(0, clipTime - track.delay)
-  const song = Math.max(0.001, track.length - track.trim)
-  return track.trim + (track.loop ? elapsed % song : Math.min(elapsed, song))
+/** Where in the song the clip is at `clipTime`, or null between parts (silence). */
+export function songTimeAt(track: AudioTrack, clipTime: number, total = Infinity) {
+  const part = segmentsOf(track, total).find((s) => clipTime >= s.at && clipTime < s.at + s.length)
+  return part ? part.from + (clipTime - part.at) : null
 }
+
+/** A cut is this short a ramp, so parts start and stop without a click. */
+const DECLICK = 0.006
 
 /**
  * Play the music from clip time `from`, starting at context time `when`.
@@ -142,33 +166,168 @@ export function scheduleMusic(
   when: number,
   destination: AudioNode = context.destination,
 ) {
-  const { start, end } = musicWindow(track, total)
+  const { end } = musicWindow(track, total)
   const envelope = musicEnvelope(track, total)
   if (from >= end || !envelope.length) return () => {}
-  const begin = Math.max(from, start)
   const at = (clip: number) => when + (clip - from)
-  const source = context.createBufferSource()
-  source.buffer = buffer
-  if (track.loop) {
-    source.loop = true
-    source.loopStart = track.trim
-    source.loopEnd = Math.min(buffer.duration, track.length)
+  // The whole track: volume and the fades at its ends.
+  const master = context.createGain()
+  master.gain.setValueAtTime(gainAt(envelope, from), at(from))
+  for (const [t, g] of envelope) if (t > from) master.gain.linearRampToValueAtTime(g, at(t))
+  master.connect(destination)
+  const nodes: AudioNode[] = [master]
+  const sources: AudioBufferSourceNode[] = []
+  for (const part of segmentsOf(track, total)) {
+    const partEnd = part.at + part.length
+    if (partEnd <= from) continue
+    const begin = Math.max(from, part.at)
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    const edge = context.createGain()
+    // Each part fades in and out over a few milliseconds where it was cut.
+    const ramp = Math.min(DECLICK, part.length / 4)
+    edge.gain.setValueAtTime(begin > part.at ? 1 : 0, at(begin))
+    if (begin === part.at) edge.gain.linearRampToValueAtTime(1, at(part.at + ramp))
+    edge.gain.setValueAtTime(1, at(Math.max(begin, partEnd - ramp)))
+    edge.gain.linearRampToValueAtTime(0, at(partEnd))
+    source.connect(edge).connect(master)
+    source.start(at(begin), Math.min(buffer.duration, part.from + (begin - part.at)))
+    source.stop(at(partEnd))
+    sources.push(source)
+    nodes.push(edge)
   }
-  const gain = context.createGain()
-  gain.gain.setValueAtTime(gainAt(envelope, begin), at(begin))
-  for (const [t, g] of envelope) if (t > begin) gain.gain.linearRampToValueAtTime(g, at(t))
-  source.connect(gain).connect(destination)
-  source.start(at(begin), songTimeAt(track, begin))
-  source.stop(at(end))
   return () => {
-    try {
-      source.stop()
-    } catch {
-      /* Already stopped. */
+    for (const source of sources) {
+      try {
+        source.stop()
+      } catch {
+        /* Already stopped. */
+      }
+      source.disconnect()
     }
-    source.disconnect()
-    gain.disconnect()
+    for (const node of nodes) node.disconnect()
   }
+}
+
+/* ---------- Cutting ---------- */
+
+/** Shortest part a cut leaves, in seconds. */
+export const MIN_PART = 0.1
+let partCounter = 0
+const partId = () => `part-${Date.now().toString(36)}-${(partCounter++).toString(36)}`
+
+/** The track with its parts written out (cutting starts from what plays now). */
+export function withSegments(track: AudioTrack, total: number): AudioTrack {
+  if (track.segments) return track
+  return {
+    ...track,
+    loop: false,
+    segments: segmentsOf(track, total).map((s) => ({ ...s, id: partId() })),
+  }
+}
+const sorted = (parts: AudioSegment[]) => [...parts].sort((a, b) => a.at - b.at)
+
+/** The part under clip time `time`, if any. */
+export function partAt(track: AudioTrack, total: number, time: number) {
+  return segmentsOf(track, total).find((s) => time > s.at && time < s.at + s.length) ?? null
+}
+
+/**
+ * Cuts the music at clip time `time`: the part playing there becomes two.
+ * Returns the new track and the id of the right-hand part, or null when no
+ * part plays there (or the cut would leave a sliver).
+ */
+export function splitMusic(track: AudioTrack, total: number, time: number) {
+  const full = withSegments(track, total)
+  const parts = full.segments!
+  const part = parts.find((s) => time > s.at && time < s.at + s.length)
+  if (!part || parts.length >= MAX_AUDIO_SEGMENTS) return null
+  const left = time - part.at
+  if (left < MIN_PART || part.length - left < MIN_PART) return null
+  const right: AudioSegment = {
+    id: partId(),
+    at: time,
+    from: part.from + left,
+    length: part.length - left,
+  }
+  return {
+    track: {
+      ...full,
+      segments: sorted([...parts.filter((s) => s !== part), { ...part, length: left }, right]),
+    },
+    id: right.id,
+  }
+}
+
+/** Room a part has to move or grow: between its neighbours, inside the clip. */
+function room(parts: AudioSegment[], id: string, total: number) {
+  const i = parts.findIndex((s) => s.id === id)
+  return {
+    index: i,
+    min: i > 0 ? parts[i - 1].at + parts[i - 1].length : 0,
+    max: i < parts.length - 1 ? parts[i + 1].at : total,
+  }
+}
+
+/** Slides a part along the clip; it stops at its neighbours. */
+export function moveSegment(track: AudioTrack, total: number, id: string, at: number) {
+  const full = withSegments(track, total)
+  const parts = full.segments!
+  const { index, min, max } = room(parts, id, total)
+  if (index < 0) return track
+  const part = parts[index]
+  const next = Math.max(min, Math.min(at, max - Math.min(part.length, max - min)))
+  return { ...full, segments: parts.map((s) => (s.id === id ? { ...s, at: next } : s)) }
+}
+
+/**
+ * Moves one end of a part to clip time `time`: the start cuts (or uncovers)
+ * the beginning of the part, keeping the rest in place; the end shortens or
+ * lengthens it, as far as the song and the neighbours allow.
+ */
+export function trimSegment(
+  track: AudioTrack,
+  total: number,
+  id: string,
+  edge: 'start' | 'end',
+  time: number,
+) {
+  const full = withSegments(track, total)
+  const parts = full.segments!
+  const { index, min, max } = room(parts, id, total)
+  if (index < 0) return track
+  const part = parts[index]
+  const partEnd = part.at + part.length
+  let next: AudioSegment
+  if (edge === 'start') {
+    // Can't start before the song does, or before the part on the left.
+    const at = Math.max(min, part.at - part.from, Math.min(time, partEnd - MIN_PART))
+    next = { ...part, at, from: part.from + (at - part.at), length: partEnd - at }
+  } else {
+    const end = Math.min(
+      max,
+      part.at + (full.length - part.from),
+      Math.max(time, part.at + MIN_PART),
+    )
+    next = { ...part, length: end - part.at }
+  }
+  return { ...full, segments: parts.map((s) => (s.id === id ? next : s)) }
+}
+
+/** Removes a part; null when it was the last one (the music goes). */
+export function removeSegment(track: AudioTrack, total: number, id: string) {
+  const full = withSegments(track, total)
+  const parts = full.segments!.filter((s) => s.id !== id)
+  return parts.length ? { ...full, segments: parts } : null
+}
+
+/** One part again: the song from where the first part plays, at its place. */
+export function joinMusic(track: AudioTrack): AudioTrack {
+  if (!track.segments?.length) return track
+  const first = track.segments[0]
+  const rest = { ...track }
+  delete rest.segments
+  return { ...rest, delay: first.at, trim: first.from }
 }
 
 /** The music exactly as it sounds in a `seconds`-long clip, at 48 kHz stereo. */
