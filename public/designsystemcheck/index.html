@@ -115,6 +115,10 @@
               const st = app.contentDocument.createElement('style')
               st.textContent = '*{scrollbar-width:none!important;-ms-overflow-style:none!important}*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}'
               app.contentDocument.head.appendChild(st)
+              // phone only: no "Full width" option, the shell stays at the phone size
+              st.textContent += '.shell-seg:has([data-view]){display:none!important}'
+              const lock = () => { const sh = app.contentWindow.__SAVVANT_SHELL__; if (sh) { if (sh.size !== 'phone') sh.setSize('phone') } else setTimeout(lock, 100) }
+              lock()
             } catch {}
           }, { once: true })
           app.src = url
