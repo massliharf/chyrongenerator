@@ -42,16 +42,11 @@
       }
       button:disabled { opacity: 0.6; cursor: progress; }
       .err { color: var(--error); min-height: 1.2em; }
-      .stage { position: fixed; inset: 0; display: none; align-items: center; justify-content: flex-end; padding-right: 48px; } /* the demo sits on the right */
+      .stage { position: fixed; inset: 0; display: none; }
       .stage.on { display: flex; }
-      .frame { position: relative; overflow: hidden; border-radius: 40px; border: 1px solid var(--line); background: #000; }
-      .frame iframe { position: absolute; top: 0; left: 0; width: 393px; height: 852px; border: 0; transform-origin: 0 0; background: #fff; }
-      @media (max-width: 599px) {
-        .stage { justify-content: center; padding-right: 0; }
-        .frame { border-radius: 0 !important; border: 0; width: 100% !important; height: 100% !important; }
-        .frame iframe { width: 100%; height: 100%; transform: none !important; }
-      }
-      [hidden] { display: none !important; }
+      .frame { position: absolute; inset: 0; overflow: hidden; }
+      .frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+            [hidden] { display: none !important; }
     </style>
   </head>
   <body>
@@ -107,16 +102,7 @@
           return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(p.iv) }, key, b64d(p.ct))
         }
 
-        function layout() {
-          const stage = $('stage'), frame = $('frame'), app = $('app')
-          const vw = window.innerWidth, vh = window.innerHeight
-          if (vw < 600) return // CSS media query fills the screen
-          const s = Math.min(1, (vh - PAD * 2) / H, (vw - PAD * 2 - 48) / W)
-          frame.style.width = W * s + 'px'
-          frame.style.height = H * s + 'px'
-          frame.style.borderRadius = 40 * s + 'px'
-          app.style.transform = 'scale(' + s + ')'
-        }
+        function layout() {} // the prototype lays itself out (phone centered, demo panel on the right)
 
         function show(buf) {
           const url = URL.createObjectURL(new Blob([buf], { type: 'text/html' }))
