@@ -1401,7 +1401,7 @@ function App() {
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     try {
       const stored = localStorage.getItem('chyron-studio:workspace')
-      if (stored === 'gallery' || stored === 'designer' || stored === 'apps') return stored
+      if (stored === 'gallery' || stored === 'designer' || stored === 'apps' || stored === 'demo') return stored
       // Stream images grew into the Hero image generator, under Apps.
       if (stored === 'stream') {
         localStorage.setItem('chyron-studio:app', 'hero')
@@ -1415,11 +1415,13 @@ function App() {
   const [galleryVisited, setGalleryVisited] = useState(workspace === 'gallery')
   const [designerVisited, setDesignerVisited] = useState(workspace === 'designer')
   const [appsVisited, setAppsVisited] = useState(workspace === 'apps')
+  const [demoVisited, setDemoVisited] = useState(workspace === 'demo')
   const changeWorkspace = (next: Workspace) => {
     if (next === workspace) return
     if (next === 'gallery') setGalleryVisited(true)
     if (next === 'designer') setDesignerVisited(true)
     if (next === 'apps') setAppsVisited(true)
+    if (next === 'demo') setDemoVisited(true)
     setWorkspace(next)
     try {
       localStorage.setItem('chyron-studio:workspace', next)
@@ -1458,6 +1460,16 @@ function App() {
         {appsVisited && (
           <div className="workspace-slot" data-workspace="apps" hidden={workspace !== 'apps'}>
             <AppsWorkspace active={workspace === 'apps'} />
+          </div>
+        )}
+        {demoVisited && (
+          <div className="workspace-slot" data-workspace="demo" hidden={workspace !== 'demo'}>
+            {/* The design system demo (password protected), shown inside the app */}
+            <iframe
+              className="demo-frame"
+              title="Design system demo"
+              src={`${import.meta.env.BASE_URL}designsystemcheck/`}
+            />
           </div>
         )}
         {galleryVisited && (
