@@ -121,6 +121,7 @@
               lock()
             } catch {}
           }, { once: true })
+          try { localStorage.setItem('savvant.theme', 'light') } catch {} // the demo always opens in Light
           app.src = url
           $('gate').hidden = true
           $('stage').classList.add('on')

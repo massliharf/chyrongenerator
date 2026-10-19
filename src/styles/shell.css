@@ -59,6 +59,9 @@
 .app-nav-list > .is-end {
   margin-top: auto;
 }
+.app-nav-list > .is-end ~ .is-end {
+  margin-top: 0;
+}
 .app-nav-item {
   display: grid;
   justify-items: center;

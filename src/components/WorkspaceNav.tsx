@@ -4,13 +4,13 @@ import logo from '../assets/brand/savvy-logo-96.png'
 
 export type Workspace = 'chyron' | 'designer' | 'gallery' | 'apps' | 'demo'
 
-/** `end`: at the foot of the rail, above the theme switch (last in the bottom bar). */
+/** `end`: at the foot of the rail, above the theme switch (last in the bottom bar). The Demo sits last, right by the theme switch. */
 const WORKSPACES: { id: Workspace; label: string; Icon: typeof Clapperboard; end?: boolean }[] = [
   { id: 'chyron', label: 'Chyron', Icon: Clapperboard },
   { id: 'designer', label: 'Designer', Icon: PenTool },
   { id: 'apps', label: 'Apps', Icon: LayoutGrid },
-  { id: 'demo', label: 'Demo', Icon: Smartphone },
   { id: 'gallery', label: 'Media gallery', Icon: FolderOpen, end: true },
+  { id: 'demo', label: 'Demo', Icon: Smartphone, end: true },
 ]
 
 /**
