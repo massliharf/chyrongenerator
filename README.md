@@ -40,7 +40,7 @@ Every table and both buckets are protected by row level security, so people only
 1. Create a Supabase project. In **SQL Editor**, run [`supabase/migrations/20261026000000_teams_media.sql`](supabase/migrations/20261026000000_teams_media.sql) and then [`20261026010000_projects.sql`](supabase/migrations/20261026010000_projects.sql) (or `supabase db push`). They make the tables, policies and the `team-media` and `team-projects` buckets.
 2. In **Authentication › URL Configuration**, set the Site URL to where the studio is hosted (for GitHub Pages `https://massliharf.github.io/chyrongenerator/`) and add `http://localhost:5173/chyrongenerator/` to the redirect URLs for local work.
 3. Locally: copy `.env.example` to `.env.local` and fill in the project URL and anon key (**Project Settings › API**).
-4. For GitHub Pages: add the same two values as repository secrets `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (**Settings › Secrets and variables › Actions**). The deploy workflow passes them to the build.
+4. For GitHub Pages: put the same two values in `.env.production` (committed; the publishable key is meant for browsers). Pages publishes from `main`, so push `v2` to `main` too: `git push origin v2:main`.
 
 Supabase's built-in email sender is rate-limited; for a team in daily use, set up your own SMTP under **Authentication › Emails**.
 
