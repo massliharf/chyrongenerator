@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, GalleryHorizontalEnd } from 'lucide-react'
 import { TopBar } from '../components/TopBar'
-import { subscribeSavvyFiles } from '../utils/savvyFile'
+import { SAVVY_NEW_EVENT, hasNewSavvy, subscribeSavvyFiles } from '../utils/savvyFile'
 import { HeroApp } from './hero/HeroApp'
 import { HERO_PICK_EVENT, hasHeroPick } from './hero/handoff'
 
@@ -22,7 +22,9 @@ const readApp = (): AppId | null => {
  */
 export default function AppsWorkspace({ active }: { active: boolean }) {
   // A picture sent from the Media gallery opens the generator.
-  const [app, setAppState] = useState<AppId | null>(() => (hasHeroPick() ? 'hero' : readApp()))
+  const [app, setAppState] = useState<AppId | null>(() =>
+    hasHeroPick() || hasNewSavvy('hero') ? 'hero' : readApp(),
+  )
   const [incoming, setIncoming] = useState<File | null>(null)
   const setApp = (next: AppId | null) => {
     setAppState(next)
@@ -45,7 +47,13 @@ export default function AppsWorkspace({ active }: { active: boolean }) {
   useEffect(() => {
     const open = () => setAppState('hero')
     window.addEventListener(HERO_PICK_EVENT, open)
-    return () => window.removeEventListener(HERO_PICK_EVENT, open)
+    // A new set from Home opens the generator, which starts it.
+    const fresh = () => hasNewSavvy('hero') && setAppState('hero')
+    window.addEventListener(SAVVY_NEW_EVENT, fresh)
+    return () => {
+      window.removeEventListener(HERO_PICK_EVENT, open)
+      window.removeEventListener(SAVVY_NEW_EVENT, fresh)
+    }
   }, [])
   const done = useCallback(() => setIncoming(null), [])
 

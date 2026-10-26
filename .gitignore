@@ -33,3 +33,6 @@ urun-donusum-promptu*.md
 magnific-design-system*.md
 *.tsbuildinfo
 
+
+# Local Claude Code settings
+.claude/

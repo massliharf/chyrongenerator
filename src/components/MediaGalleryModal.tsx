@@ -7,6 +7,8 @@ import {
   getGalleryItemThumbUrl,
   type GalleryItem,
 } from '../studio/galleryData'
+import { useCloud } from '../cloud/useCloud'
+import { MEDIA_CATEGORY } from '../cloud/client'
 
 interface MediaGalleryModalProps {
   open: boolean
@@ -27,6 +29,11 @@ export function MediaGalleryModal({
   const [prevCategory, setPrevCategory] = useState(initialCategory)
   const [searchQuery, setSearchQuery] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const { media: teamMedia } = useCloud()
+  const allItems = useMemo(() => [...teamMedia, ...GALLERY_ITEMS], [teamMedia])
+  const categories = teamMedia.length
+    ? ['All', MEDIA_CATEGORY, ...GALLERY_CATEGORIES]
+    : ['All', ...GALLERY_CATEGORIES]
 
   if (initialCategory !== prevCategory) {
     setPrevCategory(initialCategory)
@@ -44,7 +51,7 @@ export function MediaGalleryModal({
   }, [open])
 
   const filteredItems = useMemo(() => {
-    return GALLERY_ITEMS.filter((item) => {
+    return allItems.filter((item) => {
       const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
       const query = searchQuery.trim().toLowerCase()
       const matchKeywords = item.keywords?.some((k) => k.toLowerCase().includes(query))
@@ -56,7 +63,7 @@ export function MediaGalleryModal({
         Boolean(matchKeywords)
       return matchesCategory && matchesSearch
     })
-  }, [selectedCategory, searchQuery])
+  }, [allItems, selectedCategory, searchQuery])
 
   if (!open) return null
 
@@ -73,7 +80,10 @@ export function MediaGalleryModal({
       <header className="dialog-header">
         <div>
           <h2 id="picker-title">Choose from Media gallery</h2>
-          <p>{GALLERY_ITEMS.length} built-in assets</p>
+          <p>
+            {GALLERY_ITEMS.length} built-in assets
+            {teamMedia.length ? ` · ${teamMedia.length} team uploads` : ''}
+          </p>
         </div>
         <button type="button" className="icon-button" aria-label="Close gallery" onClick={onClose}>
           <X size={20} />
@@ -101,7 +111,7 @@ export function MediaGalleryModal({
           )}
         </div>
         <div className="chip-row" role="group" aria-label="Asset categories">
-          {['All', ...GALLERY_CATEGORIES].map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat}
               type="button"
@@ -112,8 +122,8 @@ export function MediaGalleryModal({
               {cat}
               <span className="count">
                 {cat === 'All'
-                  ? GALLERY_ITEMS.length
-                  : GALLERY_ITEMS.filter((i) => i.category === cat).length}
+                  ? allItems.length
+                  : allItems.filter((i) => i.category === cat).length}
               </span>
             </button>
           ))}
@@ -157,7 +167,7 @@ export function MediaGalleryModal({
       </div>
       <footer className="dialog-footer">
         <span className="dialog-footer-note">
-          {filteredItems.length} of {GALLERY_ITEMS.length} assets
+          {filteredItems.length} of {allItems.length} assets
         </span>
         <span className="dialog-footer-spacer" />
         <button type="button" className="button outline" onClick={onClose}>

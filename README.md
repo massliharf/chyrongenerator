@@ -22,6 +22,28 @@ npm run preview
 
 The application remains compatible with GitHub Pages at `/chyrongenerator/`. The deployment command is still `npm run deploy`. Set `base` in `vite.config.ts` if you host it at a different path.
 
+## Cloud: accounts, teams and team media (Supabase)
+
+With a [Supabase](https://supabase.com) project the studio runs from the cloud: people sign in, belong to teams, and every team shares one media library. Without one, nothing changes — the studio runs on this device with no sign-in.
+
+- **Sign in.** Email and password, an emailed sign-in link, or a password reset — all Supabase Auth.
+- **Teams.** **Settings** in the navigation lists your teams. Create one (you are its owner), invite people by email as members or admins, change roles (owner), remove people (admins), rename, leave or delete a team. Invited people get a sign-in link and join as soon as they sign in with that address.
+- **Team media.** The Media gallery gets **Upload** and a **Team uploads** category. Drop or pick PNG, JPEG, WebP, GIF or SVG images (up to 25 MB); everyone in the team can use them in the Chyron editor, the Designer and the Hero image generator, from the gallery or the picker. The uploader and admins can delete them. Files live in a private Storage bucket, read through signed links.
+
+- **Home and team projects.** Signed in, the studio opens on **Home**: the team's projects, most recently saved first, with a thumbnail, who saved it and when, filters and search, and **New chyron / design / hero set**. Every editor's menu gets **Save to <team>** (⌘ S; ⇧⌘ S still saves a file); a project opened from Home saves back over itself. Projects live in the private `team-projects` bucket (up to 50 MB each).
+- **Settings.** Under Profile & security, change your email or password, sign out on every device, or delete your account (it removes the media and projects you added, and the teams you own). A first sign-in without an invitation gets a team of its own, so uploading works straight away. The design system's **Mobile prototype** (formerly the Demo tab, no password any more) is in Settings too, with or without the cloud.
+
+Every table and both buckets are protected by row level security, so people only ever see their own teams.
+
+### Set up
+
+1. Create a Supabase project. In **SQL Editor**, run [`supabase/migrations/20261026000000_teams_media.sql`](supabase/migrations/20261026000000_teams_media.sql) and then [`20261026010000_projects.sql`](supabase/migrations/20261026010000_projects.sql) (or `supabase db push`). They make the tables, policies and the `team-media` and `team-projects` buckets.
+2. In **Authentication › URL Configuration**, set the Site URL to where the studio is hosted (for GitHub Pages `https://massliharf.github.io/chyrongenerator/`) and add `http://localhost:5173/chyrongenerator/` to the redirect URLs for local work.
+3. Locally: copy `.env.example` to `.env.local` and fill in the project URL and anon key (**Project Settings › API**).
+4. For GitHub Pages: add the same two values as repository secrets `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (**Settings › Secrets and variables › Actions**). The deploy workflow passes them to the build.
+
+Supabase's built-in email sender is rate-limited; for a team in daily use, set up your own SMTP under **Authentication › Emails**.
+
 ## What's new in 3.6 — Apps, Hero image generator and a pro timeline
 
 - **Apps.** A new **Apps** place in the navigation lists ready-made tools. Stream images moved here and grew into the Hero image generator; a set made in Stream images opens there with its host, framings, backgrounds and colours.

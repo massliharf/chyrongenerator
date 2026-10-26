@@ -8,6 +8,15 @@ export interface GalleryItem {
   path: string
   thumbPath?: string
   keywords?: string[]
+  /** Absolute address (team uploads: a signed Supabase Storage link). Wins over `path`. */
+  url?: string
+  /** Set on media uploaded to the team's cloud library. */
+  cloud?: {
+    id: string
+    uploadedBy: string
+    sizeBytes: number
+    createdAt: string
+  }
 }
 
 export const GALLERY_ITEMS: GalleryItem[] = [
@@ -862,6 +871,7 @@ export const GALLERY_ITEMS: GalleryItem[] = [
 export const GALLERY_CATEGORIES = Array.from(new Set(GALLERY_ITEMS.map((item) => item.category)))
 
 export function getGalleryItemUrl(item: GalleryItem): string {
+  if (item.url) return item.url
   const base = import.meta.env.BASE_URL.endsWith('/')
     ? import.meta.env.BASE_URL
     : import.meta.env.BASE_URL + '/'
@@ -869,6 +879,7 @@ export function getGalleryItemUrl(item: GalleryItem): string {
 }
 
 export function getGalleryItemThumbUrl(item: GalleryItem): string {
+  if (item.url) return item.url
   const base = import.meta.env.BASE_URL.endsWith('/')
     ? import.meta.env.BASE_URL
     : import.meta.env.BASE_URL + '/'
@@ -889,7 +900,9 @@ export async function fetchGalleryFile(item: GalleryItem): Promise<File> {
         ? 'image/jpeg'
         : item.filename.endsWith('.svg')
           ? 'image/svg+xml'
-          : 'image/png')
+          : item.filename.endsWith('.webp')
+            ? 'image/webp'
+            : 'image/png')
   return new File([blob], item.filename, { type: mimeType })
 }
 

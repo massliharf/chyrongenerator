@@ -7,6 +7,7 @@ import {
   ChevronsUp,
   Circle,
   ClipboardPaste,
+  CloudUpload,
   Copy,
   CornerDownRight,
   Crop,
@@ -56,7 +57,9 @@ import {
   savvyName,
   sendSavvyFile,
   subscribeSavvyFiles,
+  subscribeSavvyNew,
 } from '../utils/savvyFile'
+import { linkOpenedFile, unlinkCloud, useTeamSave } from '../cloud/projects'
 import { center, clampCrop, unionBounds, type Point } from './geometry'
 import { Inspector, type InspectorActions } from './Inspector'
 import { LeftPanel } from './LeftPanel'
@@ -492,6 +495,7 @@ export function DesignEditor({
       const kind = savvyKind(raw)
       if (kind === 'chyron' || kind === 'hero') return sendSavvyFile(kind, file)
       const next = parseDoc(text)
+      if (!board) linkOpenedFile('design', file)
       commit(next)
       setSelection([])
       fit(next)
@@ -505,6 +509,33 @@ export function DesignEditor({
       new Blob([JSON.stringify(pruneAssets(doc))], { type: SAVVY_TYPE }),
       savvyName(fileStem(doc.name)),
     )
+  // Apps on a board save their own documents; the Designer saves designs to the team.
+  const cloudSave = useTeamSave('design', '[data-workspace="designer"] .dz-canvas')
+  const teamSave = board ? null : cloudSave
+  const saveToTeam = async () => {
+    if (!teamSave) return
+    setNotice(`Saving to ${teamSave.teamName}…`)
+    try {
+      const blob = new Blob([JSON.stringify(pruneAssets(doc))], { type: SAVVY_TYPE })
+      setNotice(await teamSave.save(doc.name, blob))
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'The design could not be saved to the team.')
+    }
+  }
+  const startNew = () => {
+    unlinkCloud('design')
+    commit({ ...DEFAULT_DOC, grid: { ...doc.grid } })
+    setSelection([])
+    setNotice('New design. Undo to return to your previous work.')
+  }
+  const startNewRef = useRef(startNew)
+  startNewRef.current = startNew
+  useEffect(() => {
+    if (board || !editor.ready) return
+    return subscribeSavvyNew('design', () => startNewRef.current())
+    // The board never changes for one editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor.ready])
 
   const onGallery = async (item: GalleryItem) => {
     const target = gallery
@@ -801,6 +832,7 @@ export function DesignEditor({
       if (mod && k === 's') {
         e.preventDefault()
         if (board) board.onSave()
+        else if (teamSave && !e.shiftKey) void saveToTeam()
         else saveFile()
         return
       }
@@ -1209,10 +1241,21 @@ export function DesignEditor({
               <MenuButton
                 label="Design menu"
                 items={[
+                  ...(teamSave
+                    ? [
+                        {
+                          label: `Save to ${teamSave.teamName}`,
+                          Icon: CloudUpload,
+                          shortcut: '⌘ S',
+                          hint: 'Your team finds it on Home',
+                          onSelect: () => void saveToTeam(),
+                        },
+                      ]
+                    : []),
                   {
                     label: 'Save design file',
                     Icon: ArrowDownToLine,
-                    shortcut: '⌘ S',
+                    shortcut: teamSave ? '⇧⌘ S' : '⌘ S',
                     onSelect: saveFile,
                   },
                   {
@@ -1223,11 +1266,7 @@ export function DesignEditor({
                   {
                     label: 'New design',
                     Icon: Plus,
-                    onSelect: () => {
-                      commit({ ...DEFAULT_DOC, grid: { ...doc.grid } })
-                      setSelection([])
-                      setNotice('New design. Undo to return to your previous work.')
-                    },
+                    onSelect: startNew,
                   },
                   'separator',
                   {

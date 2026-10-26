@@ -39,8 +39,8 @@ export interface SavedFile {
   missing: boolean
 }
 
-/** Save the project. `choose` asks for a new location even when there is one. */
-export async function saveProjectFile(p: Project, choose = false): Promise<SavedFile | null> {
+/** The project as one .savvy file, with every image and the music inside. */
+export async function projectBlob(p: Project): Promise<{ blob: Blob; missing: boolean }> {
   let assets: Awaited<ReturnType<typeof embedAssets>> | undefined
   let missing = false
   if (imageLayers(p).length || p.audio) {
@@ -50,7 +50,15 @@ export async function saveProjectFile(p: Project, choose = false): Promise<Saved
       missing = true
     }
   }
-  const blob = new Blob([JSON.stringify({ ...p, assets }, null, 2)], { type: SAVVY_TYPE })
+  return {
+    blob: new Blob([JSON.stringify({ ...p, assets }, null, 2)], { type: SAVVY_TYPE }),
+    missing,
+  }
+}
+
+/** Save the project. `choose` asks for a new location even when there is one. */
+export async function saveProjectFile(p: Project, choose = false): Promise<SavedFile | null> {
+  const { blob, missing } = await projectBlob(p)
   const filename = savvyName(fileStem(p.name))
   const show = picker()
   if (show) {

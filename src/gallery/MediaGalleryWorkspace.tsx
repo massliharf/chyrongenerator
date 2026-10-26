@@ -11,6 +11,8 @@ import {
   LoaderCircle,
   PenTool,
   Search,
+  Trash2,
+  Upload,
   X,
 } from 'lucide-react'
 import type { Workspace } from '../components/WorkspaceNav'
@@ -27,6 +29,8 @@ import {
   downloadGalleryZip,
   type GalleryItem,
 } from '../studio/galleryData'
+import { useCloud } from '../cloud/useCloud'
+import { MEDIA_CATEGORY, MEDIA_TYPES } from '../cloud/client'
 
 interface MediaGalleryWorkspaceProps {
   active: boolean
@@ -46,10 +50,67 @@ export default function MediaGalleryWorkspace({
   const [zipProgress, setZipProgress] = useState('')
   const [imageMeta, setImageMeta] = useState<{ width: number; height: number } | null>(null)
   const previewDialogRef = useRef<HTMLDialogElement>(null)
+  const cloud = useCloud()
+  const uploadInput = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ text: string; danger?: boolean } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  // Team uploads, when signed in to a team, come before the built-in assets.
+  const canUpload = cloud.status === 'signed-in' && cloud.team !== null
+  const { media: teamMedia, refreshMedia } = cloud
+  const allItems = useMemo(() => [...teamMedia, ...GALLERY_ITEMS], [teamMedia])
+
+  // Someone else in the team may have added media meanwhile.
+  useEffect(() => {
+    if (!active || !canUpload) return
+    const timer = setTimeout(() => void refreshMedia(), 0)
+    return () => clearTimeout(timer)
+  }, [active, canUpload, refreshMedia])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), notice.danger ? 8000 : 4000)
+    return () => clearTimeout(timer)
+  }, [notice])
+
+  const handleUpload = async (files: File[]) => {
+    if (!canUpload || uploading || files.length === 0) return
+    setUploading(`0/${files.length}`)
+    try {
+      const result = await cloud.upload(files, (done, total) => setUploading(`${done}/${total}`))
+      setSelectedCategory(MEDIA_CATEGORY)
+      setSearchQuery('')
+      if (result.failed.length)
+        setNotice({
+          danger: true,
+          text:
+            `${result.uploaded ? `Uploaded ${result.uploaded}. ` : ''}` +
+            result.failed.map((f) => `${f.name}: ${f.reason}`).join(' · '),
+        })
+      else
+        setNotice({
+          text: `Uploaded ${result.uploaded} ${result.uploaded === 1 ? 'image' : 'images'} to ${cloud.team?.name}.`,
+        })
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleDelete = async (item: GalleryItem) => {
+    if (!window.confirm(`Delete ${item.name} from ${cloud.team?.name ?? 'the team'} for everyone?`))
+      return
+    try {
+      await cloud.removeMedia(item)
+      setPreviewItem(null)
+      setNotice({ text: `Deleted ${item.name}.` })
+    } catch (error) {
+      setNotice({ danger: true, text: error instanceof Error ? error.message : String(error) })
+    }
+  }
 
   // Filter items
   const filteredItems = useMemo(() => {
-    return GALLERY_ITEMS.filter((item) => {
+    return allItems.filter((item) => {
       // Category
       if (selectedCategory !== 'All' && item.category !== selectedCategory) {
         return false
@@ -65,16 +126,19 @@ export default function MediaGalleryWorkspace({
       }
       return true
     })
-  }, [selectedCategory, searchQuery])
+  }, [allItems, selectedCategory, searchQuery])
 
   // Count by category
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { All: GALLERY_ITEMS.length }
+    const counts: Record<string, number> = {
+      All: allItems.length,
+      [MEDIA_CATEGORY]: teamMedia.length,
+    }
     for (const cat of GALLERY_CATEGORIES) {
       counts[cat] = GALLERY_ITEMS.filter((i) => i.category === cat).length
     }
     return counts
-  }, [])
+  }, [allItems, teamMedia])
 
   // Download individual asset
   const handleDownloadItem = async (item: GalleryItem) => {
@@ -114,7 +178,7 @@ export default function MediaGalleryWorkspace({
 
   // Copy path or link
   const handleCopyPath = (item: GalleryItem) => {
-    navigator.clipboard.writeText(item.path)
+    navigator.clipboard.writeText(item.url ?? item.path)
     setCopiedId(item.id)
     setTimeout(() => {
       setCopiedId((curr) => (curr === item.id ? null : curr))
@@ -154,7 +218,9 @@ export default function MediaGalleryWorkspace({
     }
   }, [previewItem])
 
-  const categories = ['All', ...GALLERY_CATEGORIES]
+  const categories = canUpload
+    ? ['All', MEDIA_CATEGORY, ...GALLERY_CATEGORIES]
+    : ['All', ...GALLERY_CATEGORIES]
   const title = selectedCategory === 'All' ? 'All media' : selectedCategory
   const resetFilters = () => {
     setSelectedCategory('All')
@@ -165,24 +231,56 @@ export default function MediaGalleryWorkspace({
     <div className="workspace-root gallery-root" data-active={active}>
       <TopBar
         actions={
-          <button
-            type="button"
-            className="button primary topbar-primary"
-            disabled={downloadingZip || filteredItems.length === 0}
-            onClick={handleDownloadZip}
-            aria-label={`Download ${filteredItems.length} assets as ZIP`}
-            title={`Download ${filteredItems.length} assets as ZIP`}
-          >
-            {downloadingZip ? (
-              <LoaderCircle size={18} className="spin" aria-hidden="true" />
-            ) : (
-              <Archive size={18} aria-hidden="true" />
+          <>
+            {canUpload && (
+              <>
+                <input
+                  ref={uploadInput}
+                  type="file"
+                  accept={MEDIA_TYPES.join(',')}
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? [])
+                    e.target.value = ''
+                    void handleUpload(files)
+                  }}
+                />
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={uploading !== null}
+                  onClick={() => uploadInput.current?.click()}
+                  title={`Upload images to ${cloud.team?.name}`}
+                >
+                  {uploading ? (
+                    <LoaderCircle size={18} className="spin" aria-hidden="true" />
+                  ) : (
+                    <Upload size={18} aria-hidden="true" />
+                  )}
+                  <span className="label">{uploading ? `Uploading ${uploading}` : 'Upload'}</span>
+                </button>
+              </>
             )}
-            <span className="label">
-              {downloadingZip ? `Zipping ${zipProgress}` : 'Download ZIP'}
-            </span>
-            {!downloadingZip && <span className="count-badge">{filteredItems.length}</span>}
-          </button>
+            <button
+              type="button"
+              className="button primary topbar-primary"
+              disabled={downloadingZip || filteredItems.length === 0}
+              onClick={handleDownloadZip}
+              aria-label={`Download ${filteredItems.length} assets as ZIP`}
+              title={`Download ${filteredItems.length} assets as ZIP`}
+            >
+              {downloadingZip ? (
+                <LoaderCircle size={18} className="spin" aria-hidden="true" />
+              ) : (
+                <Archive size={18} aria-hidden="true" />
+              )}
+              <span className="label">
+                {downloadingZip ? `Zipping ${zipProgress}` : 'Download ZIP'}
+              </span>
+              {!downloadingZip && <span className="count-badge">{filteredItems.length}</span>}
+            </button>
+          </>
         }
       >
         <h1 className="topbar-title">Media gallery</h1>
@@ -190,7 +288,7 @@ export default function MediaGalleryWorkspace({
           <Search size={18} className="search-field-icon" aria-hidden="true" />
           <input
             type="search"
-            placeholder={`Search ${GALLERY_ITEMS.length} assets`}
+            placeholder={`Search ${allItems.length} assets`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search media assets"
@@ -230,7 +328,24 @@ export default function MediaGalleryWorkspace({
           </ul>
         </nav>
 
-        <main className="gallery-main" aria-labelledby="gallery-title">
+        <main
+          className={`gallery-main ${dragging ? 'is-dropping' : ''}`}
+          aria-labelledby="gallery-title"
+          onDragOver={(e) => {
+            if (!canUpload || !e.dataTransfer.types.includes('Files')) return
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false)
+          }}
+          onDrop={(e) => {
+            if (!canUpload) return
+            e.preventDefault()
+            setDragging(false)
+            void handleUpload(Array.from(e.dataTransfer.files))
+          }}
+        >
           <div className="page-header">
             <h2 id="gallery-title">{title}</h2>
             <span role="status">
@@ -239,7 +354,25 @@ export default function MediaGalleryWorkspace({
             </span>
           </div>
 
-          {filteredItems.length === 0 ? (
+          {filteredItems.length === 0 &&
+          selectedCategory === MEDIA_CATEGORY &&
+          !searchQuery.trim() ? (
+            <div className="empty-state">
+              <Upload size={48} aria-hidden="true" />
+              <strong>{cloud.mediaLoading ? 'Loading team media…' : 'No team uploads yet'}</strong>
+              <span>
+                Drop images here or upload them: everyone in {cloud.team?.name} can use them in the
+                Chyron editor, the Designer and the Hero image generator.
+              </span>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => uploadInput.current?.click()}
+              >
+                <Upload size={16} aria-hidden="true" /> Upload images
+              </button>
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className="empty-state">
               <ImageIcon size={48} aria-hidden="true" />
               <strong>No assets match</strong>
@@ -302,6 +435,20 @@ export default function MediaGalleryWorkspace({
         </main>
       </div>
 
+      {notice && (
+        <div className={`toast ${notice.danger ? 'toast-danger' : ''}`} role="status">
+          <span>{notice.text}</span>
+          <button
+            type="button"
+            className="icon-button sm"
+            aria-label="Dismiss"
+            onClick={() => setNotice(null)}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Lightbox / Detail Inspection Dialog */}
       <dialog
         ref={previewDialogRef}
@@ -349,8 +496,26 @@ export default function MediaGalleryWorkspace({
                 onClick={() => handleCopyPath(previewItem)}
               >
                 {copiedId === previewItem.id ? <Check size={16} /> : <Copy size={16} />}
-                <span>{copiedId === previewItem.id ? 'Path copied' : 'Copy path'}</span>
+                <span>
+                  {copiedId === previewItem.id
+                    ? previewItem.url
+                      ? 'Link copied'
+                      : 'Path copied'
+                    : previewItem.url
+                      ? 'Copy link'
+                      : 'Copy path'}
+                </span>
               </button>
+              {cloud.canDelete(previewItem) && (
+                <button
+                  type="button"
+                  className="button ghost danger-text"
+                  onClick={() => void handleDelete(previewItem)}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  <span>Delete</span>
+                </button>
+              )}
               <span className="dialog-footer-spacer" />
               <MenuButton
                 label="Use in…"

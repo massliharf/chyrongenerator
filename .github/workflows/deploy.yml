@@ -1,9 +1,9 @@
-# Every push to main builds the site and publishes it to GitHub Pages (no gh-pages branch).
+# Every push to main or v2 (the default branch) builds the site and publishes it to GitHub Pages (no gh-pages branch).
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   workflow_dispatch:
 
 permissions:
@@ -26,6 +26,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Supabase project (Settings › API). Without them the site runs on-device only.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

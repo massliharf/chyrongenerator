@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CloudUpload,
   Copy,
   Download,
   FileImage,
@@ -31,7 +32,9 @@ import {
   savvyKind,
   savvyName,
   sendSavvyFile,
+  subscribeSavvyNew,
 } from '../../utils/savvyFile'
+import { linkOpenedFile, unlinkCloud, useTeamSave } from '../../cloud/projects'
 import { generateId } from '../../utils/id'
 import {
   HERO_SIZES,
@@ -208,11 +211,34 @@ export function HeroApp({
   }
 
   /* ---------- Files ---------- */
-  const save = () => {
+  const saveFile = () => {
     const file = savvyName(fileStem(set.name))
     saveBlob(new Blob([JSON.stringify(pruneHeroAssets(set))], { type: SAVVY_TYPE }), file)
     setNotice(`Saved ${file} to your downloads folder.`)
   }
+  const teamSave = useTeamSave('hero', '[data-workspace="apps"] .hero-thumb')
+  const saveToTeam = async () => {
+    if (!teamSave) return
+    setNotice(`Saving to ${teamSave.teamName}…`)
+    try {
+      const blob = new Blob([JSON.stringify(pruneHeroAssets(set))], { type: SAVVY_TYPE })
+      setNotice(await teamSave.save(set.name, blob))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The set could not be saved to the team.')
+    }
+  }
+  /** ⌘ S: to the team when signed in, otherwise a file. */
+  const save = () => (teamSave ? void saveToTeam() : saveFile())
+  const startNew = () => {
+    unlinkCloud('hero')
+    hero.replace(defaultSet())
+    setFocus((n) => n + 1)
+    setNotice('New set. Undo to return to your previous work.')
+  }
+  const startNewRef = useRef(startNew)
+  useEffect(() => {
+    startNewRef.current = startNew
+  })
   const openFile = async (file: File) => {
     try {
       const text = await file.text()
@@ -225,6 +251,7 @@ export function HeroApp({
       const kind = savvyKind(raw)
       if (kind === 'chyron' || kind === 'design') return sendSavvyFile(kind, file)
       hero.replace(parseHero(text))
+      linkOpenedFile('hero', file)
       setFocus((n) => n + 1)
       setNotice(`Opened ${file.name}. Undo to go back.`)
     } catch (e) {
@@ -240,6 +267,11 @@ export function HeroApp({
     void openRef.current(incoming)
     onIncomingDone()
   }, [incoming, editor.ready, onIncomingDone])
+  // A new set asked for on Home, once the editor is ready.
+  useEffect(() => {
+    if (!editor.ready) return
+    return subscribeSavvyNew('hero', () => startNewRef.current())
+  }, [editor.ready])
 
   /* ---------- Artboards ---------- */
   const show = (id: string) => {
@@ -381,12 +413,23 @@ export function HeroApp({
         <MenuButton
           label="Set menu"
           items={[
+            ...(teamSave
+              ? [
+                  {
+                    label: `Save to ${teamSave.teamName}`,
+                    Icon: CloudUpload,
+                    shortcut: '⌘ S',
+                    hint: 'Your team finds it on Home',
+                    onSelect: () => void saveToTeam(),
+                  },
+                ]
+              : []),
             {
               label: 'Save set file',
               Icon: ArrowDownToLine,
-              shortcut: '⌘ S',
+              shortcut: teamSave ? undefined : '⌘ S',
               hint: 'One .savvy with every artboard and picture',
-              onSelect: save,
+              onSelect: saveFile,
             },
             {
               label: 'Open set file',
@@ -397,11 +440,7 @@ export function HeroApp({
               label: 'New set',
               Icon: Plus,
               hint: 'Hero image, host card and stream image',
-              onSelect: () => {
-                hero.replace(defaultSet())
-                setFocus((n) => n + 1)
-                setNotice('New set. Undo to return to your previous work.')
-              },
+              onSelect: startNew,
             },
           ]}
         >

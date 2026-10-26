@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
+  CloudUpload,
   ArrowUpFromLine,
   ChevronDown,
   Clapperboard,
@@ -40,6 +41,13 @@ import { BackgroundRemovalDialog } from './components/BackgroundRemovalDialog'
 import MediaGalleryWorkspace from './gallery/MediaGalleryWorkspace'
 import DesignerWorkspace from './designer/DesignerWorkspace'
 import AppsWorkspace from './apps/AppsWorkspace'
+import SettingsWorkspace from './cloud/SettingsWorkspace'
+import { CloudProvider } from './cloud/CloudProvider'
+import { AuthLoading, AuthScreen, NewPasswordScreen } from './cloud/AuthScreen'
+import { useCloud } from './cloud/useCloud'
+import { cloudEnabled } from './cloud/client'
+import { linkOpenedFile, unlinkCloud, useTeamSave } from './cloud/projects'
+import HomeWorkspace from './cloud/HomeWorkspace'
 import {
   DEFAULT_AUDIO,
   DEFAULT_PROJECT,
@@ -110,6 +118,7 @@ import {
 import {
   canChooseLocation,
   forgetProjectFile,
+  projectBlob,
   saveProjectFile,
   type SavedFile,
 } from './studio/projectFile'
@@ -123,6 +132,7 @@ import {
   savvyKind,
   sendSavvyFile,
   subscribeSavvyFiles,
+  subscribeSavvyNew,
 } from './utils/savvyFile'
 import { MediaGalleryModal } from './components/MediaGalleryModal'
 import { fetchGalleryFile, type GalleryItem } from './studio/galleryData'
@@ -542,6 +552,7 @@ function ChyronEditor({ active }: { active: boolean }) {
       }
       const imported = parseProject(json)
       await restoreEmbeddedAssets((raw as { assets?: unknown }).assets)
+      linkOpenedFile('chyron', file)
       forgetProjectFile()
       setLastSaved(null)
       replace(imported)
@@ -552,6 +563,18 @@ function ChyronEditor({ active }: { active: boolean }) {
       setNotice(error instanceof Error ? error.message : 'Unable to open this file.')
     }
   }
+  const startNew = () => {
+    unlinkCloud('chyron')
+    forgetProjectFile()
+    setLastSaved(null)
+    replace({ ...DEFAULT_PROJECT })
+    playback.seek(restTime(DEFAULT_PROJECT))
+    setSelection(PRIMARY_CHYRON)
+    setNotice('New composition. Undo to return to your previous work.')
+  }
+  const startNewRef = useRef(startNew)
+  startNewRef.current = startNew
+  useEffect(() => subscribeSavvyNew('chyron', () => startNewRef.current()), [])
   const openProjectRef = useRef(openProject)
   openProjectRef.current = openProject
   // Project files opened in another editor that belong here.
@@ -599,6 +622,23 @@ function ChyronEditor({ active }: { active: boolean }) {
     // Only on first open: undo history within the session may still refer to files.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  const teamSave = useTeamSave(
+    'chyron',
+    '[data-workspace="chyron"] .composition:not(.thumbnail-composition) > canvas',
+  )
+  const saveToTeam = async () => {
+    if (!teamSave) return
+    setNotice(`Saving to ${teamSave.teamName}…`)
+    try {
+      const { blob, missing } = await projectBlob(project)
+      const done = await teamSave.save(project.name, blob)
+      setNotice(missing ? `${done} Some images or music could not be included.` : done)
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : 'The project could not be saved to the team.',
+      )
+    }
+  }
   const saveProject = async (choose = false) => {
     try {
       const saved = await saveProjectFile(project, choose)
@@ -626,7 +666,9 @@ function ChyronEditor({ active }: { active: boolean }) {
       if (exportOpen || help || storageOpen || cutoutId || contextItems.length) return
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        void saveProject(event.shiftKey)
+        // Signed in, ⌘ S saves to the team; ⇧⌘ S always saves a file.
+        if (teamSave && !event.shiftKey) void saveToTeam()
+        else void saveProject(event.shiftKey)
         return
       }
       // Space plays and pauses from anywhere, also right after clicking a button or
@@ -838,10 +880,21 @@ function ChyronEditor({ active }: { active: boolean }) {
           <MenuButton
             label="Project menu"
             items={[
+              ...(teamSave
+                ? [
+                    {
+                      label: `Save to ${teamSave.teamName}`,
+                      Icon: CloudUpload,
+                      shortcut: '⌘ S',
+                      hint: 'Your team finds it on Home',
+                      onSelect: () => void saveToTeam(),
+                    },
+                  ]
+                : []),
               {
                 label: 'Save project file',
                 Icon: ArrowDownToLine,
-                shortcut: '⌘ S',
+                shortcut: teamSave ? undefined : '⌘ S',
                 hint: 'One .savvy file with every image and the music',
                 onSelect: () => void saveProject(),
               },
@@ -864,14 +917,7 @@ function ChyronEditor({ active }: { active: boolean }) {
               {
                 label: 'New composition',
                 Icon: Plus,
-                onSelect: () => {
-                  forgetProjectFile()
-                  setLastSaved(null)
-                  replace({ ...DEFAULT_PROJECT })
-                  playback.seek(restTime(DEFAULT_PROJECT))
-                  setSelection(PRIMARY_CHYRON)
-                  setNotice('New composition. Undo to return to your previous work.')
-                },
+                onSelect: startNew,
               },
               'separator',
               {
@@ -1397,11 +1443,47 @@ function ChyronEditor({ active }: { active: boolean }) {
     </div>
   )
 }
+/** With a Supabase project the studio opens after sign-in; without one it opens straight away. */
 function App() {
+  return (
+    <CloudProvider>
+      <CloudGate />
+    </CloudProvider>
+  )
+}
+
+function CloudGate() {
+  const { status, refreshTeams } = useCloud()
+  const [recovered, setRecovered] = useState(false)
+  if (status === 'loading') return <AuthLoading />
+  if (status === 'signed-out') return <AuthScreen />
+  if (status === 'recovery' && !recovered)
+    return (
+      <NewPasswordScreen
+        onDone={() => {
+          setRecovered(true)
+          void refreshTeams()
+        }}
+      />
+    )
+  return <Studio />
+}
+
+function Studio() {
   const [workspace, setWorkspace] = useState<Workspace>(() => {
+    // Signed in, the studio always opens on Home: the team's latest projects.
+    if (cloudEnabled) return 'home'
     try {
       const stored = localStorage.getItem('chyron-studio:workspace')
-      if (stored === 'gallery' || stored === 'designer' || stored === 'apps' || stored === 'demo') return stored
+      if (
+        stored === 'gallery' ||
+        stored === 'designer' ||
+        stored === 'apps' ||
+        stored === 'settings'
+      )
+        return stored
+      // The design system demo moved into Settings.
+      if (stored === 'demo') return 'settings'
       // Stream images grew into the Hero image generator, under Apps.
       if (stored === 'stream') {
         localStorage.setItem('chyron-studio:app', 'hero')
@@ -1415,13 +1497,15 @@ function App() {
   const [galleryVisited, setGalleryVisited] = useState(workspace === 'gallery')
   const [designerVisited, setDesignerVisited] = useState(workspace === 'designer')
   const [appsVisited, setAppsVisited] = useState(workspace === 'apps')
-  const [demoVisited, setDemoVisited] = useState(workspace === 'demo')
+  const [settingsVisited, setSettingsVisited] = useState(workspace === 'settings')
+  const [homeVisited, setHomeVisited] = useState(workspace === 'home')
   const changeWorkspace = (next: Workspace) => {
     if (next === workspace) return
     if (next === 'gallery') setGalleryVisited(true)
     if (next === 'designer') setDesignerVisited(true)
     if (next === 'apps') setAppsVisited(true)
-    if (next === 'demo') setDemoVisited(true)
+    if (next === 'settings') setSettingsVisited(true)
+    if (next === 'home') setHomeVisited(true)
     setWorkspace(next)
     try {
       localStorage.setItem('chyron-studio:workspace', next)
@@ -1443,8 +1527,17 @@ function App() {
   )
   return (
     <div className="app-shell">
-      <AppNav current={workspace} onChange={changeWorkspace} />
+      <AppNav
+        current={workspace}
+        onChange={changeWorkspace}
+        hidden={cloudEnabled ? [] : ['home']}
+      />
       <div className="app-content">
+        {homeVisited && cloudEnabled && (
+          <div className="workspace-slot" data-workspace="home" hidden={workspace !== 'home'}>
+            <HomeWorkspace active={workspace === 'home'} />
+          </div>
+        )}
         <div className="workspace-slot" data-workspace="chyron" hidden={workspace !== 'chyron'}>
           <ChyronEditor active={workspace === 'chyron'} />
         </div>
@@ -1462,14 +1555,13 @@ function App() {
             <AppsWorkspace active={workspace === 'apps'} />
           </div>
         )}
-        {demoVisited && (
-          <div className="workspace-slot" data-workspace="demo" hidden={workspace !== 'demo'}>
-            {/* The design system demo (password protected), shown inside the app */}
-            <iframe
-              className="demo-frame"
-              title="Design system demo"
-              src={`${import.meta.env.BASE_URL}designsystemcheck/`}
-            />
+        {settingsVisited && (
+          <div
+            className="workspace-slot"
+            data-workspace="settings"
+            hidden={workspace !== 'settings'}
+          >
+            <SettingsWorkspace active={workspace === 'settings'} />
           </div>
         )}
         {galleryVisited && (

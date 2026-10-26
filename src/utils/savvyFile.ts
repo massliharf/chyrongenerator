@@ -55,3 +55,30 @@ export function subscribeSavvyFiles(kind: SavvyKind, open: (file: File) => void)
   window.addEventListener(EVENT, drain)
   return () => window.removeEventListener(EVENT, drain)
 }
+
+/* ---------- New documents from Home ---------- */
+
+const NEW_EVENT = 'savvy:new'
+const pendingNew = new Set<SavvyKind>()
+
+/** Shows an editor with a new, empty document (it may mount only now). */
+export function requestNewSavvy(kind: SavvyKind) {
+  pendingNew.add(kind)
+  showEditor?.(kind)
+  window.dispatchEvent(new Event(NEW_EVENT))
+}
+
+/** Whether a new document is waiting for an editor. */
+export const hasNewSavvy = (kind: SavvyKind) => pendingNew.has(kind)
+export const SAVVY_NEW_EVENT = NEW_EVENT
+
+/** An editor starts a new document when asked, including before it mounted. */
+export function subscribeSavvyNew(kind: SavvyKind, start: () => void) {
+  const drain = () => {
+    if (!pendingNew.delete(kind)) return
+    start()
+  }
+  drain()
+  window.addEventListener(NEW_EVENT, drain)
+  return () => window.removeEventListener(NEW_EVENT, drain)
+}

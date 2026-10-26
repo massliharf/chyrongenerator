@@ -1,0 +1,387 @@
+/* Cloud: sign-in, the Team workspace and dropping uploads on the Media gallery. */
+
+/* ---------- Sign-in ---------- */
+.auth-page {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: var(--space-6) var(--space-4);
+  background: var(--color-bg-canvas);
+}
+.auth-theme {
+  position: absolute;
+  top: var(--space-3);
+  inset-inline-end: var(--space-3);
+}
+.auth-card {
+  display: grid;
+  gap: var(--space-5);
+  width: min(400px, 100%);
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  background: var(--color-bg-surface);
+  border: var(--border-width-thin) solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+.auth-logo {
+  width: 40px;
+  height: 40px;
+}
+.auth-header h1 {
+  font: var(--text-heading-lg);
+  font-weight: var(--weight-semibold);
+}
+.auth-header p {
+  margin-top: var(--space-1);
+  font: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+.auth-tabs > button {
+  min-height: var(--control-sm);
+}
+.auth-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.auth-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-3)) 0;
+}
+.auth-footer:empty {
+  display: none;
+}
+@media (max-width: 767px) {
+  .auth-card {
+    padding: var(--space-6) var(--space-4) var(--space-4);
+  }
+}
+
+/* ---------- Team ---------- */
+.team-account {
+  min-width: 0;
+  overflow: hidden;
+  font: var(--text-body-sm);
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-new {
+  justify-content: flex-start;
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+.team-main {
+  display: grid;
+  align-content: start;
+}
+.team-details {
+  display: grid;
+  gap: var(--space-6);
+  max-width: 720px;
+}
+.team-details > .page-header {
+  margin-bottom: 0;
+}
+.team-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-thin) solid var(--color-border-subtle);
+}
+.team-section h3 {
+  font: var(--text-heading-sm);
+}
+.team-section-lead {
+  margin-top: calc(-1 * var(--space-2));
+  font: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+.team-inline-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.team-inline-form > .field {
+  flex: 1 1 240px;
+}
+.team-inline-form > .team-role-field {
+  flex: 0 0 132px;
+}
+.team-form-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.team-list {
+  display: grid;
+  gap: var(--space-0-5);
+  list-style: none;
+}
+.team-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-lg);
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-md);
+}
+.team-list > li:hover {
+  background: var(--color-state-hover);
+}
+.team-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-md);
+  height: var(--control-md);
+  font: var(--text-label-md);
+  color: var(--brand-700);
+  background: var(--brand-50);
+  border-radius: var(--radius-full);
+}
+.team-avatar.is-pending {
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-control);
+}
+.team-person {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.team-person strong {
+  overflow: hidden;
+  font: var(--text-label-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-person span {
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.team-list .team-role-field {
+  flex: 0 0 120px;
+}
+.team-create {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  max-width: 520px;
+  margin: var(--space-12) auto;
+  text-align: center;
+}
+.team-create > svg {
+  color: var(--color-text-tertiary);
+}
+.team-create h2 {
+  font: var(--text-heading-lg);
+  font-weight: var(--weight-semibold);
+}
+.team-create p {
+  font: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+.team-create .team-inline-form {
+  width: 100%;
+  margin-top: var(--space-3);
+  text-align: start;
+}
+@media (max-width: 1023px) {
+  .team-root .gallery-categories {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .team-new {
+    flex: none;
+    width: auto;
+    min-height: var(--control-sm);
+    margin-top: 0;
+  }
+}
+@media (max-width: 767px) {
+  .team-account {
+    display: none;
+  }
+}
+
+/* Avatars on the dark theme: the brand tint on the surface. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .team-avatar:not(.is-pending) {
+    color: var(--blue-300);
+    background: color-mix(in srgb, var(--blue-500) 18%, transparent);
+  }
+}
+:root[data-theme='dark'] .team-avatar:not(.is-pending) {
+  color: var(--blue-300);
+  background: color-mix(in srgb, var(--blue-500) 18%, transparent);
+}
+
+/* ---------- Media gallery: dropping files to upload ---------- */
+.gallery-main.is-dropping {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 25%, transparent);
+}
+
+/* Account navigation: Profile above the teams. */
+.team-nav-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-nav-heading {
+  margin-top: var(--space-4);
+}
+@media (max-width: 1023px) {
+  .team-root .gallery-categories ul {
+    flex: none;
+  }
+}
+
+/* ---------- Home ---------- */
+.home-main {
+  padding: var(--space-10) var(--space-6);
+}
+.home-inner {
+  display: grid;
+  gap: var(--space-8);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.home-intro h2 {
+  font: var(--text-display);
+}
+.home-intro p {
+  margin-top: var(--space-1);
+  font: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+.home-starts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--space-3);
+  list-style: none;
+}
+.home-start {
+  align-items: center;
+  padding: var(--space-4);
+}
+.home-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.home-toolbar h3 {
+  flex: 1 0 auto;
+  font: var(--text-heading-md);
+}
+.home-filter > button {
+  flex: none;
+  min-height: var(--control-sm);
+}
+.home-search {
+  width: 220px;
+}
+.home-main .alert {
+  margin-bottom: var(--space-4);
+}
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+}
+.project-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-lg);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.project-card:hover {
+  background: var(--color-bg-control-hover);
+}
+.project-card-main {
+  display: block;
+  width: 100%;
+  text-align: start;
+}
+.project-card-main:focus-visible {
+  outline-offset: -2px;
+  border-radius: var(--radius-lg);
+}
+.project-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: repeating-conic-gradient(var(--color-bg-control) 0 25%, transparent 0 50%) 0 0 / 16px
+    16px;
+}
+.project-thumb img {
+  width: calc(100% - 2 * var(--space-3));
+  height: calc(100% - 2 * var(--space-3));
+  object-fit: contain;
+}
+.project-opening {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-bg-surface) 60%, transparent);
+}
+.project-text {
+  display: grid;
+  gap: var(--space-0-5);
+  padding: var(--space-2) var(--space-10) var(--space-3) var(--space-3);
+}
+.project-text strong {
+  overflow: hidden;
+  font: var(--text-label-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: var(--text-caption);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.project-text span svg {
+  display: inline;
+  vertical-align: -2px;
+}
+.project-more {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+}
+@media (max-width: 767px) {
+  .home-main {
+    padding: var(--space-6) var(--space-3);
+  }
+  .home-search {
+    width: 100%;
+  }
+  .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+}
+
+/* Settings › Mobile prototype: the demo fills the panel, edge to edge. */
+.team-main.is-prototype {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+.team-main .demo-frame[hidden] {
+  display: none;
+}
